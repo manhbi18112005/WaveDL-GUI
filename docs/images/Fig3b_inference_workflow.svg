@@ -1,0 +1,1204 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="0 0 720 482.0438"
+   width="190mm"
+   height="127mm"
+   version="1.1"
+   id="svg82"
+   sodipodi:docname="Fig3b_inference_workflow.svg"
+   inkscape:version="1.3.2 (091e20e, 2023-11-25)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview82"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="1.1127646"
+     inkscape:cx="313.63326"
+     inkscape:cy="387.77293"
+     inkscape:window-width="1392"
+     inkscape:window-height="1212"
+     inkscape:window-x="51"
+     inkscape:window-y="31"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="svg82" />
+  <defs
+     id="defs38">
+    <!-- Premium Multi-stop Gradients -->
+    <linearGradient
+       id="userGrad"
+       x1="0"
+       y1="0"
+       x2="0"
+       y2="69.282028"
+       gradientTransform="matrix(1.1547005,0,0,0.8660254,19.95742,34.95742)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#60a5fa"
+         id="stop1" />
+      <stop
+         offset="50%"
+         stop-color="#3b82f6"
+         id="stop2" />
+      <stop
+         offset="100%"
+         stop-color="#2563eb"
+         id="stop3" />
+    </linearGradient>
+    <linearGradient
+       id="testGrad"
+       x1="0"
+       y1="0"
+       x2="0"
+       y2="71.414284"
+       gradientTransform="matrix(1.1902381,0,0,0.84016805,129.9574,34.95742)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#34d399"
+         id="stop4" />
+      <stop
+         offset="50%"
+         stop-color="#10b981"
+         id="stop5" />
+      <stop
+         offset="100%"
+         stop-color="#059669"
+         id="stop6" />
+    </linearGradient>
+    <linearGradient
+       id="dataGrad"
+       x1="0"
+       y1="0"
+       x2="0"
+       y2="79.372536"
+       gradientTransform="matrix(1.3228757,0,0,0.75592895,249.9574,34.95742)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#2dd4bf"
+         id="stop7" />
+      <stop
+         offset="50%"
+         stop-color="#14b8a6"
+         id="stop8" />
+      <stop
+         offset="100%"
+         stop-color="#0d9488"
+         id="stop9" />
+    </linearGradient>
+    <linearGradient
+       id="checkpointGrad"
+       x1="0"
+       y1="0"
+       x2="0"
+       y2="79.372536"
+       gradientTransform="matrix(1.5400607,0,0,0.75592895,381.33816,34.95742)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#a78bfa"
+         id="stop10" />
+      <stop
+         offset="50%"
+         stop-color="#8b5cf6"
+         id="stop11" />
+      <stop
+         offset="100%"
+         stop-color="#7c3aed"
+         id="stop12" />
+    </linearGradient>
+    <linearGradient
+       id="modelGrad"
+       x1="0"
+       y1="0"
+       x2="0"
+       y2="69.282028"
+       gradientTransform="matrix(1.1547005,0,0,0.8660254,529.9574,34.95742)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#f472b6"
+         id="stop13" />
+      <stop
+         offset="50%"
+         stop-color="#ec4899"
+         id="stop14" />
+      <stop
+         offset="100%"
+         stop-color="#db2777"
+         id="stop15" />
+    </linearGradient>
+    <linearGradient
+       id="outputGrad"
+       x1="0"
+       y1="0"
+       x2="0"
+       y2="57.445625"
+       gradientTransform="matrix(1.0965025,0,0,1.0444659,640.96279,34.95742)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#fbbf24"
+         id="stop16" />
+      <stop
+         offset="50%"
+         stop-color="#f59e0b"
+         id="stop17" />
+      <stop
+         offset="100%"
+         stop-color="#d97706"
+         id="stop18" />
+    </linearGradient>
+    <linearGradient
+       id="loopGrad"
+       x1="-0.3878023"
+       y1="-2.5786335"
+       x2="-0.3878023"
+       y2="195.97614"
+       gradientTransform="matrix(2.1676177,0,0,0.48675039,157.85303,309.98459)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#dcfce7"
+         id="stop19" />
+      <stop
+         offset="100%"
+         stop-color="#bbf7d0"
+         id="stop20" />
+    </linearGradient>
+    <linearGradient
+       id="msgBlue"
+       x1="40.973289"
+       y1="-52.71117"
+       x2="86.722603"
+       y2="-52.71117"
+       gradientTransform="matrix(1.9891007,0,0,0.50273975,-10.042579,124.9574)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#dbeafe"
+         id="stop21" />
+      <stop
+         offset="100%"
+         stop-color="#eff6ff"
+         id="stop22" />
+    </linearGradient>
+    <linearGradient
+       id="msgGreen"
+       x1="97.649765"
+       y1="-54.139915"
+       x2="144.63913"
+       y2="-54.139915"
+       gradientTransform="matrix(2.0430157,0,0,0.48947251,-10.042579,169.9574)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#d1fae5"
+         id="stop23" />
+      <stop
+         offset="100%"
+         stop-color="#ecfdf5"
+         id="stop24" />
+    </linearGradient>
+    <linearGradient
+       id="msgTeal"
+       x1="98.238625"
+       y1="-51.000816"
+       x2="141.95361"
+       y2="-51.000816"
+       gradientTransform="matrix(2.081666,0,0,0.48038446,-10.042579,209.9574)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#ccfbf1"
+         id="stop25" />
+      <stop
+         offset="100%"
+         stop-color="#f0fdfa"
+         id="stop26" />
+    </linearGradient>
+    <linearGradient
+       id="msgPurple"
+       x1="0"
+       y1="0"
+       x2="1"
+       y2="0">
+      <stop
+         offset="0%"
+         stop-color="#ede9fe"
+         id="stop27" />
+      <stop
+         offset="100%"
+         stop-color="#f5f3ff"
+         id="stop28" />
+    </linearGradient>
+    <linearGradient
+       id="msgPink"
+       x1="83.017212"
+       y1="-51.73325"
+       x2="130.9651"
+       y2="-51.73325"
+       gradientTransform="matrix(2.5235731,0,0,0.39626354,94.957412,357.9574)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#fce7f3"
+         id="stop29" />
+      <stop
+         offset="100%"
+         stop-color="#fdf2f8"
+         id="stop30" />
+    </linearGradient>
+    <linearGradient
+       id="msgOrange"
+       x1="134.06644"
+       y1="-65.696907"
+       x2="190.37807"
+       y2="-65.696907"
+       gradientTransform="matrix(2.6815063,0,0,0.37292472,-10.042579,449.9574)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#fed7aa"
+         id="stop31" />
+      <stop
+         offset="100%"
+         stop-color="#fef3c7"
+         id="stop32" />
+    </linearGradient>
+    <!-- Arrow Markers -->
+    <marker
+       id="arrowBlue"
+       markerWidth="10"
+       markerHeight="7"
+       refX="7"
+       refY="3.5"
+       orient="auto"
+       markerUnits="strokeWidth">
+      <path
+         d="M 0,0 10,3.5 0,7 2.5,3.5 Z"
+         fill="#2563eb"
+         id="path32" />
+    </marker>
+    <marker
+       id="arrowGreen"
+       markerWidth="10"
+       markerHeight="7"
+       refX="8"
+       refY="3.5"
+       orient="auto"
+       markerUnits="strokeWidth"
+       viewBox="0 0 10 7"
+       preserveAspectRatio="xMidYMid">
+      <path
+         d="M 0,0 10,3.5 0,7 2.5,3.5 Z"
+         fill="#059669"
+         id="path33" />
+    </marker>
+    <marker
+       id="arrowTeal"
+       markerWidth="10"
+       markerHeight="7"
+       refX="8"
+       refY="3.5"
+       orient="auto"
+       markerUnits="strokeWidth">
+      <path
+         d="M 0,0 10,3.5 0,7 2.5,3.5 Z"
+         fill="#0d9488"
+         id="path34" />
+    </marker>
+    <marker
+       id="arrowPurple"
+       markerWidth="10"
+       markerHeight="7"
+       refX="9"
+       refY="3.5"
+       orient="auto"
+       markerUnits="strokeWidth">
+      <path
+         d="M 0,0 10,3.5 0,7 2.5,3.5 Z"
+         fill="#7c3aed"
+         id="path35" />
+    </marker>
+    <marker
+       id="arrowPink"
+       markerWidth="10"
+       markerHeight="7"
+       refX="9"
+       refY="3.5"
+       orient="auto"
+       markerUnits="strokeWidth">
+      <path
+         d="M 0,0 10,3.5 0,7 2.5,3.5 Z"
+         fill="#db2777"
+         id="path36" />
+    </marker>
+    <marker
+       id="arrowOrange"
+       markerWidth="10"
+       markerHeight="7"
+       refX="8"
+       refY="3.5"
+       orient="auto"
+       markerUnits="strokeWidth">
+      <path
+         d="M 0,0 10,3.5 0,7 2.5,3.5 Z"
+         fill="#d97706"
+         id="path37" />
+    </marker>
+    <marker
+       id="DartArrow"
+       markerWidth="1"
+       markerHeight="1"
+       refX="0"
+       refY="0"
+       orient="auto-start-reverse"
+       viewBox="0 0 1 1"
+       preserveAspectRatio="xMidYMid">
+      <path
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         transform="scale(-0.5)"
+         fill="context-stroke"
+         id="path38" />
+    </marker>
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#msgPurple"
+       id="linearGradient83"
+       x1="122.88751"
+       y1="-53.730034"
+       x2="168.94182"
+       y2="-53.730034"
+       gradientTransform="matrix(2.1930627,0,0,0.45598332,-10.042579,289.9574)"
+       gradientUnits="userSpaceOnUse" />
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#msgPurple"
+       id="linearGradient84"
+       x1="115.04661"
+       y1="-56.327168"
+       x2="163.32704"
+       y2="-56.327168"
+       gradientTransform="matrix(2.2990681,0,0,0.43495884,-10.042579,409.9574)"
+       gradientUnits="userSpaceOnUse" />
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#msgGreen"
+       id="linearGradient1"
+       gradientUnits="userSpaceOnUse"
+       gradientTransform="matrix(2.2999194,0,0,0.48814704,82.784879,214.56617)"
+       x1="97.649765"
+       y1="-54.139915"
+       x2="144.63913"
+       y2="-54.139915" />
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#msgGreen"
+       id="linearGradient4"
+       gradientUnits="userSpaceOnUse"
+       gradientTransform="matrix(2.0430157,0,0,0.48947251,-10.042579,169.9574)"
+       x1="97.649765"
+       y1="-54.139915"
+       x2="144.63913"
+       y2="-54.139915" />
+  </defs>
+  <!-- Border -->
+  <rect
+     x="5.9556026"
+     y="24.849882"
+     width="708.08881"
+     height="450.57416"
+     rx="8.0010033"
+     fill="none"
+     stroke="#e2e8f0"
+     stroke-width="1.41277"
+     stroke-dasharray="6, 3"
+     id="rect38" />
+  <!-- Header -->
+  <text
+     x="359.45837"
+     y="17.957418"
+     font-family="Arial, sans-serif"
+     font-size="16"
+     font-weight="bold"
+     fill="#0f172a"
+     text-anchor="middle"
+     id="text38"
+     style="font-size:16.0681px">Inference Workflow</text>
+  <!-- ==================== ACTOR HEADERS (evenly spaced) ==================== -->
+  <!-- User Actor - x=30 -->
+  <rect
+     x="21.95742"
+     y="36.95742"
+     width="80"
+     height="60"
+     rx="10"
+     fill="#94a3b8"
+     fill-opacity="0.2"
+     id="rect39" />
+  <rect
+     x="19.95742"
+     y="34.95742"
+     width="80"
+     height="60"
+     rx="10"
+     fill="url(#userGrad)"
+     id="rect40"
+     style="fill:url(#userGrad)" />
+  <circle
+     cx="59.95742"
+     cy="54.95742"
+     r="12"
+     fill="#bfdbfe"
+     id="circle40" />
+  <circle
+     cx="59.95742"
+     cy="51.95742"
+     r="5"
+     fill="#2563eb"
+     id="circle41" />
+  <ellipse
+     cx="59.95742"
+     cy="61.95742"
+     rx="8"
+     ry="4"
+     fill="#2563eb"
+     id="ellipse41" />
+  <text
+     x="59.95742"
+     y="88.150841"
+     font-family="Arial, sans-serif"
+     font-size="12px"
+     font-weight="bold"
+     fill="#ffffff"
+     text-anchor="middle"
+     id="text41"
+     style="font-size:13.3901px">User</text>
+  <!-- test.py Actor - x=140 -->
+  <rect
+     x="131.9574"
+     y="36.95742"
+     width="85"
+     height="60"
+     rx="10"
+     fill="#94a3b8"
+     fill-opacity="0.2"
+     id="rect41" />
+  <rect
+     x="129.9574"
+     y="34.95742"
+     width="85"
+     height="60"
+     rx="10"
+     fill="url(#testGrad)"
+     id="rect42"
+     style="fill:url(#testGrad)" />
+  <rect
+     x="153.9574"
+     y="44.95742"
+     width="38"
+     height="24"
+     rx="3"
+     fill="#a7f3d0"
+     id="rect43" />
+  <rect
+     x="156.9574"
+     y="47.95742"
+     width="32"
+     height="18"
+     rx="2"
+     fill="#064e3b"
+     id="rect44" />
+  <text
+     x="172.9574"
+     y="60.95742"
+     font-family="Consolas, monospace"
+     font-size="10px"
+     fill="#6ee7b7"
+     text-anchor="middle"
+     id="text44">&gt;_</text>
+  <text
+     x="172.4574"
+     y="87.242043"
+     font-family="Consolas, monospace"
+     font-size="12px"
+     font-weight="bold"
+     fill="#ffffff"
+     text-anchor="middle"
+     id="text45"
+     style="font-size:13.3901px">test.py</text>
+  <!-- load_test_data Actor - x=260 -->
+  <rect
+     x="251.9574"
+     y="36.95742"
+     width="105"
+     height="60"
+     rx="10"
+     fill="#94a3b8"
+     fill-opacity="0.2"
+     id="rect45" />
+  <rect
+     x="249.9574"
+     y="34.95742"
+     width="105"
+     height="60"
+     rx="10"
+     fill="url(#dataGrad)"
+     id="rect46"
+     style="fill:url(#dataGrad)" />
+  <ellipse
+     cx="302.4574"
+     cy="51.95742"
+     rx="18"
+     ry="7"
+     fill="#99f6e4"
+     id="ellipse46" />
+  <rect
+     x="284.4574"
+     y="51.95742"
+     width="36"
+     height="14"
+     fill="#99f6e4"
+     id="rect47" />
+  <ellipse
+     cx="302.4574"
+     cy="65.95742"
+     rx="18"
+     ry="7"
+     fill="#5eead4"
+     id="ellipse47" />
+  <text
+     x="302.4574"
+     y="88.150841"
+     font-family="Arial, sans-serif"
+     font-size="10px"
+     font-weight="bold"
+     fill="#ffffff"
+     text-anchor="middle"
+     id="text47"
+     style="font-size:13.3901px">load_test_data</text>
+  <!-- Checkpoint Actor - x=400 -->
+  <rect
+     x="399.99146"
+     y="36.95742"
+     width="105"
+     height="60"
+     rx="10"
+     fill="#94a3b8"
+     fill-opacity="0.2"
+     id="rect48" />
+  <rect
+     x="381.33813"
+     y="34.95742"
+     width="122.23852"
+     height="60"
+     rx="11.641764"
+     fill="url(#checkpointGrad)"
+     id="rect49"
+     style="fill:url(#checkpointGrad);stroke-width:1.07897" />
+  <rect
+     x="427.9574"
+     y="44.95742"
+     width="30"
+     height="26"
+     rx="3"
+     fill="#c4b5fd"
+     id="rect50" />
+  <path
+     d="m 433.54828,52.810449 h 10 v -5 l 10,10 -10,10 v -5 h -10 z"
+     fill="#7c3aed"
+     id="path50" />
+  <text
+     x="442.4574"
+     y="88.150841"
+     font-family="Arial, sans-serif"
+     font-size="10px"
+     font-weight="bold"
+     fill="#ffffff"
+     text-anchor="middle"
+     id="text50"
+     style="font-size:13.3901px">load_checkpoint</text>
+  <!-- Model Actor - x=540 -->
+  <rect
+     x="531.9574"
+     y="36.95742"
+     width="80"
+     height="60"
+     rx="10"
+     fill="#94a3b8"
+     fill-opacity="0.2"
+     id="rect51" />
+  <rect
+     x="529.9574"
+     y="34.95742"
+     width="80"
+     height="60"
+     rx="10"
+     fill="url(#modelGrad)"
+     id="rect52"
+     style="fill:url(#modelGrad)" />
+  <circle
+     cx="569.9574"
+     cy="49.95742"
+     r="4"
+     fill="#fce7f3"
+     id="circle52" />
+  <circle
+     cx="557.9574"
+     cy="60.95742"
+     r="4"
+     fill="#fce7f3"
+     id="circle53" />
+  <circle
+     cx="581.9574"
+     cy="60.95742"
+     r="4"
+     fill="#fce7f3"
+     id="circle54" />
+  <circle
+     cx="569.9574"
+     cy="68.95742"
+     r="4"
+     fill="#fce7f3"
+     id="circle55" />
+  <line
+     x1="569.9574"
+     y1="49.95742"
+     x2="557.9574"
+     y2="60.95742"
+     stroke="#fce7f3"
+     stroke-width="1.5"
+     id="line55" />
+  <line
+     x1="569.9574"
+     y1="49.95742"
+     x2="581.9574"
+     y2="60.95742"
+     stroke="#fce7f3"
+     stroke-width="1.5"
+     id="line56" />
+  <line
+     x1="557.9574"
+     y1="60.95742"
+     x2="569.9574"
+     y2="68.95742"
+     stroke="#fce7f3"
+     stroke-width="1.5"
+     id="line57" />
+  <line
+     x1="581.9574"
+     y1="60.95742"
+     x2="569.9574"
+     y2="68.95742"
+     stroke="#fce7f3"
+     stroke-width="1.5"
+     id="line58" />
+  <text
+     x="569.9574"
+     y="88.150841"
+     font-family="Arial, sans-serif"
+     font-size="12px"
+     font-weight="bold"
+     fill="#ffffff"
+     text-anchor="middle"
+     id="text58"
+     style="font-size:13.3901px">Model</text>
+  <!-- Output Actor - x=655 -->
+  <rect
+     x="650.97449"
+     y="36.95742"
+     width="55"
+     height="60"
+     rx="10"
+     fill="#94a3b8"
+     fill-opacity="0.2"
+     id="rect58" />
+  <rect
+     x="640.96277"
+     y="34.95742"
+     width="62.989269"
+     height="60"
+     rx="11.452595"
+     fill="url(#outputGrad)"
+     id="rect59"
+     style="fill:url(#outputGrad);stroke-width:1.07017" />
+  <rect
+     x="658.9574"
+     y="44.95742"
+     width="28"
+     height="24"
+     rx="2"
+     fill="#fef3c7"
+     id="rect60" />
+  <rect
+     x="661.9574"
+     y="48.95742"
+     width="10"
+     height="3"
+     fill="#d97706"
+     id="rect61" />
+  <rect
+     x="661.9574"
+     y="53.95742"
+     width="18"
+     height="3"
+     fill="#d97706"
+     id="rect62" />
+  <rect
+     x="661.9574"
+     y="58.95742"
+     width="14"
+     height="3"
+     fill="#d97706"
+     id="rect63" />
+  <text
+     x="672.4574"
+     y="88.314293"
+     font-family="Arial, sans-serif"
+     font-size="10px"
+     font-weight="bold"
+     fill="#ffffff"
+     text-anchor="middle"
+     id="text63"
+     style="font-size:13.3901px">Output</text>
+  <!-- ==================== LIFELINES (aligned to actor centers) ==================== -->
+  <line
+     x1="59.95742"
+     y1="99.95742"
+     x2="59.95742"
+     y2="450.88269"
+     stroke="#3b82f6"
+     id="line63"
+     style="stroke-width:1.90944;stroke-dasharray:5.72833, 3.81889" />
+  <line
+     x1="172.45743"
+     y1="99.95742"
+     x2="172.45743"
+     y2="450.88269"
+     stroke="#10b981"
+     id="line64"
+     style="stroke-width:1.90944;stroke-dasharray:5.72833, 3.81889" />
+  <line
+     x1="302.45743"
+     y1="99.95742"
+     x2="302.45743"
+     y2="450.88269"
+     stroke="#14b8a6"
+     id="line65"
+     style="stroke-width:1.90944;stroke-dasharray:5.72833, 3.81889" />
+  <line
+     x1="442.45743"
+     y1="99.95742"
+     x2="442.45743"
+     y2="450.88269"
+     stroke="#8b5cf6"
+     id="line66"
+     style="stroke-width:1.90944;stroke-dasharray:5.72833, 3.81889" />
+  <line
+     x1="569.9574"
+     y1="99.95742"
+     x2="569.9574"
+     y2="450.88269"
+     stroke="#ec4899"
+     id="line67"
+     style="stroke-width:1.90944;stroke-dasharray:5.72833, 3.81889" />
+  <g
+     id="g3"
+     transform="matrix(1,0,0,0.91149419,0,8.8468129)">
+    <line
+       x1="672.4574"
+       y1="99.95742"
+       x2="672.4574"
+       y2="484.95743"
+       stroke="#f59e0b"
+       id="line68"
+       style="stroke-width:2;stroke-dasharray:6, 4" />
+  </g>
+  <!-- ==================== MESSAGE 1: User -> test.py ==================== -->
+  <path
+     d="M 65.948905,149.05964 H 160.9489"
+     stroke="#2563eb"
+     stroke-width="2"
+     fill="none"
+     marker-end="url(#arrowBlue)"
+     id="path68"
+     style="stroke-width:2.27737;stroke-dasharray:none" />
+  <g
+     id="g84"
+     transform="translate(0,16.068127)">
+    <rect
+       x="71.95742"
+       y="98.957397"
+       width="90"
+       height="22"
+       rx="5"
+       fill="url(#msgBlue)"
+       stroke="#93c5fd"
+       stroke-width="1"
+       id="rect68"
+       style="fill:url(#msgBlue)" />
+    <text
+       x="116.95742"
+       y="112.84248"
+       font-family="Arial, sans-serif"
+       font-size="10px"
+       fill="#1e40af"
+       text-anchor="middle"
+       id="text68"
+       style="font-size:10.7121px">Launch test.py</text>
+  </g>
+  <!-- ==================== MESSAGE 2: test.py -> load_test_data ==================== -->
+  <path
+     d="m 181.53469,149.24362 h 111"
+     stroke="#059669"
+     stroke-width="2"
+     fill="none"
+     marker-end="url(#arrowGreen)"
+     id="path69"
+     style="stroke-width:2.27737;stroke-dasharray:none" />
+  <g
+     id="g85"
+     transform="translate(1.0568253,-28.534283)">
+    <rect
+       x="189.95743"
+       y="143.9574"
+       width="95"
+       height="22"
+       rx="5"
+       fill="url(#msgGreen)"
+       stroke="#6ee7b7"
+       stroke-width="1"
+       id="rect69"
+       style="fill:url(#linearGradient4)" />
+    <text
+       x="237.45743"
+       y="158.9574"
+       font-family="Arial, sans-serif"
+       font-size="10px"
+       fill="#047857"
+       text-anchor="middle"
+       id="text69"
+       style="font-size:10.7121px">Load NPZ/MAT</text>
+  </g>
+  <g
+     id="g4"
+     transform="translate(-39.518342,26.012073)">
+    <rect
+       x="307.93436"
+       y="188.63658"
+       width="106.946"
+       height="21.940426"
+       rx="5.6287365"
+       fill="url(#msgGreen)"
+       stroke="#6ee7b7"
+       stroke-width="1.05957"
+       id="rect69-1"
+       style="fill:url(#linearGradient1)" />
+    <text
+       x="361.40735"
+       y="203.6068"
+       font-family="Arial, sans-serif"
+       font-size="10px"
+       fill="#047857"
+       text-anchor="middle"
+       id="text69-3"
+       style="font-size:10.7121px">Load trained model + scaler</text>
+  </g>
+  <!-- ==================== MESSAGE 3: load_test_data returns ==================== -->
+  <path
+     d="m 294.85971,202.55962 h -111"
+     stroke="#0d9488"
+     stroke-width="2"
+     fill="none"
+     marker-end="url(#arrowTeal)"
+     stroke-dasharray="6, 3"
+     id="path70"
+     style="stroke-width:2.27737;stroke-dasharray:6.83212, 3.41606;stroke-dashoffset:0" />
+  <g
+     id="g86"
+     transform="translate(-0.84546025,-16.486475)">
+    <rect
+       x="194.95743"
+       y="185.9574"
+       width="90"
+       height="20"
+       rx="5"
+       fill="url(#msgTeal)"
+       stroke="#5eead4"
+       stroke-width="1"
+       id="rect70"
+       style="fill:url(#msgTeal)" />
+    <text
+       x="239.95743"
+       y="199.9574"
+       font-family="Arial, sans-serif"
+       font-size="10px"
+       fill="#0f766e"
+       text-anchor="middle"
+       id="text70"
+       style="font-size:10.7121px">X_test, y_test</text>
+  </g>
+  <!-- ==================== MESSAGE 4: test.py -> load_checkpoint ==================== -->
+  <path
+     d="m 181.95742,243.93184 h 251"
+     stroke="#7c3aed"
+     stroke-width="2"
+     fill="none"
+     marker-end="url(#arrowPurple)"
+     id="path71"
+     style="stroke:#059669;stroke-width:2.27737;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#arrowGreen)" />
+  <!-- ==================== MESSAGE 5: load_checkpoint returns ==================== -->
+  <path
+     d="m 432.95742,285.94036 h -251"
+     stroke="#7c3aed"
+     stroke-width="2"
+     fill="none"
+     marker-end="url(#arrowPurple)"
+     stroke-dasharray="6, 3"
+     id="path72"
+     style="stroke-width:2.27737;stroke-dasharray:6.83212, 3.41606;stroke-dashoffset:0" />
+  <g
+     id="g88"
+     transform="translate(5.4470136,-7.0609435)">
+    <rect
+       x="259.95743"
+       y="265.9574"
+       width="100"
+       height="20"
+       rx="5"
+       fill="url(#msgPurple)"
+       stroke="#c4b5fd"
+       stroke-width="1"
+       id="rect72"
+       style="fill:url(#linearGradient83)" />
+    <text
+       x="309.95743"
+       y="279.9574"
+       font-family="Arial, sans-serif"
+       font-size="10px"
+       fill="#5b21b6"
+       text-anchor="middle"
+       id="text72"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.7121px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Model, Scaler</text>
+  </g>
+  <!-- ==================== INFERENCE BOX ==================== -->
+  <rect
+     x="157.85301"
+     y="309.98459"
+     width="428.70963"
+     height="94.136314"
+     rx="8.4060707"
+     fill="url(#loopGrad)"
+     stroke="#10b981"
+     stroke-width="2.05435"
+     id="rect74"
+     style="fill:url(#loopGrad)" />
+  <rect
+     x="157.22139"
+     y="309.9574"
+     width="100"
+     height="24"
+     rx="10"
+     fill="#10b981"
+     id="rect75" />
+  <text
+     x="207.22136"
+     y="325.9574"
+     font-family="Arial, sans-serif"
+     font-size="11px"
+     font-weight="bold"
+     fill="#ffffff"
+     text-anchor="middle"
+     id="text75"
+     style="font-weight:bold;font-size:11px;font-family:Arial, sans-serif;text-anchor:middle;fill:#ffffff"><tspan
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:13.3901px;font-family:Sans;-inkscape-font-specification:'Sans, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal"
+       id="tspan89">[Inference]</tspan></text>
+  <path
+     d="m 172.45741,345.90628 h 392.5"
+     stroke="#db2777"
+     stroke-width="2"
+     fill="none"
+     marker-end="url(#arrowPink)"
+     id="path75"
+     style="stroke-width:2;stroke-dasharray:none" />
+  <g
+     id="g89"
+     transform="translate(0,-18.076643)">
+    <rect
+       x="304.9574"
+       y="337.9574"
+       width="120"
+       height="18"
+       rx="4"
+       fill="url(#msgPink)"
+       stroke="#f9a8d4"
+       stroke-width="1"
+       id="rect76"
+       style="fill:url(#msgPink)" />
+    <text
+       x="365.1785"
+       y="350.84183"
+       font-family="Arial, sans-serif"
+       font-size="10px"
+       fill="#be185d"
+       text-anchor="middle"
+       id="text76"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.7121px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-anchor:middle;fill:#be185d">Batch inference</text>
+  </g>
+  <!-- ==================== MESSAGE 7: inverse_transform ==================== -->
+  <path
+     d="M 171.12965,388.30185 H 440.99284"
+     stroke="#7c3aed"
+     stroke-width="2.07379"
+     fill="none"
+     marker-end="url(#arrowPurple)"
+     id="path77"
+     style="stroke-width:2.27737;stroke-dasharray:none" />
+  <g
+     id="g1"
+     transform="translate(0,-26.110707)">
+    <rect
+       x="254.95743"
+       y="385.9574"
+       width="110"
+       height="20"
+       rx="5"
+       fill="url(#msgPurple)"
+       stroke="#c4b5fd"
+       stroke-width="1"
+       id="rect77"
+       style="fill:url(#linearGradient84)" />
+    <text
+       x="309.95743"
+       y="399.9574"
+       font-family="Arial, sans-serif"
+       font-size="10px"
+       fill="#5b21b6"
+       text-anchor="middle"
+       id="text77"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.7121px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-anchor:middle;fill:#5b21b6">inverse_transform()</text>
+  </g>
+  <!-- ==================== MESSAGE 8: Output results ==================== -->
+  <path
+     d="m 179.9489,439.9148 h 481"
+     stroke="#d97706"
+     stroke-width="2"
+     fill="none"
+     marker-end="url(#arrowOrange)"
+     id="path78"
+     style="stroke-width:2.27737;stroke-dasharray:none" />
+  <g
+     id="g2"
+     transform="translate(0,-14.059611)">
+    <rect
+       x="349.95743"
+       y="425.9574"
+       width="150"
+       height="20"
+       rx="5"
+       fill="url(#msgOrange)"
+       stroke="#fcd34d"
+       stroke-width="1"
+       id="rect78"
+       style="fill:url(#msgOrange)" />
+    <text
+       x="424.95743"
+       y="439.9574"
+       font-family="Arial, sans-serif"
+       font-size="10px"
+       fill="#b45309"
+       text-anchor="middle"
+       id="text78"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.7121px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-anchor:middle;fill:#b45309">Metrics, Plots, CSV, ONNX</text>
+  </g>
+  <!-- ==================== LEGEND ==================== -->
+  <g
+     id="g5">
+    <rect
+       x="14.200888"
+       y="409.90189"
+       width="155"
+       height="60"
+       rx="8"
+       fill="#94a3b8"
+       fill-opacity="0.1"
+       id="rect79" />
+    <rect
+       x="12.200888"
+       y="407.90189"
+       width="155"
+       height="60"
+       rx="8"
+       fill="#ffffff"
+       stroke="#e2e8f0"
+       stroke-width="1"
+       id="rect80" />
+    <text
+       x="89.70089"
+       y="422.90189"
+       font-family="Arial, sans-serif"
+       font-size="11px"
+       font-weight="bold"
+       fill="#334155"
+       text-anchor="middle"
+       id="text80"
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:13.3901px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-anchor:middle;fill:#334155">Legend</text>
+    <line
+       x1="20.960531"
+       y1="439.90189"
+       x2="57.554218"
+       y2="439.90189"
+       stroke="#64748b"
+       stroke-width="2"
+       marker-end="url(#DartArrow)"
+       id="line80"
+       style="stroke-width:2.10089;stroke-dasharray:none" />
+    <text
+       x="79.217979"
+       y="443.90189"
+       font-family="Arial, sans-serif"
+       font-size="9px"
+       fill="#64748b"
+       id="text81"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.7121px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#64748b">Synchronous call</text>
+    <line
+       x1="32.861103"
+       y1="457.90189"
+       x2="69.454857"
+       y2="457.90189"
+       stroke="#64748b"
+       stroke-width="2"
+       stroke-dasharray="6, 3"
+       id="line81"
+       style="stroke-width:2.10089;stroke-dasharray:6.30266, 3.15133;stroke-dashoffset:0;marker-start:url(#DartArrow)" />
+    <text
+       x="79.217979"
+       y="461.90189"
+       font-family="Arial, sans-serif"
+       font-size="9px"
+       fill="#64748b"
+       id="text82"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.7121px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#64748b">Return / Async</text>
+  </g>
+  <ellipse
+     cx="302.7298"
+     cy="52.311535"
+     rx="14.439713"
+     ry="4.6763072"
+     fill="#14b8a6"
+     fill-opacity="0.4"
+     id="ellipse55"
+     style="stroke-width:0.918726" />
+</svg>

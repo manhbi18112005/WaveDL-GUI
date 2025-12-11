@@ -1,0 +1,1964 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="0 0 718 547.88275"
+   width="190mm"
+   height="145mm"
+   version="1.1"
+   id="svg128"
+   sodipodi:docname="wavedl_architecture.svg"
+   inkscape:version="1.4 (86a8ad7, 2024-10-11)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview3"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="1.3910016"
+     inkscape:cx="327.10243"
+     inkscape:cy="379.94205"
+     inkscape:window-width="1920"
+     inkscape:window-height="1009"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg128" />
+  <defs
+     id="defs12">
+    <!-- Gradients -->
+    <linearGradient
+       id="dataGrad"
+       x1="93.655319"
+       y1="-27.248854"
+       x2="148.15302"
+       y2="-27.248854"
+       gradientTransform="matrix(2.4771685,0,0,0.40368671,100,50.000921)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0"
+         stop-color="#0369a1"
+         id="stop1" />
+      <stop
+         offset="1"
+         stop-color="#0284c7"
+         id="stop2" />
+    </linearGradient>
+    <linearGradient
+       id="modelGrad"
+       x1="93.655319"
+       y1="-27.248854"
+       x2="148.15302"
+       y2="-27.248854"
+       gradientTransform="matrix(2.4771685,0,0,0.40368671,100,174.00093)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0"
+         stop-color="#0f766e"
+         id="stop3" />
+      <stop
+         offset="1"
+         stop-color="#0d9488"
+         id="stop4" />
+    </linearGradient>
+    <linearGradient
+       id="trainingGrad"
+       x1="93.655319"
+       y1="-27.248854"
+       x2="148.15302"
+       y2="-27.248854"
+       gradientTransform="matrix(2.4771685,0,0,0.40368671,100,308.00093)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0"
+         stop-color="#6d28d9"
+         id="stop5" />
+      <stop
+         offset="1"
+         stop-color="#7c3aed"
+         id="stop6" />
+    </linearGradient>
+    <linearGradient
+       id="utilityGrad"
+       x1="93.655319"
+       y1="-27.248854"
+       x2="148.15302"
+       y2="-27.248854"
+       gradientTransform="matrix(2.4771685,0,0,0.40368671,100,432.00093)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0"
+         stop-color="#b45309"
+         id="stop7" />
+      <stop
+         offset="1"
+         stop-color="#d97706"
+         id="stop8" />
+    </linearGradient>
+    <linearGradient
+       id="entryGrad"
+       x1="0"
+       y1="0"
+       x2="0"
+       y2="1">
+      <stop
+         offset="0"
+         stop-color="#4338ca"
+         id="stop9" />
+      <stop
+         offset="1"
+         stop-color="#4f46e5"
+         id="stop10" />
+    </linearGradient>
+    <linearGradient
+       id="greenGrad"
+       x1="0"
+       y1="0"
+       x2="1"
+       y2="0">
+      <stop
+         offset="0"
+         stop-color="#15803d"
+         id="stop11" />
+      <stop
+         offset="1"
+         stop-color="#16a34a"
+         id="stop12" />
+    </linearGradient>
+    <!-- Arrow Marker -->
+    <marker
+       id="arrow"
+       markerWidth="6"
+       markerHeight="5"
+       refX="5"
+       refY="2.5"
+       orient="auto"
+       markerUnits="strokeWidth">
+      <polygon
+         points="0,5 0,0 6,2.5 "
+         fill="#94a3b8"
+         id="polygon12" />
+    </marker>
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#entryGrad"
+       id="linearGradient21"
+       x1="3.190896"
+       y1="36.353424"
+       x2="3.190896"
+       y2="71.453278"
+       gradientTransform="matrix(1.2535663,0,0,0.79772404,20,232)"
+       gradientUnits="userSpaceOnUse" />
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#entryGrad"
+       id="linearGradient22"
+       x1="3.190896"
+       y1="81.481812"
+       x2="3.190896"
+       y2="116.58167"
+       gradientTransform="matrix(1.2535663,0,0,0.79772404,20,232)"
+       gradientUnits="userSpaceOnUse" />
+  </defs>
+  <!-- White Background -->
+  <rect
+     x="-2.4235185e-06"
+     y="-0.0051877345"
+     width="717.98328"
+     height="547.9325"
+     fill="#ffffff"
+     id="rect12"
+     style="stroke-width:0.971951" />
+  <!-- Title -->
+  <text
+     x="359.29193"
+     y="20.001228"
+     font-family="Arial, sans-serif"
+     font-size="16"
+     font-weight="bold"
+     fill="#0f172a"
+     text-anchor="middle"
+     id="text12"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:15.9975px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-anchor:middle;fill:#0f172a">WaveDL Framework Architecture</text>
+  <!-- Main Container Dashed Border -->
+  <rect
+     x="9.1294327"
+     y="30.005571"
+     width="702.61621"
+     height="509.99069"
+     rx="8.0993223"
+     ry="7.9998541"
+     fill="none"
+     stroke="#e2e8f0"
+     stroke-width="1.50927"
+     stroke-dasharray="6, 3"
+     id="rect13" />
+  <!-- ==================== ENTRY POINTS ==================== -->
+  <g
+     id="g39"
+     transform="translate(0,-5.4990742)">
+    <rect
+       x="20"
+       y="232"
+       width="52"
+       height="115"
+       rx="6"
+       ry="6"
+       fill="#f8fafc"
+       stroke="#e2e8f0"
+       stroke-width="1"
+       id="rect14" />
+    <text
+       x="46"
+       y="249"
+       font-family="Arial, sans-serif"
+       font-size="7px"
+       font-weight="bold"
+       fill="#64748b"
+       text-anchor="middle"
+       id="text14"
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:13.3313px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-anchor:middle;fill:#64748b">ENTRY</text>
+    <rect
+       x="24"
+       y="261"
+       width="44"
+       height="28"
+       rx="4"
+       ry="4"
+       fill="url(#entryGrad)"
+       id="rect15"
+       style="fill:url(#linearGradient21)" />
+    <g
+       id="g3"
+       transform="translate(5.5706696,-1.4375921)">
+      <rect
+         x="33"
+         y="267"
+         width="14"
+         height="10"
+         rx="1.5"
+         ry="1.5"
+         fill="none"
+         stroke="#ffffff"
+         stroke-width="1"
+         id="rect16" />
+      <polyline
+         points="15,38 18,40 15,42"
+         fill="none"
+         stroke="#ffffff"
+         stroke-width="0.8"
+         id="polyline16"
+         transform="translate(20,232)" />
+      <line
+         x1="40"
+         y1="274"
+         x2="44"
+         y2="274"
+         stroke="#ffffff"
+         stroke-width="0.8"
+         id="line16" />
+    </g>
+    <text
+       x="46"
+       y="285.99969"
+       font-family="Consolas, monospace"
+       font-size="6px"
+       font-weight="bold"
+       fill="#ffffff"
+       text-anchor="middle"
+       id="text16"
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:9.3319px;font-family:Consolas, monospace;-inkscape-font-specification:'Consolas, monospace, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-anchor:middle;fill:#ffffff">train.py</text>
+    <rect
+       x="24"
+       y="297"
+       width="44"
+       height="28"
+       rx="4"
+       ry="4"
+       fill="url(#entryGrad)"
+       id="rect17"
+       style="fill:url(#linearGradient22)" />
+    <g
+       id="g2"
+       transform="translate(5.2112715,-1.4375921)">
+      <circle
+         cx="40"
+         cy="308"
+         r="6"
+         fill="none"
+         stroke="#ffffff"
+         stroke-width="1"
+         id="circle17" />
+      <polygon
+         points="18,73 23,76 18,79 "
+         fill="#ffffff"
+         id="polygon17"
+         transform="translate(20,232)" />
+    </g>
+    <text
+       x="46"
+       y="321.99969"
+       font-family="Consolas, monospace"
+       font-size="6px"
+       font-weight="bold"
+       fill="#ffffff"
+       text-anchor="middle"
+       id="text17"
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:9.3319px;font-family:Consolas, monospace;-inkscape-font-specification:'Consolas, monospace, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">test.py</text>
+  </g>
+  <!-- Arrow from Entry to layers -->
+  <!-- ==================== DATA LAYER ==================== -->
+  <rect
+     x="100"
+     y="50.000916"
+     width="600"
+     height="95"
+     rx="6"
+     ry="6"
+     fill="#e0f2fe"
+     stroke="#38bdf8"
+     stroke-width="1.2"
+     id="rect18" />
+  <rect
+     x="332"
+     y="39.000916"
+     width="135"
+     height="22"
+     rx="11"
+     ry="11"
+     fill="url(#dataGrad)"
+     id="rect19"
+     style="fill:url(#dataGrad)" />
+  <text
+     x="400"
+     y="54.000916"
+     font-family="Arial, sans-serif"
+     font-size="13.33px"
+     font-weight="bold"
+     fill="#ffffff"
+     text-anchor="middle"
+     id="text19">Data Layer</text>
+  <rect
+     x="120.02184"
+     y="70.022743"
+     width="107.95636"
+     height="63.198467"
+     rx="4.9979792"
+     ry="5.4481444"
+     fill="#ffffff"
+     stroke="#38bdf8"
+     stroke-width="1.04364"
+     id="rect20" />
+  <g
+     id="g22"
+     transform="matrix(0.99428744,0,0,0.97207331,0.91771673,-2.2724604)">
+    <ellipse
+       cx="174"
+       cy="84.000923"
+       rx="12"
+       ry="5"
+       fill="none"
+       stroke="#0284c7"
+       stroke-width="1.2"
+       id="ellipse20" />
+    <path
+       d="m 162,84.000921 v 15.999999 c 0,4 5,7 12,7 7,0 12,-3 12,-7 V 84.000921"
+       fill="none"
+       stroke="#0284c7"
+       stroke-width="1.2"
+       id="path20" />
+    <ellipse
+       cx="174"
+       cy="92.000923"
+       rx="12"
+       ry="5"
+       fill="none"
+       stroke="#0284c7"
+       stroke-width="1.2"
+       id="ellipse21" />
+    <ellipse
+       cx="174"
+       cy="100.00092"
+       rx="12"
+       ry="5"
+       fill="none"
+       stroke="#0284c7"
+       stroke-width="1.2"
+       id="ellipse22" />
+  </g>
+  <text
+     x="174"
+     y="115.85596"
+     font-family="Arial, sans-serif"
+     font-size="10.67px"
+     font-weight="bold"
+     fill="#0369a1"
+     text-anchor="middle"
+     id="text22"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.665px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Memory-Mapped</text>
+  <text
+     x="174"
+     y="128.00061"
+     font-family="Arial, sans-serif"
+     font-size="8px"
+     fill="#64748b"
+     text-anchor="middle"
+     id="text23"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.99877px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Zero-copy I/O</text>
+  <rect
+     x="238.02182"
+     y="70.022736"
+     width="107.95636"
+     height="63.198463"
+     rx="4.9979796"
+     ry="5.4481435"
+     fill="#ffffff"
+     stroke="#38bdf8"
+     stroke-width="1.04364"
+     id="rect23" />
+  <g
+     id="g23"
+     transform="matrix(0.99607475,0,0,0.90426199,0.60672534,2.2260852)">
+    <polygon
+       points="70,14 54,22 38,14 54,6 "
+       fill="none"
+       stroke="#0284c7"
+       stroke-width="1.2"
+       id="polygon23"
+       transform="translate(238,74.000307)" />
+    <path
+       d="m 276,88.000307 v 14.000003 l 16,8 16,-8 V 88.000307"
+       fill="none"
+       stroke="#0284c7"
+       stroke-width="1.2"
+       id="path23" />
+    <line
+       x1="292"
+       y1="96.000305"
+       x2="292"
+       y2="110.00031"
+       stroke="#0284c7"
+       stroke-width="1.2"
+       id="line23" />
+  </g>
+  <text
+     x="292"
+     y="115.85596"
+     font-family="Arial, sans-serif"
+     font-size="10.67px"
+     font-weight="bold"
+     fill="#0369a1"
+     text-anchor="middle"
+     id="text24"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.665px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Dim Detection</text>
+  <text
+     x="292"
+     y="127.9967"
+     font-family="Arial, sans-serif"
+     font-size="8px"
+     fill="#64748b"
+     text-anchor="middle"
+     id="text25"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.99877px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Auto 1D/2D/3D</text>
+  <rect
+     x="356.02182"
+     y="70.022736"
+     width="107.95636"
+     height="63.198463"
+     rx="4.9979796"
+     ry="5.4481435"
+     fill="#ffffff"
+     stroke="#38bdf8"
+     stroke-width="1.04364"
+     id="rect25" />
+  <g
+     id="g24"
+     transform="matrix(0.99500529,0,0,1.067421,1.0708716,-11.459778)">
+    <line
+       x1="386"
+       y1="106.00061"
+       x2="434"
+       y2="106.00061"
+       stroke="#0284c7"
+       stroke-width="1.2"
+       id="line25" />
+    <line
+       x1="386"
+       y1="80.00061"
+       x2="386"
+       y2="106.00061"
+       stroke="#0284c7"
+       stroke-width="1.2"
+       id="line26" />
+    <polyline
+       points="34,28 46,16 58,22 70,10 76,16"
+       fill="none"
+       stroke="#0284c7"
+       stroke-width="1.5"
+       stroke-linecap="round"
+       stroke-linejoin="round"
+       id="polyline26"
+       transform="translate(356,72.000614)" />
+    <line
+       x1="386"
+       y1="93.00061"
+       x2="434"
+       y2="93.00061"
+       stroke="#0284c7"
+       stroke-width="0.8"
+       stroke-dasharray="2, 2"
+       id="line27" />
+  </g>
+  <text
+     x="410"
+     y="115.98615"
+     font-family="Arial, sans-serif"
+     font-size="10.67px"
+     font-weight="bold"
+     fill="#0369a1"
+     text-anchor="middle"
+     id="text27"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.665px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Standard Scaler</text>
+  <text
+     x="410"
+     y="127.89906"
+     font-family="Arial, sans-serif"
+     font-size="8px"
+     fill="#64748b"
+     text-anchor="middle"
+     id="text28"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.99877px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Target Norm</text>
+  <rect
+     x="474.02182"
+     y="70.022736"
+     width="107.95636"
+     height="63.198463"
+     rx="4.9979796"
+     ry="5.4481435"
+     fill="#ffffff"
+     stroke="#38bdf8"
+     stroke-width="1.04364"
+     id="rect28" />
+  <g
+     id="g25"
+     transform="matrix(0.99493717,0,0,0.97202314,1.2073675,-3.2392185)">
+    <rect
+       x="509"
+       y="80.000305"
+       width="38"
+       height="28"
+       rx="2"
+       ry="2"
+       fill="none"
+       stroke="#0284c7"
+       stroke-width="1.2"
+       id="rect_sparse1" />
+    <rect
+       x="512"
+       y="83.000305"
+       width="8"
+       height="8"
+       rx="1"
+       ry="1"
+       fill="#0284c7"
+       fill-opacity="0.6"
+       id="rect_sparse2" />
+    <rect
+       x="524"
+       y="83.000305"
+       width="8"
+       height="8"
+       rx="1"
+       ry="1"
+       fill="#0284c7"
+       fill-opacity="0.3"
+       id="rect_sparse3" />
+    <rect
+       x="536"
+       y="83.000305"
+       width="8"
+       height="8"
+       rx="1"
+       ry="1"
+       fill="#0284c7"
+       fill-opacity="0.6"
+       id="rect_sparse4" />
+    <rect
+       x="512"
+       y="95.000305"
+       width="8"
+       height="8"
+       rx="1"
+       ry="1"
+       fill="#0284c7"
+       fill-opacity="0.3"
+       id="rect_sparse5" />
+    <rect
+       x="524"
+       y="95.000305"
+       width="8"
+       height="8"
+       rx="1"
+       ry="1"
+       fill="#0284c7"
+       fill-opacity="0.6"
+       id="rect_sparse6" />
+    <rect
+       x="536"
+       y="95.000305"
+       width="8"
+       height="8"
+       rx="1"
+       ry="1"
+       fill="#0284c7"
+       fill-opacity="0.3"
+       id="rect_sparse7" />
+  </g>
+  <text
+     x="528"
+     y="115.98615"
+     font-family="Arial, sans-serif"
+     font-size="10.67px"
+     font-weight="bold"
+     fill="#0369a1"
+     text-anchor="middle"
+     id="text30"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.665px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Sparse Handling</text>
+  <text
+     x="528"
+     y="127.9967"
+     font-family="Arial, sans-serif"
+     font-size="8px"
+     fill="#64748b"
+     text-anchor="middle"
+     id="text31"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.99877px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Auto Convert</text>
+  <rect
+     x="592.02179"
+     y="70.02272"
+     width="95.956383"
+     height="63.19849"
+     rx="4.9977283"
+     ry="5.4481459"
+     fill="#ffffff"
+     stroke="#38bdf8"
+     stroke-width="1.04362"
+     id="rect31" />
+  <g
+     id="g27"
+     transform="matrix(0.99453733,0,0,0.97206826,1.5906735,-3.2434598)">
+    <g
+       id="g26">
+      <circle
+         cx="640"
+         cy="94.000305"
+         r="14"
+         fill="none"
+         stroke="#0369a1"
+         stroke-width="1.2"
+         id="circle31" />
+      <polyline
+         points="48,10 48,20 56,25"
+         fill="none"
+         stroke="#0369a1"
+         stroke-width="1.5"
+         stroke-linecap="round"
+         stroke-linejoin="round"
+         id="polyline31"
+         transform="translate(592,74.000307)" />
+    </g>
+  </g>
+  <text
+     x="640"
+     y="115.98615"
+     font-family="Arial, sans-serif"
+     font-size="10.67px"
+     font-weight="bold"
+     fill="#0369a1"
+     text-anchor="middle"
+     id="text32"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.665px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">LRU Cache</text>
+  <text
+     x="640"
+     y="128.00061"
+     font-family="Arial, sans-serif"
+     font-size="8px"
+     fill="#64748b"
+     text-anchor="middle"
+     id="text33"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.99877px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">OS Prefetch</text>
+  <!-- Arrow Data â†’ Model -->
+  <line
+     x1="400"
+     y1="145.01836"
+     x2="400"
+     y2="161.53775"
+     stroke="#94a3b8"
+     stroke-width="1.52415"
+     marker-end="url(#arrow)"
+     id="line34" />
+  <!-- ==================== MODEL LAYER ==================== -->
+  <rect
+     x="100"
+     y="174.00092"
+     width="600"
+     height="105"
+     rx="6"
+     ry="6"
+     fill="#ccfbf1"
+     stroke="#5eead4"
+     stroke-width="1.2"
+     id="rect34" />
+  <rect
+     x="332"
+     y="163.00092"
+     width="135"
+     height="22"
+     rx="11"
+     ry="11"
+     fill="url(#modelGrad)"
+     id="rect35"
+     style="fill:url(#modelGrad)" />
+  <text
+     x="400"
+     y="178.00092"
+     font-family="Arial, sans-serif"
+     font-size="13.33px"
+     font-weight="bold"
+     fill="#ffffff"
+     text-anchor="middle"
+     id="text35">Model Layer</text>
+  <rect
+     x="120"
+     y="192.00092"
+     width="108"
+     height="70"
+     rx="5"
+     ry="5"
+     fill="#ffffff"
+     stroke="#5eead4"
+     stroke-width="1"
+     id="rect36" />
+  <g
+     id="g28"
+     transform="matrix(1.2329151,0,0,1.0370521,-39.260933,-15.024135)">
+    <rect
+       x="155"
+       y="206"
+       width="38"
+       height="26"
+       rx="3"
+       ry="3"
+       fill="none"
+       stroke="#0d9488"
+       stroke-width="1.2"
+       id="rect37" />
+    <text
+       x="174"
+       y="224"
+       font-family="Consolas, monospace"
+       font-size="14px"
+       font-weight="bold"
+       fill="#0d9488"
+       text-anchor="middle"
+       id="text37">@</text>
+  </g>
+  <text
+     x="174"
+     y="242.94058"
+     font-family="Arial, sans-serif"
+     font-size="10.67px"
+     font-weight="bold"
+     fill="#0f766e"
+     text-anchor="middle"
+     id="text38"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.665px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Registry Pattern</text>
+  <text
+     x="174"
+     y="255.2052"
+     font-family="Arial, sans-serif"
+     font-size="8px"
+     fill="#64748b"
+     text-anchor="middle"
+     id="text39"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.99877px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">@register_model</text>
+  <line
+     x1="233"
+     y1="227.00092"
+     x2="248"
+     y2="227.00092"
+     stroke="#14b8a6"
+     stroke-width="1"
+     marker-end="url(#arrow)"
+     id="line40" />
+  <rect
+     x="255"
+     y="192.00092"
+     width="108"
+     height="70"
+     rx="5"
+     ry="5"
+     fill="#ffffff"
+     stroke="#5eead4"
+     stroke-width="1"
+     id="rect40" />
+  <g
+     id="g29"
+     transform="matrix(1.0006922,0,0,0.96925308,-0.2216916,-1.1454107)">
+    <rect
+       x="285"
+       y="206"
+       width="48"
+       height="28"
+       rx="3"
+       ry="3"
+       fill="none"
+       stroke="#0d9488"
+       stroke-width="1.2"
+       stroke-dasharray="3, 2"
+       id="rect41" />
+    <text
+       x="309"
+       y="218"
+       font-family="Arial, sans-serif"
+       font-size="8px"
+       font-weight="bold"
+       fill="#0d9488"
+       text-anchor="middle"
+       id="text41">ABC</text>
+    <line
+       x1="288"
+       y1="224"
+       x2="330"
+       y2="224"
+       stroke="#0d9488"
+       stroke-width="0.6"
+       id="line41" />
+    <text
+       x="309"
+       y="231"
+       font-family="Consolas, monospace"
+       font-size="7px"
+       fill="#0d9488"
+       text-anchor="middle"
+       id="text42">forward()</text>
+  </g>
+  <text
+     x="309"
+     y="242.94058"
+     font-family="Arial, sans-serif"
+     font-size="10.67px"
+     font-weight="bold"
+     fill="#0f766e"
+     text-anchor="middle"
+     id="text43"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.665px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">BaseModel</text>
+  <text
+     x="309"
+     y="255.19739"
+     font-family="Arial, sans-serif"
+     font-size="8px"
+     fill="#64748b"
+     text-anchor="middle"
+     id="text44"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.99877px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Abstract Interface</text>
+  <line
+     x1="368"
+     y1="216.00092"
+     x2="388"
+     y2="206.00092"
+     stroke="#14b8a6"
+     stroke-width="1"
+     id="line45" />
+  <line
+     x1="368"
+     y1="238.00092"
+     x2="388"
+     y2="248.00092"
+     stroke="#14b8a6"
+     stroke-width="1"
+     id="line46" />
+  <rect
+     x="395"
+     y="192.00029"
+     width="130"
+     height="36"
+     rx="4"
+     ry="4"
+     fill="#ffffff"
+     stroke="#5eead4"
+     stroke-width="1"
+     id="rect46" />
+  <rect
+     x="403"
+     y="202.00029"
+     width="10"
+     height="18"
+     rx="1"
+     ry="1"
+     fill="#14b8a6"
+     fill-opacity="0.3"
+     id="rect47" />
+  <rect
+     x="415"
+     y="200.00029"
+     width="9"
+     height="20"
+     rx="1"
+     ry="1"
+     fill="#14b8a6"
+     fill-opacity="0.4"
+     id="rect48" />
+  <rect
+     x="426"
+     y="203.00029"
+     width="8"
+     height="14"
+     rx="1"
+     ry="1"
+     fill="#14b8a6"
+     fill-opacity="0.5"
+     id="rect49" />
+  <rect
+     x="436"
+     y="205.00029"
+     width="7"
+     height="10"
+     rx="1"
+     ry="1"
+     fill="#14b8a6"
+     fill-opacity="0.6"
+     id="rect50" />
+  <circle
+     cx="450"
+     cy="210.00029"
+     r="5"
+     fill="#14b8a6"
+     fill-opacity="0.8"
+     id="circle50" />
+  <text
+     x="490"
+     y="214.00029"
+     font-family="Arial, sans-serif"
+     font-size="10.67px"
+     font-weight="bold"
+     fill="#0f766e"
+     text-anchor="middle"
+     id="text50"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.665px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">CNN</text>
+  <rect
+     x="395"
+     y="234.00029"
+     width="130"
+     height="36"
+     rx="4"
+     ry="4"
+     fill="#ffffff"
+     stroke="#5eead4"
+     stroke-width="1"
+     id="rect51" />
+  <rect
+     x="403"
+     y="244.00029"
+     width="52"
+     height="16"
+     rx="2"
+     ry="2"
+     fill="none"
+     stroke="#14b8a6"
+     stroke-width="1"
+     id="rect52" />
+  <circle
+     cx="413"
+     cy="252.00031"
+     r="4"
+     fill="#14b8a6"
+     fill-opacity="0.5"
+     id="circle52" />
+  <circle
+     cx="429"
+     cy="252.00031"
+     r="6"
+     fill="#14b8a6"
+     fill-opacity="0.8"
+     id="circle53" />
+  <circle
+     cx="445"
+     cy="252.00031"
+     r="3"
+     fill="#14b8a6"
+     fill-opacity="0.4"
+     id="circle54" />
+  <text
+     x="490"
+     y="256.00031"
+     font-family="Arial, sans-serif"
+     font-size="10px"
+     font-weight="bold"
+     fill="#0f766e"
+     text-anchor="middle"
+     id="text54"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.665px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Other Net</text>
+  <rect
+     x="540"
+     y="200.00092"
+     width="145"
+     height="56"
+     rx="4"
+     ry="4"
+     fill="#ffffff"
+     stroke="#5eead4"
+     stroke-width="1"
+     stroke-dasharray="4, 2"
+     id="rect54" />
+  <g
+     id="g30"
+     transform="matrix(0.99837736,0,0,1.1220108,-0.14843137,-27.048626)">
+    <rect
+       x="555"
+       y="214"
+       width="36"
+       height="26"
+       rx="2"
+       ry="2"
+       fill="none"
+       stroke="#14b8a6"
+       stroke-width="1"
+       stroke-dasharray="2, 1"
+       id="rect55" />
+    <line
+       x1="560"
+       y1="221"
+       x2="586"
+       y2="221"
+       stroke="#14b8a6"
+       stroke-width="0.8"
+       id="line55" />
+    <line
+       x1="560"
+       y1="227"
+       x2="582"
+       y2="227"
+       stroke="#14b8a6"
+       stroke-width="0.8"
+       id="line56" />
+    <line
+       x1="560"
+       y1="233"
+       x2="578"
+       y2="233"
+       stroke="#14b8a6"
+       stroke-width="0.8"
+       id="line57" />
+  </g>
+  <text
+     x="640"
+     y="210.00275"
+     font-family="Consolas, monospace"
+     font-size="8px"
+     fill="#64748b"
+     text-anchor="middle"
+     id="text57"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.99877px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">_template.py</text>
+  <text
+     x="640"
+     y="224.00244"
+     font-family="Arial, sans-serif"
+     font-size="10.67px"
+     font-weight="bold"
+     fill="#0f766e"
+     text-anchor="middle"
+     id="text58"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.665px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal"><tspan
+       sodipodi:role="line"
+       id="tspan7"
+       x="640"
+       y="224.00244"
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.665px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Custom</tspan><tspan
+       sodipodi:role="line"
+       id="tspan8"
+       x="640"
+       y="237.33369"
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.665px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Architecture</tspan></text>
+  <text
+     x="640"
+     y="250.00031"
+     font-family="Arial, sans-serif"
+     font-size="8px"
+     fill="#94a3b8"
+     text-anchor="middle"
+     id="text58b"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.99877px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">ViT, ResNet, ...</text>
+  <!-- Arrow Model â†’ Training -->
+  <line
+     x1="400"
+     y1="279.01837"
+     x2="400"
+     y2="295.71164"
+     stroke="#94a3b8"
+     stroke-width="1.53215"
+     marker-end="url(#arrow)"
+     id="line70" />
+  <!-- ==================== TRAINING LAYER ==================== -->
+  <rect
+     x="100"
+     y="308.00092"
+     width="600"
+     height="95"
+     rx="6"
+     ry="6"
+     fill="#ede9fe"
+     stroke="#c4b5fd"
+     stroke-width="1.2"
+     id="rect70" />
+  <rect
+     x="332"
+     y="297.00092"
+     width="135"
+     height="22"
+     rx="11"
+     ry="11"
+     fill="url(#trainingGrad)"
+     id="rect71"
+     style="fill:url(#trainingGrad)" />
+  <text
+     x="400"
+     y="312.00092"
+     font-family="Arial, sans-serif"
+     font-size="13.33px"
+     font-weight="bold"
+     fill="#ffffff"
+     text-anchor="middle"
+     id="text71">Training Layer</text>
+  <rect
+     x="200.20222"
+     y="327.99606"
+     width="92"
+     height="60"
+     rx="5"
+     ry="5"
+     fill="#ffffff"
+     stroke="#d8b4fe"
+     stroke-width="1"
+     id="rect72-4" />
+  <text
+     x="247.37929"
+     y="350.56363"
+     font-family="Consolas, monospace"
+     font-size="22.4149px"
+     font-weight="bold"
+     fill="#7c3aed"
+     text-anchor="middle"
+     id="text72-8"
+     transform="scale(0.99738606,1.0026208)"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:22.4149px;font-family:Consolas, monospace;-inkscape-font-specification:'Consolas, monospace, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-anchor:middle;fill:#7c3aed;stroke-width:1.60106"><tspan
+   style="font-style:italic;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:22.4149px;font-family:Consolas, monospace;-inkscape-font-specification:'Consolas, monospace, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal"
+   id="tspan1">f</tspan>(x)</text>
+  <text
+     x="246.20222"
+     y="370.86035"
+     font-family="Arial, sans-serif"
+     font-size="10.67px"
+     font-weight="bold"
+     fill="#6b21a8"
+     text-anchor="middle"
+     id="text73-8"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.665px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Loss Functions</text>
+  <text
+     x="246.20222"
+     y="382.30606"
+     font-family="Arial, sans-serif"
+     font-size="7px"
+     fill="#64748b"
+     text-anchor="middle"
+     id="text74-2"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.99877px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">MSE | MAE |...</text>
+  <rect
+     x="302.20221"
+     y="327.99606"
+     width="92"
+     height="60"
+     rx="5"
+     ry="5"
+     fill="#ffffff"
+     stroke="#d8b4fe"
+     stroke-width="1"
+     id="rect75-5" />
+  <g
+     id="g31"
+     transform="translate(0,-5.999079)">
+    <g
+       id="g9-5"
+       transform="translate(85.202223,-1.0213794)">
+      <circle
+         cx="263"
+         cy="352"
+         r="12"
+         fill="none"
+         stroke="#7c3aed"
+         stroke-width="1.2"
+         id="circle75-1" />
+      <path
+         d="m 255,352 c 0,-6 10,-8 14,-2"
+         fill="none"
+         stroke="#7c3aed"
+         stroke-width="1.2"
+         stroke-linecap="round"
+         id="path75-7" />
+    </g>
+    <polygon
+       points="50,18 50,13 54,16 "
+       fill="#7c3aed"
+       id="polygon75-1"
+       transform="translate(302.20222,333.99515)" />
+  </g>
+  <text
+     x="348.20221"
+     y="370.99054"
+     font-family="Arial, sans-serif"
+     font-size="10.67px"
+     font-weight="bold"
+     fill="#6b21a8"
+     text-anchor="middle"
+     id="text76-1"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.665px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Optimizers</text>
+  <text
+     x="348.20221"
+     y="382.30606"
+     font-family="Arial, sans-serif"
+     font-size="7px"
+     fill="#64748b"
+     text-anchor="middle"
+     id="text77-5"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.99877px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">AdamW | SGD |...</text>
+  <rect
+     x="404.20221"
+     y="327.99606"
+     width="92"
+     height="60"
+     rx="5"
+     ry="5"
+     fill="#ffffff"
+     stroke="#d8b4fe"
+     stroke-width="1"
+     id="rect78-7" />
+  <g
+     id="g10-6"
+     transform="translate(85.202223,-6.0039273)">
+    <path
+       d="m 337,352 q 14,-14 28,0 14,14 28,0"
+       fill="none"
+       stroke="#7c3aed"
+       stroke-width="1.5"
+       stroke-linecap="round"
+       id="path78-1" />
+    <circle
+       cx="393"
+       cy="352"
+       r="3"
+       fill="#7c3aed"
+       id="circle78-4" />
+  </g>
+  <text
+     x="450.20221"
+     y="370.99054"
+     font-family="Arial, sans-serif"
+     font-size="10.67px"
+     font-weight="bold"
+     fill="#6b21a8"
+     text-anchor="middle"
+     id="text79-2"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.665px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">LR Schedule</text>
+  <text
+     x="450.20221"
+     y="382.30606"
+     font-family="Arial, sans-serif"
+     font-size="7px"
+     fill="#64748b"
+     text-anchor="middle"
+     id="text80-3"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.99877px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Plateau | Cosine |...</text>
+  <rect
+     x="506.20221"
+     y="327.99606"
+     width="92"
+     height="60"
+     rx="5"
+     ry="5"
+     fill="#ffffff"
+     stroke="#d8b4fe"
+     stroke-width="1"
+     id="rect86-2" />
+  <g
+     id="g32"
+     transform="translate(0,-5.999079)">
+    <g
+       id="g11-1"
+       transform="translate(86.280417,-1.4424404)">
+      <circle
+         cx="467"
+         cy="352"
+         r="12"
+         fill="none"
+         stroke="#7c3aed"
+         stroke-width="1.2"
+         id="circle86-6" />
+      <rect
+         x="459"
+         y="348"
+         width="16"
+         height="8"
+         rx="2"
+         ry="2"
+         fill="#7c3aed"
+         id="rect87-8" />
+    </g>
+  </g>
+  <text
+     x="552.20221"
+     y="370.99054"
+     font-family="Arial, sans-serif"
+     font-size="10.67px"
+     font-weight="bold"
+     fill="#6b21a8"
+     text-anchor="middle"
+     id="text87-5"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.665px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Early Stop</text>
+  <text
+     x="552.20221"
+     y="382.30606"
+     font-family="Arial, sans-serif"
+     font-size="8px"
+     fill="#64748b"
+     text-anchor="middle"
+     id="text88-7"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.99877px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">DDP-Safe Broadcast</text>
+  <rect
+     x="608.20221"
+     y="327.99606"
+     width="82"
+     height="60"
+     rx="5"
+     ry="5"
+     fill="#ffffff"
+     stroke="#d8b4fe"
+     stroke-width="1"
+     id="rect89-1" />
+  <g
+     id="g33"
+     transform="translate(0,-5.999079)">
+    <g
+       id="g12-8"
+       transform="matrix(0.97518255,0,0,0.85488139,103.39737,48.778795)">
+      <rect
+         x="547"
+         y="344"
+         width="32"
+         height="24"
+         rx="3"
+         ry="3"
+         fill="none"
+         stroke="#7c3aed"
+         stroke-width="1.2"
+         id="rect90-9" />
+      <rect
+         x="556"
+         y="339"
+         width="14"
+         height="10"
+         rx="1"
+         ry="1"
+         fill="none"
+         stroke="#7c3aed"
+         stroke-width="1.2"
+         id="rect91-2" />
+      <circle
+         cx="563"
+         cy="358"
+         r="5"
+         fill="none"
+         stroke="#7c3aed"
+         stroke-width="1.2"
+         id="circle91-7" />
+    </g>
+  </g>
+  <text
+     x="649.20221"
+     y="370.99054"
+     font-family="Arial, sans-serif"
+     font-size="10.67px"
+     font-weight="bold"
+     fill="#6b21a8"
+     text-anchor="middle"
+     id="text91-9"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.665px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Checkpoint</text>
+  <text
+     x="649.20221"
+     y="382.2084"
+     font-family="Arial, sans-serif"
+     font-size="8px"
+     fill="#64748b"
+     text-anchor="middle"
+     id="text92-5"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.99877px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Auto-Resume</text>
+  <rect
+     x="115.17968"
+     y="328.03424"
+     width="75"
+     height="60"
+     rx="5"
+     ry="5"
+     fill="#ffffff"
+     stroke="#d8b4fe"
+     stroke-width="1"
+     id="rect_ddp-3" />
+  <rect
+     x="125.17999"
+     y="334.03455"
+     width="18"
+     height="14"
+     rx="2"
+     ry="2"
+     fill="#f3e8ff"
+     stroke="#7c3aed"
+     stroke-width="0.8"
+     id="rect_gpu1-2" />
+  <rect
+     x="147.17969"
+     y="334.03455"
+     width="18"
+     height="14"
+     rx="2"
+     ry="2"
+     fill="#f3e8ff"
+     stroke="#7c3aed"
+     stroke-width="0.8"
+     id="rect_gpu2-3" />
+  <rect
+     x="169.17938"
+     y="334.03455"
+     width="12"
+     height="14"
+     rx="2"
+     ry="2"
+     fill="#f3e8ff"
+     stroke="#7c3aed"
+     stroke-width="0.8"
+     id="rect_gpu3-3" />
+  <text
+     x="134.17999"
+     y="343.03455"
+     font-family="Arial, sans-serif"
+     font-size="5px"
+     font-weight="bold"
+     fill="#7c3aed"
+     text-anchor="middle"
+     id="text1-4">GPU</text>
+  <text
+     x="156.17969"
+     y="343.03455"
+     font-family="Arial, sans-serif"
+     font-size="5px"
+     font-weight="bold"
+     fill="#7c3aed"
+     text-anchor="middle"
+     id="text2-1">GPU</text>
+  <text
+     x="175.17938"
+     y="343.03455"
+     font-family="Arial, sans-serif"
+     font-size="5px"
+     font-weight="bold"
+     fill="#7c3aed"
+     text-anchor="middle"
+     id="text3-1">...</text>
+  <text
+     x="152.67969"
+     y="362.03455"
+     font-family="Arial, sans-serif"
+     font-size="10px"
+     font-weight="bold"
+     fill="#6b21a8"
+     text-anchor="middle"
+     id="text_ddp1-8"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.665px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Accelerate</text>
+  <text
+     x="152.67969"
+     y="374.03455"
+     font-family="Arial, sans-serif"
+     font-size="10px"
+     font-weight="bold"
+     fill="#6b21a8"
+     text-anchor="middle"
+     id="text_ddp2-7"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.665px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">DDP</text>
+  <text
+     x="152.67969"
+     y="384.03455"
+     font-family="Arial, sans-serif"
+     font-size="7px"
+     fill="#64748b"
+     text-anchor="middle"
+     id="text_ddp3-4"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.99877px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Multi-GPU</text>
+  <!-- Arrow Training â†’ Utility -->
+  <line
+     x1="400"
+     y1="402.90033"
+     x2="400"
+     y2="419.63644"
+     stroke="#94a3b8"
+     stroke-width="1.53412"
+     marker-end="url(#arrow)"
+     id="line94" />
+  <!-- ==================== UTILITY LAYER ==================== -->
+  <rect
+     x="100"
+     y="432.00092"
+     width="600"
+     height="95"
+     rx="6"
+     ry="6"
+     fill="#fef3c7"
+     stroke="#fcd34d"
+     stroke-width="1.2"
+     id="rect94" />
+  <rect
+     x="332"
+     y="421.00092"
+     width="135"
+     height="22"
+     rx="11"
+     ry="11"
+     fill="url(#utilityGrad)"
+     id="rect95"
+     style="fill:url(#utilityGrad)" />
+  <text
+     x="400"
+     y="436.00092"
+     font-family="Arial, sans-serif"
+     font-size="13.33px"
+     font-weight="bold"
+     fill="#ffffff"
+     text-anchor="middle"
+     id="text95">Utility Layer</text>
+  <rect
+     x="115"
+     y="452.00092"
+     width="95"
+     height="60"
+     rx="5"
+     ry="5"
+     fill="#ffffff"
+     stroke="#fcd34d"
+     stroke-width="1"
+     id="rect96" />
+  <g
+     id="g34"
+     transform="matrix(1,0,0,0.94473685,0,19.532496)">
+    <rect
+       x="145"
+       y="474"
+       width="8"
+       height="16"
+       rx="1"
+       ry="1"
+       fill="#f59e0b"
+       fill-opacity="0.6"
+       id="rect97" />
+    <rect
+       x="157"
+       y="468"
+       width="8"
+       height="22"
+       rx="1"
+       ry="1"
+       fill="#f59e0b"
+       fill-opacity="0.7"
+       id="rect98" />
+    <rect
+       x="169"
+       y="462"
+       width="8"
+       height="28"
+       rx="1"
+       ry="1"
+       fill="#f59e0b"
+       fill-opacity="0.8"
+       id="rect99" />
+  </g>
+  <text
+     x="162.5"
+     y="495.87195"
+     font-family="Arial, sans-serif"
+     font-size="10.67px"
+     font-weight="bold"
+     fill="#b45309"
+     text-anchor="middle"
+     id="text99"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.665px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Metrics</text>
+  <text
+     x="162.5"
+     y="506.35559"
+     font-family="Arial, sans-serif"
+     font-size="7px"
+     fill="#64748b"
+     text-anchor="middle"
+     id="text100"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.99877px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">R² | Pearson | MAE</text>
+  <rect
+     x="220"
+     y="452.00092"
+     width="95"
+     height="60"
+     rx="5"
+     ry="5"
+     fill="#ffffff"
+     stroke="#fcd34d"
+     stroke-width="1"
+     id="rect101" />
+  <g
+     id="g35"
+     transform="translate(0,-5.999079)">
+    <line
+       x1="242"
+       y1="488"
+       x2="292"
+       y2="488"
+       stroke="#d97706"
+       stroke-width="1"
+       id="line101" />
+    <line
+       x1="242"
+       y1="464"
+       x2="242"
+       y2="488"
+       stroke="#d97706"
+       stroke-width="1"
+       id="line102" />
+    <circle
+       cx="252"
+       cy="482"
+       r="3"
+       fill="#f59e0b"
+       id="circle102" />
+    <circle
+       cx="262"
+       cy="474"
+       r="3"
+       fill="#f59e0b"
+       id="circle103" />
+    <circle
+       cx="274"
+       cy="476"
+       r="3"
+       fill="#f59e0b"
+       id="circle104" />
+    <circle
+       cx="284"
+       cy="468"
+       r="3"
+       fill="#f59e0b"
+       id="circle105" />
+    <line
+       x1="250"
+       y1="484"
+       x2="286"
+       y2="466"
+       stroke="#f59e0b"
+       stroke-width="0.8"
+       stroke-dasharray="2, 1"
+       id="line105" />
+  </g>
+  <text
+     x="267.5"
+     y="495.87195"
+     font-family="Arial, sans-serif"
+     font-size="10.67px"
+     font-weight="bold"
+     fill="#b45309"
+     text-anchor="middle"
+     id="text105"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.665px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Visualization</text>
+  <text
+     x="267.5"
+     y="506.61438"
+     font-family="Arial, sans-serif"
+     font-size="8px"
+     fill="#64748b"
+     text-anchor="middle"
+     id="text106"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.99877px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Scatter Plots</text>
+  <rect
+     x="325"
+     y="452.00092"
+     width="95"
+     height="60"
+     rx="5"
+     ry="5"
+     fill="#ffffff"
+     stroke="#fcd34d"
+     stroke-width="1"
+     id="rect107" />
+  <rect
+     x="345"
+     y="460.00092"
+     width="54"
+     height="20"
+     rx="3"
+     ry="3"
+     fill="#ffbe00"
+     fill-opacity="0.2"
+     id="rect108" />
+  <text
+     x="372"
+     y="473.00092"
+     font-family="Arial, sans-serif"
+     font-size="9px"
+     font-weight="bold"
+     fill="#d97706"
+     text-anchor="middle"
+     id="text108">W&amp;B</text>
+  <text
+     x="372.5"
+     y="495.87195"
+     font-family="Arial, sans-serif"
+     font-size="10.67px"
+     font-weight="bold"
+     fill="#b45309"
+     text-anchor="middle"
+     id="text109"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.665px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Exp Tracking</text>
+  <text
+     x="372.5"
+     y="506.61438"
+     font-family="Arial, sans-serif"
+     font-size="8px"
+     fill="#64748b"
+     text-anchor="middle"
+     id="text110"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.99877px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Weights &amp; Biases</text>
+  <rect
+     x="430"
+     y="452.00092"
+     width="85"
+     height="60"
+     rx="5"
+     ry="5"
+     fill="#ffffff"
+     stroke="#fcd34d"
+     stroke-width="1"
+     id="rect111" />
+  <g
+     id="g36"
+     transform="translate(0,-5.999079)">
+    <rect
+       x="442"
+       y="468"
+       width="12"
+       height="18"
+       rx="1.5"
+       ry="1.5"
+       fill="#f59e0b"
+       fill-opacity="0.3"
+       id="rect112" />
+    <rect
+       x="456"
+       y="468"
+       width="12"
+       height="18"
+       rx="1.5"
+       ry="1.5"
+       fill="#f59e0b"
+       fill-opacity="0.5"
+       id="rect113" />
+    <rect
+       x="470"
+       y="468"
+       width="12"
+       height="18"
+       rx="1.5"
+       ry="1.5"
+       fill="#f59e0b"
+       fill-opacity="0.7"
+       id="rect114" />
+    <rect
+       x="484"
+       y="468"
+       width="12"
+       height="18"
+       rx="1.5"
+       ry="1.5"
+       fill="#f59e0b"
+       fill-opacity="0.9"
+       id="rect115" />
+  </g>
+  <text
+     x="472.5"
+     y="496.00214"
+     font-family="Arial, sans-serif"
+     font-size="10.67px"
+     font-weight="bold"
+     fill="#b45309"
+     text-anchor="middle"
+     id="text116"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.665px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Cross-Val</text>
+  <text
+     x="472.5"
+     y="506.61438"
+     font-family="Arial, sans-serif"
+     font-size="8px"
+     fill="#64748b"
+     text-anchor="middle"
+     id="text117"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.99877px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">K-Fold Stratified</text>
+  <rect
+     x="525"
+     y="452.00092"
+     width="80"
+     height="60"
+     rx="5"
+     ry="5"
+     fill="#ffffff"
+     stroke="#fcd34d"
+     stroke-width="1"
+     id="rect118" />
+  <text
+     x="565"
+     y="496.00214"
+     font-family="Arial, sans-serif"
+     font-size="10.67px"
+     font-weight="bold"
+     fill="#b45309"
+     text-anchor="middle"
+     id="text120"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.665px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">YAML Config</text>
+  <text
+     x="565"
+     y="506.51672"
+     font-family="Arial, sans-serif"
+     font-size="8px"
+     fill="#64748b"
+     text-anchor="middle"
+     id="text121"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.99877px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Reproducible</text>
+  <rect
+     x="615"
+     y="452.00092"
+     width="75"
+     height="60"
+     rx="5"
+     ry="5"
+     fill="#ffffff"
+     stroke="#fcd34d"
+     stroke-width="1"
+     id="rect122" />
+  <g
+     id="g38"
+     transform="translate(0,-5.999079)">
+    <rect
+       x="637"
+       y="464"
+       width="30"
+       height="20"
+       rx="2"
+       ry="2"
+       fill="none"
+       stroke="#d97706"
+       stroke-width="1.2"
+       id="rect123" />
+    <line
+       x1="652"
+       y1="470"
+       x2="652"
+       y2="478"
+       stroke="#d97706"
+       stroke-width="1.2"
+       id="line123" />
+    <polyline
+       points="33,16 37,20 41,16"
+       fill="none"
+       stroke="#d97706"
+       stroke-width="1.2"
+       stroke-linecap="round"
+       stroke-linejoin="round"
+       id="polyline123"
+       transform="translate(615,458)" />
+  </g>
+  <text
+     x="652.5"
+     y="496.00214"
+     font-family="Arial, sans-serif"
+     font-size="10px"
+     font-weight="bold"
+     fill="#b45309"
+     text-anchor="middle"
+     id="text123"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:10.665px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">ONNX</text>
+  <text
+     x="652.5"
+     y="506.51672"
+     font-family="Arial, sans-serif"
+     font-size="7px"
+     fill="#64748b"
+     text-anchor="middle"
+     id="text124"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.99877px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal">Industrial Tools</text>
+  <!-- ==================== FOOTER ==================== -->
+  <!-- Unit Tests Badge -->
+  <!-- Tech Stack -->
+  <g
+     id="g3-0"
+     transform="matrix(0.90242943,0,0,0.79775795,85.953078,390.97191)"
+     style="stroke:#d97706;stroke-opacity:1">
+    <path
+       d="m 520.99659,84 v 28 h 22 V 92 l -8,-8 z"
+       fill="none"
+       stroke="#0284c7"
+       stroke-width="1.2"
+       id="path28"
+       style="stroke:#d97706;stroke-opacity:1" />
+    <polyline
+       points="53,6 53,14 61,14"
+       fill="none"
+       stroke="#0284c7"
+       stroke-width="1.2"
+       id="polyline28"
+       transform="translate(481.99659,78)"
+       style="stroke:#d97706;stroke-opacity:1" />
+    <line
+       x1="524.99658"
+       y1="98"
+       x2="538.99658"
+       y2="98"
+       stroke="#0284c7"
+       stroke-width="1"
+       id="line28"
+       style="stroke:#d97706;stroke-opacity:1" />
+    <line
+       x1="524.99658"
+       y1="102"
+       x2="534.99658"
+       y2="102"
+       stroke="#0284c7"
+       stroke-width="1"
+       id="line29"
+       style="stroke:#d97706;stroke-opacity:1" />
+    <line
+       x1="524.99658"
+       y1="106"
+       x2="536.99658"
+       y2="106"
+       stroke="#0284c7"
+       stroke-width="1"
+       id="line30"
+       style="stroke:#d97706;stroke-opacity:1" />
+  </g>
+</svg>

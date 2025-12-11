@@ -1,0 +1,324 @@
+%% ============================================================================
+%% COMPUTATIONAL METHODOLOGY
+%% ============================================================================
+\section{Computational Methodology}
+\label{sec:methodology}
+
+WaveDL is designed as a modular, high-performance training engine that decouples \textit{physical modeling} (neural network architecture definitions) from \textit{computational infrastructure} (data loading, distributed synchronization, training loops). This separation of concerns enables researchers to focus on scientific innovation while leveraging battle-tested engineering components.
+
+\subsection{System Architecture Overview}
+
+The framework follows a layered architecture pattern:
+\begin{enumerate}
+    \item \textbf{Data Layer} (\texttt{utils/data.py}): Memory-mapped I/O, caching, and standardization
+    \item \textbf{Model Layer} (\texttt{models/}): Registry pattern with abstract base class
+    \item \textbf{Training Layer} (\texttt{train.py}): Accelerate-based distributed training loop
+    \item \textbf{Utility Layer} (\texttt{utils/}): Metrics, visualization, and distributed primitives
+\end{enumerate}
+
+This modular design enables independent testing and replacement of components. For example, researchers can substitute the default StandardScaler with a RobustScaler for outlier-heavy datasets without modifying other layers.
+
+% Figure: System architecture
+\begin{figure*}[htbp]
+\centering
+\includegraphics[width=0.9\textwidth]{images/fig1_system_architecture.png}
+\caption{WaveDL framework architecture showing the four-layer modular design. The Data Layer handles memory-mapped I/O and standardization, the Model Layer manages the registry pattern and model definitions, the Training Layer provides DDP and mixed-precision support, and the Utility Layer contains metrics and distributed synchronization primitives.}
+\label{fig:system_architecture}
+\end{figure*}
+
+\subsection{Out-of-Core Data Management}
+
+\subsubsection{Problem Formulation}
+
+Let $\mathcal{D} = \{(\mathbf{x}_i, \mathbf{y}_i)\}_{i=1}^N$ be a dataset where $\mathbf{x}_i \in \mathbb{R}^{C \times H \times W}$ is a multi-channel 2D representation (e.g., dispersion image) and $\mathbf{y}_i \in \mathbb{R}^{K}$ is a vector of $K$ material properties. For typical guided wave applications with $N=10^5$ samples and $H=W=500$ pixels, the memory footprint is:
+\begin{equation}
+M_{total} = N \cdot C \cdot H \cdot W \cdot \text{sizeof(float32)} = 10^5 \cdot 1 \cdot 500 \cdot 500 \cdot 4 \approx 100~\text{GB}
+\label{eq:memory_footprint}
+\end{equation}
+
+This exceeds the RAM of standard GPU nodes (typically 32--64~GB). Furthermore, even when RAM is sufficient, loading 100~GB into memory requires approximately 10--15 minutes at typical HDD speeds (100~MB/s), creating unacceptable startup latency for iterative development.
+
+\subsubsection{Memory-Mapped Solution}
+
+Memory mapping creates a virtual address space that mirrors the file on disk. The operating system's virtual memory manager handles page-level access:
+\begin{itemize}
+    \item \textbf{Page Fault on Access}: When the program accesses an unmapped region, a hardware interrupt triggers the OS to load the corresponding page from disk.
+    \item \textbf{LRU Eviction}: Least Recently Used pages are evicted when physical RAM is exhausted.
+    \item \textbf{Read-Ahead Prefetching}: Modern OSes predict access patterns and prefetch upcoming pages.
+\end{itemize}
+
+This mechanism provides $O(1)$ memory complexity (independent of $N$) and amortized $O(1)$ access time per sample due to caching.
+
+% Figure: Memory-mapped pipeline
+\begin{figure*}[htbp]
+\centering
+\includegraphics[width=0.9\textwidth]{images/fig2_memory_mapped_pipeline.png}
+\caption{Memory-mapped data pipeline architecture. Large datasets stored on disk are mapped to virtual memory, enabling zero-copy access with $O(1)$ RAM usage regardless of dataset size. The OS handles page-level caching and prefetching transparently.}
+\label{fig:memory_mapped}
+\end{figure*}
+
+\textbf{Algorithm 1: Memory-Mapped Dataset Initialization and Access}
+
+\begin{lstlisting}[style=pseudocode,caption={Memory-Mapped Dataset Algorithm}]
+PROCEDURE Initialize(file_path, shape, dtype):
+    // Phase 1: Validate metadata (main process only)
+    IF NOT file_exists(file_path):
+        RAISE FileNotFoundError
+    
+    // DO NOT open memmap here - file descriptors not safe across fork()
+    self.file_path <- file_path
+    self.shape <- shape
+    self.dtype <- dtype
+    self.handle <- NULL  // Lazy initialization
+    
+PROCEDURE WorkerInit(worker_id):
+    // Phase 2: Called by each DataLoader worker after fork()
+    self.handle <- NULL  // Force re-open on first access
+    
+PROCEDURE GetItem(index):
+    // Phase 3: Lazy handle acquisition
+    IF self.handle IS NULL:
+        self.handle <- mmap(self.file_path, mode='r', shape=self.shape, dtype=self.dtype)
+    
+    // Critical: copy() detaches tensor from memory-mapped buffer
+    data <- self.handle[index].copy()
+    RETURN tensor(data)
+\end{lstlisting}
+
+The \texttt{.copy()} operation in Phase 3 is essential. Without it, the returned tensor shares memory with the mapped buffer, causing:
+\begin{enumerate}
+    \item \textbf{Memory leaks}: PyTorch cannot track or free the external memory
+    \item \textbf{Race conditions}: Multiple workers may access overlapping pages during data augmentation
+    \item \textbf{Segmentation faults}: If the file is modified while tensors reference it
+\end{enumerate}
+
+\subsubsection{Complexity Analysis}
+
+\textbf{Space Complexity}: The memory-mapped approach achieves $O(B)$ space complexity where $B$ is the batch size, compared to $O(N)$ for in-memory loading. This enables training on datasets of essentially unlimited size, constrained only by disk capacity.
+
+\textbf{Time Complexity}: Individual sample access is $O(1)$ amortized. Cold-start access (first touch of a page) incurs disk I/O latency ($\sim$5--10~ms for HDD, $\sim$0.1~ms for NVMe SSD). Modern OS prefetching and sequential access patterns minimize cold-start overhead during training.
+
+\textbf{I/O Throughput}: For batch size $B=128$ with $500 \times 500 \times 4$ bytes per sample, each batch requires $128 \times 10^6 = 128$~MB. On NVMe storage with 3~GB/s read bandwidth, theoretical maximum is $\sim$23 batches/second. In practice, GPU computation time ($\sim$50--100~ms/batch for typical CNNs) exceeds I/O time, making training compute-bound rather than I/O-bound.
+
+\subsection{Distributed Data Parallel Synchronization}
+
+\subsubsection{The Early Stopping Deadlock Problem}
+
+In Distributed Data Parallel (DDP) training, each GPU runs an independent copy of the training loop. PyTorch's DDP synchronizes gradients via all-reduce operations during the backward pass. However, \textit{control flow decisions} (such as early stopping) are not automatically synchronized.
+
+Consider the following failure scenario:
+\begin{verbatim}
+Time   | Rank 0 (Main)              | Rank 1
+-------|----------------------------|---------------------------
+t=100  | val_loss = 0.01            | val_loss = 0.01
+t=101  | patience = 20 (stop!)      | patience = 19 (continue)
+t=102  | exit training loop         | forward() -> wait for sync
+t=103  | (terminated)               | DEADLOCK: waiting forever
+\end{verbatim}
+
+Rank 0 exits the training loop because its stopping condition is satisfied, but Rank 1's \texttt{forward()} call in the next iteration triggers gradient synchronization, which waits indefinitely for Rank 0's participation.
+
+\subsubsection{Synchronized Termination Protocol}
+
+WaveDL implements a broadcast-based synchronization protocol. Let $S_r \in \{0, 1\}$ be the local stopping decision at rank $r$:
+\begin{equation}
+S_r = \begin{cases}
+    1 & \text{if } r = 0 \text{ and patience exhausted} \\
+    0 & \text{otherwise}
+\end{cases}
+\end{equation}
+
+The global stopping decision $S_{global}$ is computed via an all-reduce (MAX) operation:
+\begin{equation}
+S_{global} = \max_{r \in \{0, ..., P-1\}} S_r
+\end{equation}
+
+All ranks then check $S_{global}$ before proceeding to the next epoch. Since the all-reduce is a collective operation, all ranks must participate, ensuring no deadlock:
+\begin{verbatim}
+Time   | Rank 0 (Main)              | Rank 1
+-------|----------------------------|---------------------------
+t=100  | S_0 = 1 (stop!)            | S_1 = 0 (continue)
+t=101  | all_reduce(S_0) -> 1       | all_reduce(S_1) -> 1
+t=102  | S_global = 1 -> exit       | S_global = 1 -> exit
+t=103  | (synchronized exit)        | (synchronized exit)
+\end{verbatim}
+
+% Figure: DDP synchronization
+\begin{figure*}[htbp]
+\centering
+\includegraphics[width=0.9\textwidth]{images/fig3_ddp_synchronization.png}
+\caption{DDP-safe early stopping protocol. All GPU ranks synchronize their stopping decision via an all-reduce operation before exiting, preventing deadlock scenarios where some ranks continue training while others terminate.}
+\label{fig:ddp_sync}
+\end{figure*}
+
+\subsubsection{Metric Aggregation}
+
+When computing global metrics across $P$ GPUs, na\"{i}vely averaging per-GPU averages produces incorrect results if batch sizes differ:
+
+\textbf{Incorrect}:
+\begin{equation}
+\bar{L}_{wrong} = \frac{1}{P} \sum_{r=0}^{P-1} \bar{L}_r
+\end{equation}
+
+\textbf{Correct} (sum-of-sums / sum-of-counts):
+\begin{equation}
+\bar{L}_{correct} = \frac{\sum_{r=0}^{P-1} L_r^{sum}}{\sum_{r=0}^{P-1} N_r}
+\end{equation}
+where $L_r^{sum}$ is the total loss on rank $r$ and $N_r$ is the number of samples processed by rank $r$. WaveDL's \texttt{sync\_tensor} utility performs this reduction correctly.
+
+\subsection{Modular Model Registry}
+
+\subsubsection{Decorator-Based Registration}
+
+To facilitate fair architecture comparison, WaveDL employs a \textbf{Factory Pattern} with decorator-based registration. This design:
+\begin{enumerate}
+    \item \textbf{Decouples model definition from training logic}: The training script uses string identifiers (e.g., \texttt{"ratenet"}) rather than class imports
+    \item \textbf{Enables dynamic model selection}: Command-line arguments control which model is instantiated
+    \item \textbf{Prevents circular imports}: The registry module loads before any model modules
+\end{enumerate}
+
+\textbf{Registry API}:
+\begin{lstlisting}[caption={Model registration example}]
+# Registration (in models/ratenet.py)
+@register_model("ratenet")
+@register_model("simplecnn")
+class SimpleCNN(BaseModel):
+    ...
+
+# Usage (in train.py)
+model = build_model(args.model, in_shape=(500, 500), out_size=2)
+\end{lstlisting}
+
+\subsubsection{BaseModel Abstract Class}
+
+The \texttt{BaseModel} abstract class enforces a consistent interface:
+
+\begin{table*}[htbp]
+\centering
+\caption{BaseModel interface methods}
+\label{tab:basemodel}
+\begin{tabular}{ll}
+\toprule
+\textbf{Method} & \textbf{Purpose} \\
+\midrule
+\texttt{\_\_init\_\_(in\_shape, out\_size, **kwargs)} & Constructor with required dimensions \\
+\texttt{forward(x) $\to$ y} & Forward pass mapping input to output \\
+\texttt{parameter\_summary() $\to$ dict} & Parameter count and memory footprint \\
+\texttt{get\_optimizer\_groups(lr, wd) $\to$ list} & Differential learning rates for fine-tuning \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+This interface ensures that:
+\begin{enumerate}
+    \item All models are compatible with the training loop without modification
+    \item Hyperparameter sweeps can iterate over models via string identifiers
+    \item New architectures (e.g., Vision Transformers) can be added by implementing the interface
+\end{enumerate}
+
+% Figure: Registry pattern
+\begin{figure*}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{images/fig7_registry_pattern.png}
+\caption{Decorator-based model registry pattern. Models inherit from BaseModel and register via decorators, enabling dynamic selection at runtime without modifying the training infrastructure.}
+\label{fig:registry}
+\end{figure*}
+
+\subsection{Physics-Aware Metric Tracking}
+
+\subsubsection{Target Standardization}
+
+Neural network training benefits from standardized targets with zero mean and unit variance. Let $y_{ij}$ denote the $j$-th target of sample $i$. The standardization transform is:
+\begin{equation}
+\hat{y}_{ij} = \frac{y_{ij} - \mu_j}{\sigma_j}
+\end{equation}
+where $\mu_j$ and $\sigma_j$ are computed \textbf{on the training set only} to prevent data leakage. The fitted \texttt{StandardScaler} is saved with the checkpoint for use during inference.
+
+\subsubsection{Physical Error Computation}
+
+Reporting error in standardized units is meaningless to domain scientists. WaveDL automatically converts metrics to physical units:
+\begin{equation}
+\text{MAE}_j^{physical} = \sigma_j \cdot \text{MAE}_j^{standardized}
+\end{equation}
+
+For multi-target problems, errors are reported individually:
+\begin{itemize}
+    \item Target 0 (Thickness): $0.042 \pm 0.012$~mm
+    \item Target 1 (Velocity): $3.1 \pm 0.8$~m/s
+\end{itemize}
+
+This enables direct comparison against engineering tolerances (e.g., ``Is thickness error within $\pm 0.1$~mm?'').
+
+% Figure: Standardization flow
+\begin{figure*}[htbp]
+\centering
+\includegraphics[width=0.9\textwidth]{images/fig14_standardization.png}
+\caption{Data standardization and physical metric computation flow. Raw targets are standardized for training, then inverse-transformed for evaluation in physical units, enabling direct comparison with engineering tolerances.}
+\label{fig:standardization}
+\end{figure*}
+
+\subsection{Implementation Details}
+
+To ensure reproducibility and clarity, we provide the core implementation logic for the memory-mapped pipeline and distributed synchronization.
+
+\textbf{Listing 1: Thread-Safe Memory-Mapped Dataset}
+\begin{lstlisting}[caption={Thread-Safe Memory-Mapped Dataset}]
+class MemmapDataset(Dataset):
+    """
+    Zero-copy dataset for large-scale physical simulations.
+    
+    Args:
+        memmap_path (str): Path to the binary memmap file.
+        shape (tuple): Dimensions of the complete dataset (N, C, H, W).
+        dtype (str): Data type (default: 'float32').
+    """
+    def __init__(self, memmap_path, targets, shape, dtype='float32'):
+        self.memmap_path = memmap_path
+        self.targets = targets
+        self.shape = shape
+        self.dtype = dtype
+        self.data = None  # Lazy initialization handle
+
+    def __getitem__(self, index):
+        # Lazy loading: Open file handle only on first access
+        # This ensures each worker process has its own file descriptor
+        if self.data is None:
+            self.data = np.memmap(
+                self.memmap_path, 
+                dtype=self.dtype, 
+                mode='r', 
+                shape=self.shape
+            )
+        
+        # .copy() is critical to detach from the memory buffer
+        # and prevent shared memory race conditions during augmentation
+        image = torch.from_numpy(self.data[index].copy())
+        target = self.targets[index]
+        
+        return image, target
+\end{lstlisting}
+
+\textbf{Listing 2: DDP-Safe Early Stopping}
+\begin{lstlisting}[caption={DDP-Safe Early Stopping}]
+def broadcast_early_stop(should_stop: bool, accelerator) -> bool:
+    """
+    Synchronize early stopping decision across all GPU ranks.
+    
+    Args:
+        should_stop (bool): Local decision from the main process.
+        accelerator: HuggingFace Accelerate handler.
+        
+    Returns:
+        bool: Harmonized decision (True if any rank decided to stop).
+    """
+    # Convert boolean to tensor for broadcasting
+    device = accelerator.device
+    stop_tensor = torch.tensor(int(should_stop), device=device)
+    
+    # Broadcast decision from Rank 0 to all other ranks
+    if accelerator.num_processes > 1:
+        # Use reduce to handle edge cases where non-rank-0 might trigger stop
+        torch.distributed.all_reduce(stop_tensor, op=torch.distributed.ReduceOp.MAX)
+        
+    return stop_tensor.item() > 0
+\end{lstlisting}

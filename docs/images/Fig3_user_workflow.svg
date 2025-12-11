@@ -1,0 +1,1459 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="0 0 717.7777 564.39388"
+   width="190mm"
+   height="149mm"
+   version="1.1"
+   id="svg93"
+   sodipodi:docname="Fig3_user_workflow.svg"
+   inkscape:version="1.3.2 (091e20e, 2023-11-25)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview93"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="0.50402601"
+     inkscape:cx="403.74901"
+     inkscape:cy="353.15638"
+     inkscape:window-width="1128"
+     inkscape:window-height="1237"
+     inkscape:window-x="1177"
+     inkscape:window-y="31"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="g7" />
+  <defs
+     id="defs41">
+    <marker
+       style="overflow:visible"
+       id="marker105"
+       refX="0"
+       refY="0"
+       orient="auto-start-reverse"
+       inkscape:stockid="Dart arrow"
+       markerWidth="1"
+       markerHeight="1"
+       viewBox="0 0 1 1"
+       inkscape:isstock="true"
+       inkscape:collect="always"
+       preserveAspectRatio="xMidYMid">
+      <path
+         style="fill:context-stroke;fill-rule:evenodd;stroke:none"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         transform="scale(-0.5)"
+         id="path105" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="DartArrow"
+       refX="0"
+       refY="0"
+       orient="auto-start-reverse"
+       inkscape:stockid="Dart arrow"
+       markerWidth="1"
+       markerHeight="1"
+       viewBox="0 0 1 1"
+       inkscape:isstock="true"
+       inkscape:collect="always"
+       preserveAspectRatio="xMidYMid">
+      <path
+         style="fill:context-stroke;fill-rule:evenodd;stroke:none"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         transform="scale(-0.5)"
+         id="path6" />
+    </marker>
+    <!-- Premium Multi-stop Gradients -->
+    <linearGradient
+       id="bgGrad"
+       x1="0"
+       y1="0"
+       x2="1"
+       y2="1">
+      <stop
+         offset="0%"
+         stop-color="#ffffff"
+         id="stop1" />
+      <stop
+         offset="50%"
+         stop-color="#f8fafc"
+         id="stop2" />
+      <stop
+         offset="100%"
+         stop-color="#f1f5f9"
+         id="stop3" />
+    </linearGradient>
+    <linearGradient
+       id="userGrad"
+       x1="0"
+       y1="0"
+       x2="0"
+       y2="79.372536"
+       gradientTransform="matrix(1.0212311,0,0,0.82314069,13.492945,42.033103)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#60a5fa"
+         id="stop4" />
+      <stop
+         offset="50%"
+         stop-color="#3b82f6"
+         id="stop5" />
+      <stop
+         offset="100%"
+         stop-color="#2563eb"
+         id="stop6" />
+    </linearGradient>
+    <linearGradient
+       id="trainGrad"
+       x1="0"
+       y1="0"
+       x2="0"
+       y2="81.547531"
+       gradientTransform="matrix(1.0492152,0,0,0.80118633,121.56989,42.033103)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#a78bfa"
+         id="stop7" />
+      <stop
+         offset="50%"
+         stop-color="#8b5cf6"
+         id="stop8" />
+      <stop
+         offset="100%"
+         stop-color="#7c3aed"
+         id="stop9" />
+    </linearGradient>
+    <linearGradient
+       id="dataGrad"
+       x1="0"
+       y1="0"
+       x2="0"
+       y2="87.749641"
+       gradientTransform="matrix(1.253018,0,0,0.74455878,233.21258,42.033103)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#2dd4bf"
+         id="stop10" />
+      <stop
+         offset="50%"
+         stop-color="#14b8a6"
+         id="stop11" />
+      <stop
+         offset="100%"
+         stop-color="#0d9488"
+         id="stop12" />
+    </linearGradient>
+    <linearGradient
+       id="memmapGrad"
+       x1="0"
+       y1="0"
+       x2="0"
+       y2="91.651512"
+       gradientTransform="matrix(1.1792161,0,0,0.71286076,369.24623,42.033103)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#22d3ee"
+         id="stop13" />
+      <stop
+         offset="50%"
+         stop-color="#06b6d4"
+         id="stop14" />
+      <stop
+         offset="100%"
+         stop-color="#0891b2"
+         id="stop15" />
+    </linearGradient>
+    <linearGradient
+       id="modelGrad"
+       x1="0"
+       y1="0"
+       x2="0"
+       y2="79.372536"
+       gradientTransform="matrix(1.0212311,0,0,0.82314069,508.84562,42.033103)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#f472b6"
+         id="stop16" />
+      <stop
+         offset="50%"
+         stop-color="#ec4899"
+         id="stop17" />
+      <stop
+         offset="100%"
+         stop-color="#db2777"
+         id="stop18" />
+    </linearGradient>
+    <linearGradient
+       id="wandbGrad"
+       x1="0"
+       y1="0"
+       x2="0"
+       y2="79.372536"
+       gradientTransform="matrix(1.0212311,0,0,0.82314069,621.42577,42.033103)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#fbbf24"
+         id="stop19" />
+      <stop
+         offset="50%"
+         stop-color="#f59e0b"
+         id="stop20" />
+      <stop
+         offset="100%"
+         stop-color="#d97706"
+         id="stop21" />
+    </linearGradient>
+    <linearGradient
+       id="loopGrad"
+       x1="-0.63746721"
+       y1="-2.4511063"
+       x2="-0.63746721"
+       y2="345.60599"
+       gradientTransform="matrix(1.6109326,0,0,0.43609191,132.25379,316.1418)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#fef9c3"
+         id="stop22" />
+      <stop
+         offset="100%"
+         stop-color="#fef08a"
+         id="stop23" />
+    </linearGradient>
+    <linearGradient
+       id="msgBlue"
+       x1="60.703209"
+       y1="-73.417656"
+       x2="128.53941"
+       y2="-73.417656"
+       gradientTransform="matrix(1.4256489,0,0,0.38315886,-24.584885,161.51966)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#dbeafe"
+         id="stop24" />
+      <stop
+         offset="100%"
+         stop-color="#eff6ff"
+         id="stop25" />
+    </linearGradient>
+    <linearGradient
+       id="msgPurple"
+       x1="117.52641"
+       y1="-55.593353"
+       x2="166.36543"
+       y2="-55.593353"
+       gradientTransform="matrix(2.0782562,0,0,0.48117262,0,296.10166)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#ede9fe"
+         id="stop26" />
+      <stop
+         offset="100%"
+         stop-color="#f5f3ff"
+         id="stop27" />
+    </linearGradient>
+    <linearGradient
+       id="msgTeal"
+       x1="0"
+       y1="0"
+       x2="1"
+       y2="0">
+      <stop
+         offset="0%"
+         stop-color="#ccfbf1"
+         id="stop28" />
+      <stop
+         offset="100%"
+         stop-color="#f0fdfa"
+         id="stop29" />
+    </linearGradient>
+    <linearGradient
+       id="msgCyan"
+       x1="0"
+       y1="0"
+       x2="1"
+       y2="0">
+      <stop
+         offset="0%"
+         stop-color="#cffafe"
+         id="stop30" />
+      <stop
+         offset="100%"
+         stop-color="#ecfeff"
+         id="stop31" />
+    </linearGradient>
+    <linearGradient
+       id="msgPink"
+       x1="0"
+       y1="0"
+       x2="1"
+       y2="0">
+      <stop
+         offset="0%"
+         stop-color="#fce7f3"
+         id="stop32" />
+      <stop
+         offset="100%"
+         stop-color="#fdf2f8"
+         id="stop33" />
+    </linearGradient>
+    <linearGradient
+       id="msgOrange"
+       x1="160.13101"
+       y1="-48.197647"
+       x2="205.68044"
+       y2="-48.197647"
+       gradientTransform="matrix(1.9080785,0,0,0.44055677,104.26594,442.51932)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#fed7aa"
+         id="stop34" />
+      <stop
+         offset="100%"
+         stop-color="#fef3c7"
+         id="stop35" />
+    </linearGradient>
+    <!-- Premium Arrow Markers -->
+    <marker
+       id="arrowBlue"
+       markerWidth="12"
+       markerHeight="9"
+       refX="10"
+       refY="4.5"
+       orient="auto"
+       markerUnits="strokeWidth">
+      <path
+         d="M 0,0 12,4.5 0,9 3,4.5 Z"
+         fill="#2563eb"
+         id="path35" />
+    </marker>
+    <marker
+       id="arrowPurple"
+       markerWidth="12"
+       markerHeight="9"
+       refX="10"
+       refY="4.5"
+       orient="auto"
+       markerUnits="strokeWidth"
+       viewBox="0 0 12 9"
+       preserveAspectRatio="xMidYMid">
+      <path
+         d="M 0,0 12,4.5 0,9 3,4.5 Z"
+         fill="#7c3aed"
+         id="path36" />
+    </marker>
+    <marker
+       id="arrowTeal"
+       markerWidth="12"
+       markerHeight="9"
+       refX="10"
+       refY="4.5"
+       orient="auto"
+       markerUnits="strokeWidth">
+      <path
+         d="M 0,0 12,4.5 0,9 3,4.5 Z"
+         fill="#0d9488"
+         id="path37" />
+    </marker>
+    <marker
+       id="arrowCyan"
+       markerWidth="12"
+       markerHeight="9"
+       refX="10"
+       refY="4.5"
+       orient="auto"
+       markerUnits="strokeWidth"
+       viewBox="0 0 12 9"
+       preserveAspectRatio="xMidYMid">
+      <path
+         d="M 0,0 12,4.5 0,9 3,4.5 Z"
+         fill="#0891b2"
+         id="path38" />
+    </marker>
+    <marker
+       id="arrowPink"
+       markerWidth="12"
+       markerHeight="9"
+       refX="10"
+       refY="4.5"
+       orient="auto"
+       markerUnits="strokeWidth">
+      <path
+         d="M 0,0 12,4.5 0,9 3,4.5 Z"
+         fill="#db2777"
+         id="path39" />
+    </marker>
+    <marker
+       id="arrowOrange"
+       markerWidth="12"
+       markerHeight="9"
+       refX="10"
+       refY="4.5"
+       orient="auto"
+       markerUnits="strokeWidth">
+      <path
+         d="M 0,0 12,4.5 0,9 3,4.5 Z"
+         fill="#d97706"
+         id="path40" />
+    </marker>
+    <marker
+       id="arrowGray"
+       markerWidth="12"
+       markerHeight="9"
+       refX="10"
+       refY="4.5"
+       orient="auto"
+       markerUnits="strokeWidth">
+      <path
+         d="M 0,0 12,4.5 0,9 3,4.5 Z"
+         fill="#64748b"
+         id="path41" />
+    </marker>
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#msgTeal"
+       id="linearGradient93"
+       x1="215.73157"
+       y1="-58.788048"
+       x2="272.27579"
+       y2="-58.788048"
+       gradientTransform="matrix(1.6167004,0,0,0.51995836,-36.042322,162.23773)"
+       gradientUnits="userSpaceOnUse" />
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#msgCyan"
+       id="linearGradient94"
+       x1="334.17645"
+       y1="40.139725"
+       x2="365.30521"
+       y2="40.139725"
+       gradientTransform="matrix(2.3294553,0,0,0.56198125,-480.0835,185.01643)"
+       gradientUnits="userSpaceOnUse" />
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#msgTeal"
+       id="linearGradient95"
+       x1="109.83694"
+       y1="-58.26762"
+       x2="161.02531"
+       y2="-58.26762"
+       gradientTransform="matrix(1.9618026,0,0,0.42849209,-36.042322,229.81932)"
+       gradientUnits="userSpaceOnUse" />
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#msgPink"
+       id="linearGradient96"
+       x1="187.29643"
+       y1="-51.436844"
+       x2="236.13547"
+       y2="-51.436844"
+       gradientTransform="matrix(1.8717632,0,0,0.4491043,-36.042322,279.83206)"
+       gradientUnits="userSpaceOnUse" />
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#msgCyan"
+       id="linearGradient98"
+       x1="83.103188"
+       y1="-51.808331"
+       x2="132.06491"
+       y2="-51.808331"
+       gradientTransform="matrix(2.0510206,0,0,0.40985299,103.57075,355.6781)"
+       gradientUnits="userSpaceOnUse" />
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#msgPink"
+       id="linearGradient99"
+       x1="106.84922"
+       y1="-56.263279"
+       x2="160.0211"
+       y2="-56.263279"
+       gradientTransform="matrix(2.2273859,0,0,0.37740067,99.780271,400.15911)"
+       gradientUnits="userSpaceOnUse" />
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#msgPurple"
+       id="linearGradient105"
+       gradientUnits="userSpaceOnUse"
+       gradientTransform="matrix(2.1952993,0,0,0.44665391,-201.50892,524.55312)"
+       x1="117.52641"
+       y1="-55.593353"
+       x2="166.36543"
+       y2="-55.593353" />
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#msgPurple"
+       id="linearGradient106"
+       gradientUnits="userSpaceOnUse"
+       gradientTransform="matrix(1.8717632,0,0,0.4491043,-37.847585,162.701)"
+       x1="117.52641"
+       y1="-55.593353"
+       x2="166.36543"
+       y2="-55.593353" />
+    <marker
+       id="arrowTeal-0"
+       markerWidth="12"
+       markerHeight="9"
+       refX="10"
+       refY="4.5"
+       orient="auto"
+       markerUnits="strokeWidth">
+      <path
+         d="M 0,0 12,4.5 0,9 3,4.5 Z"
+         fill="#0d9488"
+         id="path37-9" />
+    </marker>
+  </defs>
+  <!-- Premium Background -->
+  <!-- Decorative background elements -->
+  <!-- ==================== HEADER ==================== -->
+  <!-- ==================== ACTOR HEADERS WITH PREMIUM STYLING ==================== -->
+  <!-- User Actor -->
+  <!-- train.py Actor -->
+  <!-- prepare_data Actor -->
+  <!-- MemmapDataset Actor -->
+  <!-- Model Actor -->
+  <!-- WandB Actor -->
+  <!-- ==================== LIFELINES ==================== -->
+  <!-- ==================== MESSAGE 1: User -> train.py ==================== -->
+  <!-- ==================== MESSAGE 2: train.py -> prepare_data ==================== -->
+  <!-- ==================== MESSAGE 3: prepare_data -> MemmapDataset ==================== -->
+  <!-- ==================== MESSAGE 4: prepare_data returns ==================== -->
+  <!-- ==================== MESSAGE 5: train.py -> Model ==================== -->
+  <!-- ==================== TRAINING LOOP BOX ==================== -->
+  <!-- ==================== MESSAGE 9: Save best model ==================== -->
+  <!-- ==================== LEGEND ==================== -->
+  <g
+     id="g7">
+    <text
+       x="358.71631"
+       y="17.951393"
+       font-family="Arial, sans-serif"
+       font-size="24"
+       font-weight="bold"
+       fill="#0f172a"
+       text-anchor="middle"
+       letter-spacing="1"
+       id="text45"
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:16.0354px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;letter-spacing:0px;text-anchor:middle;fill:#0f172a">Training Workflow</text>
+    <ellipse
+       cx="594.40656"
+       cy="386.24292"
+       fill="#f59e0b"
+       fill-opacity="0.03"
+       id="circle45"
+       rx="81.057709"
+       ry="84.001846"
+       style="stroke-width:0.916852" />
+    <rect
+       x="15.294228"
+       y="43.899811"
+       width="81.057709"
+       height="65.33477"
+       rx="10.807694"
+       fill="#94a3b8"
+       fill-opacity="0.2"
+       id="rect46"
+       style="stroke-width:0.916852" />
+    <rect
+       x="13.492945"
+       y="42.033104"
+       width="81.057709"
+       height="65.33477"
+       rx="10.807694"
+       fill="url(#userGrad)"
+       id="rect47"
+       style="fill:url(#userGrad);stroke-width:0.916852" />
+    <ellipse
+       cx="54.021793"
+       cy="65.713982"
+       fill="#bfdbfe"
+       id="circle47"
+       rx="16.375599"
+       ry="16.417025"
+       style="stroke-width:1.17117" />
+    <ellipse
+       cx="54.021793"
+       cy="61.023399"
+       fill="#2563eb"
+       id="circle48"
+       rx="7.0181136"
+       ry="7.0358677"
+       style="stroke-width:1.17117" />
+    <ellipse
+       cx="54.021793"
+       cy="77.44043"
+       rx="11.696856"
+       ry="5.8632231"
+       fill="#2563eb"
+       id="ellipse48"
+       style="stroke-width:1.17117" />
+    <text
+       x="55.50523"
+       y="98.843307"
+       font-family="Arial, sans-serif"
+       font-size="12"
+       font-weight="bold"
+       fill="#ffffff"
+       text-anchor="middle"
+       id="text48"
+       style="font-style:normal;font-variant:normal;font-weight:900;font-stretch:normal;font-size:13.3628px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Heavy';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.916852"
+       transform="scale(0.98231945,1.0179988)">User</text>
+    <rect
+       x="123.37118"
+       y="43.899811"
+       width="85.560913"
+       height="65.33477"
+       rx="10.807694"
+       fill="#94a3b8"
+       fill-opacity="0.2"
+       id="rect48"
+       style="stroke-width:0.916852" />
+    <rect
+       x="121.56989"
+       y="42.033104"
+       width="85.560913"
+       height="65.33477"
+       rx="10.807694"
+       fill="url(#trainGrad)"
+       id="rect49"
+       style="fill:url(#trainGrad);stroke-width:0.916852" />
+    <rect
+       x="146.78784"
+       y="53.233349"
+       width="36.02565"
+       height="26.133907"
+       rx="3.6025648"
+       fill="#c4b5fd"
+       id="rect50"
+       style="stroke-width:0.916852" />
+    <rect
+       x="149.48978"
+       y="56.033409"
+       width="30.621801"
+       height="20.533785"
+       rx="1.8012824"
+       fill="#1e1b4b"
+       id="rect51"
+       style="fill:#3c379a;fill-opacity:1;stroke-width:0.916852" />
+    <text
+       x="171.62294"
+       y="68.795486"
+       font-family="Consolas, monospace"
+       font-size="10px"
+       fill="#a5b4fc"
+       text-anchor="middle"
+       id="text51"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.6902px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.916852"
+       transform="scale(0.98231945,1.0179988)">&gt;_</text>
+    <text
+       x="167.81956"
+       y="97.522026"
+       font-family="Consolas, monospace"
+       font-size="11"
+       font-weight="bold"
+       fill="#ffffff"
+       text-anchor="middle"
+       id="text52"
+       style="font-style:normal;font-variant:normal;font-weight:900;font-stretch:normal;font-size:13.3628px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Heavy';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.916852"
+       transform="scale(0.98231945,1.0179988)"><tspan
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:consolas, monospace;-inkscape-font-specification:'consolas, monospace'"
+         id="tspan8">train.py</tspan></text>
+    <rect
+       x="245.87033"
+       y="43.899811"
+       width="99.070534"
+       height="65.33477"
+       rx="10.807694"
+       fill="#94a3b8"
+       fill-opacity="0.2"
+       id="rect52"
+       style="stroke-width:0.916852" />
+    <rect
+       x="233.21257"
+       y="42.033104"
+       width="109.95189"
+       height="65.33477"
+       rx="11.994752"
+       fill="url(#dataGrad)"
+       id="rect53"
+       style="fill:url(#dataGrad);stroke-width:0.965894" />
+    <ellipse
+       cx="288.18851"
+       cy="57.900116"
+       rx="18.012825"
+       ry="7.4668307"
+       fill="#99f6e4"
+       id="ellipse53"
+       style="stroke-width:0.916852" />
+    <rect
+       x="270.17569"
+       y="57.900116"
+       width="36.02565"
+       height="16.800369"
+       fill="#99f6e4"
+       id="rect54"
+       style="stroke-width:0.916852" />
+    <ellipse
+       cx="288.18851"
+       cy="74.700485"
+       rx="18.012825"
+       ry="7.4668307"
+       fill="#5eead4"
+       id="ellipse54"
+       style="stroke-width:0.916852" />
+    <ellipse
+       cx="288.18851"
+       cy="57.900116"
+       rx="14.410259"
+       ry="4.666769"
+       fill="#14b8a6"
+       fill-opacity="0.4"
+       id="ellipse55"
+       style="stroke-width:0.916852" />
+    <text
+       x="293.21765"
+       y="97.610107"
+       font-family="Consolas, monospace"
+       font-size="10"
+       font-weight="bold"
+       fill="#ffffff"
+       text-anchor="middle"
+       id="text55"
+       style="font-style:normal;font-variant:normal;font-weight:900;font-stretch:normal;font-size:13.3628px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Heavy';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.916852"
+       transform="scale(0.98231945,1.0179988)">prepare_data</text>
+    <rect
+       x="371.04752"
+       y="43.899811"
+       width="108.07695"
+       height="65.33477"
+       rx="10.807694"
+       fill="#94a3b8"
+       fill-opacity="0.2"
+       id="rect55"
+       style="stroke-width:0.916852" />
+    <rect
+       x="369.24622"
+       y="42.033104"
+       width="108.07695"
+       height="65.33477"
+       rx="10.807694"
+       fill="url(#memmapGrad)"
+       id="rect56"
+       style="fill:url(#memmapGrad);stroke-width:0.916852" />
+    <rect
+       x="405.27188"
+       y="53.233349"
+       width="36.02565"
+       height="26.133907"
+       rx="3.6025648"
+       fill="#a5f3fc"
+       stroke="#ffffff"
+       stroke-width="0.916852"
+       id="rect57" />
+    <rect
+       x="409.36472"
+       y="56.343727"
+       width="11.348421"
+       height="7.5924997"
+       rx="1.4185526"
+       fill="#0891b2"
+       id="rect58"
+       style="stroke-width:1.3398" />
+    <rect
+       x="426.3873"
+       y="56.343727"
+       width="11.348421"
+       height="7.5924997"
+       rx="1.4185526"
+       fill="#0891b2"
+       id="rect59"
+       style="stroke-width:1.3398" />
+    <rect
+       x="409.36472"
+       y="68.997894"
+       width="11.348421"
+       height="7.5924997"
+       rx="1.4185526"
+       fill="#0891b2"
+       id="rect60"
+       style="stroke-width:1.3398" />
+    <rect
+       x="426.3873"
+       y="68.997894"
+       width="11.348421"
+       height="7.5924997"
+       rx="1.4185526"
+       fill="#0891b2"
+       id="rect61"
+       style="stroke-width:1.3398" />
+    <text
+       x="431.41437"
+       y="97.610107"
+       font-family="Arial, sans-serif"
+       font-size="9"
+       font-weight="bold"
+       fill="#ffffff"
+       text-anchor="middle"
+       id="text61"
+       style="font-style:normal;font-variant:normal;font-weight:900;font-stretch:normal;font-size:13.3628px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Heavy';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.916852"
+       transform="scale(0.98231945,1.0179988)">Memmap</text>
+    <rect
+       x="510.64691"
+       y="43.899811"
+       width="81.057709"
+       height="65.33477"
+       rx="10.807694"
+       fill="#94a3b8"
+       fill-opacity="0.2"
+       id="rect62"
+       style="stroke-width:0.916852" />
+    <rect
+       x="508.84561"
+       y="42.033104"
+       width="81.057709"
+       height="65.33477"
+       rx="10.807694"
+       fill="url(#modelGrad)"
+       id="rect63"
+       style="fill:url(#modelGrad);stroke-width:0.916852" />
+    <ellipse
+       cx="549.37445"
+       cy="55.100056"
+       fill="#fce7f3"
+       id="circle63"
+       rx="4.5032063"
+       ry="4.666769"
+       style="stroke-width:0.916852" />
+    <ellipse
+       cx="535.86487"
+       cy="68.167007"
+       fill="#fce7f3"
+       id="circle64"
+       rx="4.5032063"
+       ry="4.666769"
+       style="stroke-width:0.916852" />
+    <ellipse
+       cx="562.88409"
+       cy="68.167007"
+       fill="#fce7f3"
+       id="circle65"
+       rx="4.5032063"
+       ry="4.666769"
+       style="stroke-width:0.916852" />
+    <ellipse
+       cx="549.37445"
+       cy="77.500549"
+       fill="#fce7f3"
+       id="circle66"
+       rx="4.5032063"
+       ry="4.666769"
+       style="stroke-width:0.916852" />
+    <line
+       x1="549.37445"
+       y1="55.100056"
+       x2="535.86487"
+       y2="68.167007"
+       stroke="#fce7f3"
+       stroke-width="1.37528"
+       id="line66" />
+    <line
+       x1="549.37445"
+       y1="55.100056"
+       x2="562.88409"
+       y2="68.167007"
+       stroke="#fce7f3"
+       stroke-width="1.37528"
+       id="line67" />
+    <line
+       x1="535.86487"
+       y1="68.167007"
+       x2="549.37445"
+       y2="77.500549"
+       stroke="#fce7f3"
+       stroke-width="1.37528"
+       id="line68" />
+    <line
+       x1="562.88409"
+       y1="68.167007"
+       x2="549.37445"
+       y2="77.500549"
+       stroke="#fce7f3"
+       stroke-width="1.37528"
+       id="line69" />
+    <text
+       x="559.43915"
+       y="98.849823"
+       font-family="Arial, sans-serif"
+       font-size="12"
+       font-weight="bold"
+       fill="#ffffff"
+       text-anchor="middle"
+       id="text69"
+       style="font-style:normal;font-variant:normal;font-weight:900;font-stretch:normal;font-size:13.3628px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Heavy';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.916852"
+       transform="scale(0.98231945,1.0179988)">Model</text>
+    <rect
+       x="623.22705"
+       y="43.899811"
+       width="81.057709"
+       height="65.33477"
+       rx="10.807694"
+       fill="#94a3b8"
+       fill-opacity="0.2"
+       id="rect69"
+       style="stroke-width:0.916852" />
+    <rect
+       x="621.42578"
+       y="42.033104"
+       width="81.057709"
+       height="65.33477"
+       rx="10.807694"
+       fill="url(#wandbGrad)"
+       id="rect70"
+       style="fill:url(#wandbGrad);stroke-width:0.916852" />
+    <rect
+       x="643.94177"
+       y="53.233349"
+       width="36.02565"
+       height="26.133907"
+       rx="2.7019236"
+       fill="#fef3c7"
+       id="rect71"
+       style="stroke-width:0.916852" />
+    <polyline
+       points="30,35 38,25 48,30 58,18"
+       fill="none"
+       stroke="#d97706"
+       stroke-width="2.5"
+       stroke-linecap="round"
+       stroke-linejoin="round"
+       id="polyline71"
+       transform="matrix(0.90064122,0,0,0.93335382,621.42577,42.033103)" />
+    <ellipse
+       cx="673.66296"
+       cy="58.833473"
+       fill="#d97706"
+       id="circle71"
+       rx="2.7019236"
+       ry="2.8000615"
+       style="stroke-width:0.916852" />
+    <text
+       x="674.38007"
+       y="98.849823"
+       font-family="Arial, sans-serif"
+       font-size="12"
+       font-weight="bold"
+       fill="#ffffff"
+       text-anchor="middle"
+       id="text71"
+       style="font-style:normal;font-variant:normal;font-weight:900;font-stretch:normal;font-size:13.3628px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Heavy';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.916852"
+       transform="scale(0.98231945,1.0179988)">WandB</text>
+    <line
+       x1="54.021801"
+       y1="112.03464"
+       x2="54.021801"
+       y2="493.99271"
+       stroke="#3b82f6"
+       id="line71"
+       style="stroke-width:1.99538;stroke-dasharray:6.38524, 4.78893" />
+    <line
+       x1="164.35036"
+       y1="112.03464"
+       x2="164.35036"
+       y2="493.99271"
+       stroke="#8b5cf6"
+       id="line72"
+       style="stroke-width:1.99538;stroke-dasharray:6.38524, 4.78893" />
+    <line
+       x1="288.18851"
+       y1="112.03464"
+       x2="288.18851"
+       y2="493.99271"
+       stroke="#14b8a6"
+       id="line73"
+       style="stroke-width:1.99538;stroke-dasharray:6.38524, 4.78893" />
+    <line
+       x1="423.2847"
+       y1="112.03464"
+       x2="423.2847"
+       y2="493.99271"
+       stroke="#06b6d4"
+       id="line74"
+       style="stroke-width:1.99538;stroke-dasharray:6.38524, 4.78893" />
+    <line
+       x1="549.37445"
+       y1="112.03464"
+       x2="549.37445"
+       y2="493.99271"
+       stroke="#ec4899"
+       id="line75"
+       style="stroke-width:1.99538;stroke-dasharray:6.38524, 4.78893" />
+    <line
+       x1="661.95465"
+       y1="112.03464"
+       x2="661.95465"
+       y2="493.99271"
+       stroke="#f59e0b"
+       id="line76"
+       style="stroke-width:1.99538;stroke-dasharray:6.38524, 4.78893" />
+    <path
+       d="m 61.22693,177.45192 h 94.56733"
+       stroke="#2563eb"
+       stroke-width="2.5"
+       fill="none"
+       marker-end="url(#arrowBlue)"
+       id="path76"
+       style="stroke-width:2.08376;stroke-dasharray:none" />
+    <g
+       id="g3">
+      <rect
+         x="62.579178"
+         y="133.88255"
+         width="95.465393"
+         height="25.005001"
+         rx="6.6410718"
+         fill="url(#msgBlue)"
+         stroke="#93c5fd"
+         stroke-width="1.10863"
+         id="rect76"
+         style="fill:url(#msgBlue)" />
+      <text
+         x="111.77117"
+         y="147.39209"
+         font-family="Consolas, monospace"
+         font-size="8px"
+         fill="#1e40af"
+         text-anchor="middle"
+         id="text77"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.6902px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.916852"
+         transform="scale(0.98231948,1.0179988)"><tspan
+   style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.6902px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.916852"
+   id="tspan105">Launch</tspan> train.py</text>
+    </g>
+    <path
+       d="M 172.90644,177.32815 H 279.1821"
+       stroke="#7c3aed"
+       stroke-width="2.5"
+       fill="none"
+       marker-end="url(#arrowPurple)"
+       id="path77"
+       style="stroke-width:2.08376;stroke-dasharray:none" />
+    <g
+       id="g4"
+       transform="translate(0,-2.3156919)">
+      <rect
+         x="182.80951"
+         y="138.43385"
+         width="90.064125"
+         height="20.533785"
+         rx="5.4038472"
+         fill="url(#msgPurple)"
+         stroke="#c4b5fd"
+         stroke-width="1.37528"
+         id="rect77"
+         style="fill:url(#linearGradient106)" />
+      <text
+         x="231.38297"
+         y="149.46774"
+         font-family="Arial, sans-serif"
+         font-size="10px"
+         fill="#5b21b6"
+         text-anchor="middle"
+         id="text78"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.6902px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.916852"
+         transform="scale(0.98231948,1.0179988)">Load dataset</text>
+    </g>
+    <rect
+       x="57.28896"
+       y="500.41974"
+       width="105.6318"
+       height="20.421747"
+       rx="6.3379073"
+       fill="url(#msgPurple)"
+       stroke="#c4b5fd"
+       stroke-width="1.48534"
+       id="rect77-4"
+       style="fill:url(#linearGradient105)" />
+    <text
+       x="111.92873"
+       y="504.99835"
+       font-family="Arial, sans-serif"
+       font-size="10px"
+       fill="#5b21b6"
+       text-anchor="middle"
+       id="text78-8"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.6902px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.916852"
+       transform="scale(0.98231943,1.0179988)">Save Trained Model</text>
+    <path
+       d="M 297.19493,177.20439 H 414.27829"
+       stroke="#0d9488"
+       stroke-width="2.5"
+       fill="none"
+       marker-end="url(#arrowTeal)"
+       id="path78"
+       style="stroke-width:2.08376;stroke-dasharray:none" />
+    <g
+       id="g5"
+       transform="translate(0,0.01456833)">
+      <rect
+         x="313.40646"
+         y="132.37018"
+         width="90.064125"
+         height="28.000614"
+         rx="5.4038472"
+         fill="url(#msgTeal)"
+         stroke="#5eead4"
+         stroke-width="1.37528"
+         id="rect78"
+         style="fill:url(#linearGradient93)" />
+      <text
+         x="366.07007"
+         y="142.3231"
+         font-family="Arial, sans-serif"
+         font-size="9px"
+         fill="#0f766e"
+         text-anchor="middle"
+         id="text79"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.6902px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.916852"
+         transform="scale(0.98231948,1.0179988)">NPZ -&gt; Memmap</text>
+      <text
+         x="366.07007"
+         y="153.32533"
+         font-family="Arial, sans-serif"
+         font-size="9px"
+         fill="#0f766e"
+         text-anchor="middle"
+         id="text80"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.6902px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.916852"
+         transform="scale(0.98231948,1.0179988)">+ Scaler</text>
+    </g>
+    <g
+       id="g1"
+       transform="translate(29.243727)">
+      <rect
+         x="299.07642"
+         y="208.03442"
+         width="71.091248"
+         height="16.573057"
+         rx="5.6872993"
+         fill="url(#msgCyan)"
+         stroke="#67e8f9"
+         stroke-width="1.14416"
+         id="rect80"
+         style="fill:url(#linearGradient94)" />
+      <text
+         x="340.81531"
+         y="215.69283"
+         font-family="Arial, sans-serif"
+         font-size="8px"
+         fill="#0e7490"
+         text-anchor="middle"
+         id="text81"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.6902px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.916852"
+         transform="scale(0.98231945,1.0179988)">Cache ready</text>
+    </g>
+    <path
+       d="M 279.1821,242.91515 H 172.90644"
+       stroke="#0d9488"
+       stroke-width="2"
+       fill="none"
+       marker-end="url(#arrowTeal)"
+       stroke-dasharray="6, 3"
+       id="path81"
+       style="stroke-width:2.08376;stroke-dasharray:6.25126, 3.12563;stroke-dashoffset:0" />
+    <path
+       d="M 416.99729,242.89174 H 301.23616"
+       stroke="#0d9488"
+       stroke-width="2"
+       fill="none"
+       marker-end="url(#arrowTeal-0)"
+       stroke-dasharray="6, 3"
+       id="path81-4"
+       style="stroke:#0891b2;stroke-width:2.17476;stroke-dasharray:6.52427, 3.26214;stroke-dashoffset:0;stroke-opacity:1;marker-end:url(#arrowCyan)" />
+    <g
+       id="g2"
+       transform="translate(0,0.50196648)">
+      <rect
+         x="180.11157"
+         y="205.55209"
+         width="99.070534"
+         height="20.533785"
+         rx="5.4038472"
+         fill="url(#msgTeal)"
+         stroke="#5eead4"
+         stroke-width="1.37528"
+         id="rect81"
+         style="fill:url(#linearGradient95)" />
+      <text
+         x="234.32491"
+         y="215.43845"
+         font-family="Arial, sans-serif"
+         font-size="9px"
+         fill="#0f766e"
+         text-anchor="middle"
+         id="text82"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.6902px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.916852"
+         transform="scale(0.98231948,1.0179988)">DataLoaders, scaler</text>
+    </g>
+    <path
+       d="M 172.90644,299.34191 H 540.36806"
+       stroke="#db2777"
+       stroke-width="2.5"
+       fill="none"
+       marker-end="url(#arrowPink)"
+       id="path82"
+       style="stroke-width:2.08376;stroke-dasharray:none" />
+    <g
+       id="g6"
+       transform="translate(0,12.026514)">
+      <rect
+         x="315.20776"
+         y="257.43134"
+         width="90.064125"
+         height="20.533785"
+         rx="5.4038472"
+         fill="url(#msgPink)"
+         stroke="#f9a8d4"
+         stroke-width="1.37528"
+         id="rect82"
+         style="fill:url(#linearGradient96)" />
+      <text
+         x="367.74142"
+         y="266.17221"
+         font-family="Consolas, monospace"
+         font-size="10px"
+         fill="#be185d"
+         text-anchor="middle"
+         id="text83"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.6902px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.916852"
+         transform="scale(0.98231948,1.0179988)">build_model()</text>
+    </g>
+    <rect
+       x="132.25383"
+       y="316.1416"
+       width="558.6427"
+       height="149.64708"
+       rx="9.8584003"
+       fill="url(#loopGrad)"
+       stroke="#f59e0b"
+       stroke-width="2.0954"
+       id="rect84"
+       style="fill:url(#loopGrad)" />
+    <rect
+       x="132.52097"
+       y="316.24088"
+       width="117.08336"
+       height="28.000614"
+       rx="10.807694"
+       fill="#f59e0b"
+       id="rect85"
+       style="stroke-width:0.916852" />
+    <text
+       x="198.35768"
+       y="327.14883"
+       font-family="Arial, sans-serif"
+       font-size="11px"
+       font-weight="bold"
+       fill="#ffffff"
+       text-anchor="middle"
+       id="text85"
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:13.3628px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-anchor:middle;fill:#ffffff;stroke-width:0.916852"
+       transform="scale(0.98231945,1.0179988)">[Training Loop]</text>
+    <path
+       d="M 163.90003,361.04209 H 418.78149"
+       stroke="#0891b2"
+       stroke-width="2.5"
+       fill="none"
+       marker-end="url(#arrowCyan)"
+       id="path85"
+       style="stroke-width:2.08376;stroke-dasharray:none" />
+    <rect
+       x="274.6926"
+       y="335.14413"
+       width="99.070534"
+       height="18.667076"
+       rx="4.5032063"
+       fill="url(#msgCyan)"
+       stroke="#67e8f9"
+       stroke-width="1.37528"
+       id="rect86"
+       style="fill:url(#linearGradient98)" />
+    <text
+       x="331.24365"
+       y="341.409"
+       font-family="Arial, sans-serif"
+       font-size="10px"
+       fill="#0e7490"
+       text-anchor="middle"
+       id="text86"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.6902px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.916852"
+       transform="scale(0.98231945,1.0179988)">Get batch (x, y)</text>
+    <path
+       d="M 163.90003,404.90972 H 544.87126"
+       stroke="#db2777"
+       stroke-width="2.5"
+       fill="none"
+       marker-end="url(#arrowPink)"
+       id="path86"
+       style="stroke-width:2.08376;stroke-dasharray:none" />
+    <rect
+       x="338.45013"
+       y="379.62558"
+       width="117.08336"
+       height="18.667076"
+       rx="4.5032063"
+       fill="url(#msgPink)"
+       stroke="#f9a8d4"
+       stroke-width="1.37528"
+       id="rect87"
+       style="fill:url(#linearGradient99)" />
+    <text
+       x="404.64828"
+       y="385.74969"
+       font-family="Arial, sans-serif"
+       font-size="10px"
+       fill="#be185d"
+       text-anchor="middle"
+       id="text87"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.6902px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.916852"
+       transform="scale(0.98231943,1.0179988)">Forward + Backward</text>
+    <path
+       d="M 163.90003,446.91064 H 657.45142"
+       stroke="#d97706"
+       stroke-width="2.5"
+       fill="none"
+       marker-end="url(#arrowOrange)"
+       id="path87"
+       style="stroke-width:2.08376;stroke-dasharray:none" />
+    <rect
+       x="410.48373"
+       y="421.98645"
+       width="85.560913"
+       height="18.667076"
+       rx="4.5032063"
+       fill="url(#msgOrange)"
+       stroke="#fcd34d"
+       stroke-width="1.37528"
+       id="rect88"
+       style="fill:url(#msgOrange)" />
+    <text
+       x="461.59952"
+       y="427.3616"
+       font-family="Arial, sans-serif"
+       font-size="10px"
+       fill="#b45309"
+       text-anchor="middle"
+       id="text88"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.6902px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#7c3a09;fill-opacity:1;stroke-width:0.916852"
+       transform="scale(0.98231943,1.0179988)">Log metrics</text>
+    <path
+       d="M 159.91134,482.18911 H 61.057438"
+       stroke="#64748b"
+       stroke-width="2"
+       fill="none"
+       marker-end="url(#arrowGray)"
+       stroke-dasharray="6, 3"
+       id="path89"
+       style="stroke:#7c3aed;stroke-width:2.04016;stroke-dasharray:6.12049, 3.06024;stroke-dashoffset:0;stroke-opacity:1;marker-end:url(#arrowPurple)" />
+    <g
+       id="g8"
+       transform="translate(0,-14.030933)">
+      <rect
+         x="533.14301"
+         y="492.64908"
+         width="162.11542"
+         height="70.001534"
+         rx="9.0064125"
+         fill="#94a3b8"
+         fill-opacity="0.1"
+         id="rect90"
+         style="stroke-width:0.916852" />
+      <rect
+         x="529.5365"
+         y="490.78238"
+         width="162.11542"
+         height="70.001534"
+         rx="9.0064125"
+         fill="#ffffff"
+         stroke="#e2e8f0"
+         stroke-width="1.37528"
+         id="rect91" />
+      <text
+         x="620.14294"
+         y="498.6084"
+         font-family="Arial, sans-serif"
+         font-size="10"
+         font-weight="bold"
+         fill="#334155"
+         text-anchor="middle"
+         id="text91"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:13.3628px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-anchor:middle;fill:#334155;stroke-width:0.916852"
+         transform="scale(0.98231943,1.0179988)">Legend</text>
+      <line
+         x1="538.45691"
+         y1="524.38312"
+         x2="575.47455"
+         y2="524.38312"
+         stroke="#64748b"
+         stroke-width="2.5"
+         id="line91"
+         style="stroke-width:1.99146;stroke-dasharray:none;marker-end:url(#DartArrow)" />
+      <text
+         x="612.0083"
+         y="518.77917"
+         font-family="Arial, sans-serif"
+         font-size="9"
+         fill="#64748b"
+         id="text92"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.6902px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.916852"
+         transform="scale(0.98231943,1.0179988)">Synchronous call</text>
+      <line
+         x1="550.95129"
+         y1="543.05017"
+         x2="588.64154"
+         y2="543.05017"
+         stroke="#64748b"
+         stroke-width="2.04783"
+         stroke-dasharray="6, 3"
+         id="line92"
+         style="stroke-width:1.96253;stroke-dasharray:5.75005, 2.87503;stroke-dashoffset:0;marker-start:url(#marker105)" />
+      <text
+         x="612.0083"
+         y="537.11621"
+         font-family="Arial, sans-serif"
+         font-size="9"
+         fill="#64748b"
+         id="text93"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:10.6902px;font-family:Arial, sans-serif;-inkscape-font-specification:'Arial, sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.916852"
+         transform="scale(0.98231943,1.0179988)">Return / Async</text>
+    </g>
+    <rect
+       x="6.7628851"
+       y="27.306162"
+       width="704.25195"
+       height="528.89569"
+       rx="8.1181784"
+       ry="8.2964029"
+       fill="none"
+       stroke="#e2e8f0"
+       stroke-width="1.53877"
+       stroke-dasharray="6, 3"
+       id="rect13" />
+  </g>
+</svg>
