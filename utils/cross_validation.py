@@ -170,10 +170,10 @@ def train_fold(
         
         avg_val_loss = val_loss / val_samples
         
-        # Compute metrics
+        # Compute metrics (guard for tiny datasets)
         y_pred = torch.cat(all_preds).numpy()
         y_true = torch.cat(all_targets).numpy()
-        r2 = r2_score(y_true, y_pred)
+        r2 = r2_score(y_true, y_pred) if len(y_true) >= 2 else float('nan')
         mae = np.abs((y_pred - y_true) * scaler.scale_).mean()
         
         history.append({
@@ -228,16 +228,19 @@ def train_fold(
     results = {
         'fold': fold + 1,
         'best_val_loss': best_val_loss,
-        'r2': r2_score(y_true, y_pred),
+        'r2': r2_score(y_true, y_pred) if len(y_true) >= 2 else float('nan'),
         'mae_normalized': mean_absolute_error(y_true, y_pred),
         'mae_physical': mean_absolute_error(y_true_phys, y_pred_phys),
         'epochs_trained': len(history),
         'history': history,
     }
     
-    # Per-target metrics
+    # Per-target metrics (guard for tiny folds)
     for i in range(y_true.shape[1]):
-        results[f'r2_target_{i}'] = r2_score(y_true[:, i], y_pred[:, i])
+        if len(y_true) >= 2:
+            results[f'r2_target_{i}'] = r2_score(y_true[:, i], y_pred[:, i])
+        else:
+            results[f'r2_target_{i}'] = float('nan')
         results[f'mae_target_{i}'] = mean_absolute_error(y_true_phys[:, i], y_pred_phys[:, i])
     
     return results

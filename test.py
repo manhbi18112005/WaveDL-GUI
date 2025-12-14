@@ -369,7 +369,7 @@ def load_mat_data(
                     y_np = y_np.reshape(-1, 1)
             else:
                 logging.warning("No target data found. Proceeding with predictions only.")
-                y_np = np.zeros((len(X_np), 1), dtype=np.float32)
+                y_np = None  # Return None for consistent no-targets handling
     
     except OSError as e:
         raise ValueError(
@@ -514,9 +514,14 @@ def load_test_data(
     else:
         raise ValueError(f"Unsupported format: {format}. Supported: npz, mat, hdf5")
     
-    logging.info(f"   ✔ Loaded {len(X)} samples | Input: {X.shape} | Target: {y.shape}")
+    # Log with conditional target info (y can be None for predictions-only mode)
+    if y is not None:
+        logging.info(f"   ✔ Loaded {len(X)} samples | Input: {X.shape} | Target: {y.shape}")
+    else:
+        logging.info(f"   ✔ Loaded {len(X)} samples | Input: {X.shape} | Target: None (predictions only)")
     
     return X, y
+
 
 
 # ==============================================================================
@@ -556,18 +561,30 @@ def load_checkpoint(
     
     # Auto-detect model architecture if not specified
     if model_name is None:
-        # Try to detect from parent directory name (e.g., 'cnn_test' -> 'cnn')
-        parent_dir = checkpoint_dir.parent.name
-        detected_name = parent_dir.split('_')[0] if '_' in parent_dir else parent_dir.split('-')[0]
+        # First, try to read from training_meta.pkl (most reliable)
+        if meta_path.exists():
+            with open(meta_path, 'rb') as f:
+                meta = pickle.load(f)
+            if 'model_name' in meta and meta['model_name']:
+                model_name = meta['model_name']
+                logging.info(f"   Auto-detected model from checkpoint: {model_name}")
         
-        if detected_name in list_models():
-            model_name = detected_name
-            logging.info(f"   Auto-detected model: {model_name}")
-        else:
-            raise ValueError(
-                f"Could not auto-detect model architecture from '{parent_dir}'.\n"
-                f"Please specify --model explicitly. Available models: {list_models()}"
-            )
+        # Fallback: try to detect from parent directory name (e.g., 'cnn_test' -> 'cnn')
+        if model_name is None:
+            parent_dir = checkpoint_dir.parent.name
+            detected_name = parent_dir.split('_')[0] if '_' in parent_dir else parent_dir.split('-')[0]
+            
+            if detected_name in list_models():
+                model_name = detected_name
+                logging.info(f"   Auto-detected model from folder: {model_name}")
+            else:
+                raise ValueError(
+                    f"Could not auto-detect model architecture.\\n"
+                    f"Checkpoint missing 'model_name' in training_meta.pkl and folder '{parent_dir}' "
+                    f"doesn't start with a known model name.\\n"
+                    f"Please specify --model explicitly. Available models: {list_models()}"
+                )
+
     
     logging.info(f"   Building model: {model_name}")
     model = build_model(model_name, in_shape=in_shape, out_size=out_size)
@@ -1116,12 +1133,29 @@ def main():
         model, X_test, args.batch_size, device, num_workers=args.workers
     )
     
+    # Validate scaler dimensions match predictions
+    if hasattr(scaler, 'scale_') and len(scaler.scale_) != y_pred_scaled.shape[1]:
+        raise ValueError(
+            f"Scaler output dimension ({len(scaler.scale_)}) doesn't match "
+            f"model output dimension ({y_pred_scaled.shape[1]}). "
+            f"This may indicate a mismatched checkpoint or scaler.pkl."
+        )
+    
     # Inverse transform predictions
     y_pred = scaler.inverse_transform(y_pred_scaled)
+    
+    # Validate param_names length if provided
+    if args.param_names and len(args.param_names) != y_pred.shape[1]:
+        logger.warning(
+            f"--param_names has {len(args.param_names)} names but model outputs "
+            f"{y_pred.shape[1]} values. Using default names."
+        )
+        args.param_names = None  # Fall back to default
     
     if has_targets:
         # === MODE: With ground truth ===
         y_true = y_test.numpy()
+
         
         # Compute metrics
         metrics = compute_metrics(y_true, y_pred)

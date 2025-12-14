@@ -205,8 +205,11 @@ def plot_scientific_scatter(
     for i in range(num_params):
         ax = axes[i]
         
-        # Calculate R² for this target
-        r2 = r2_score(y_true[:, i], y_pred[:, i])
+        # Calculate R² for this target (guard for tiny datasets)
+        if len(y_true) >= 2:
+            r2 = r2_score(y_true[:, i], y_pred[:, i])
+        else:
+            r2 = float('nan')
         
         # Scatter plot
         ax.scatter(

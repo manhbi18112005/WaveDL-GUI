@@ -200,7 +200,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--project_name', type=str, default='DL-Training', help="WandB project name")
     parser.add_argument('--run_name', type=str, default=None, help="WandB run name")
     
-    return parser.parse_args(), parser
+    args = parser.parse_args()
+    return args, parser  # Returns (Namespace, ArgumentParser)
 
 
 # ==============================================================================
@@ -214,9 +215,15 @@ def main():
         print("Available models:")
         for name in list_models():
             ModelClass = get_model(name)
-            doc_first_line = ModelClass.__doc__.splitlines()[0].strip() if ModelClass.__doc__ else 'No description'
+            # Get first non-empty docstring line
+            if ModelClass.__doc__:
+                lines = [l.strip() for l in ModelClass.__doc__.splitlines() if l.strip()]
+                doc_first_line = lines[0] if lines else 'No description'
+            else:
+                doc_first_line = 'No description'
             print(f"  - {name}: {doc_first_line}")
         sys.exit(0)
+
     
     # Load and merge config file if provided
     if args.config:
@@ -297,6 +304,9 @@ def main():
     )
     logger = logging.getLogger("Trainer")
     
+    # Ensure output directory exists (critical for cache files, checkpoints, etc.)
+    os.makedirs(args.output_dir, exist_ok=True)
+    
     if accelerator.is_main_process:
         logger.info(f"🚀 Cluster Status: {accelerator.num_processes}x GPUs detected")
         logger.info(f"   Model: {args.model} | Precision: {args.precision} | Compile: {args.compile}")
@@ -361,8 +371,17 @@ def main():
     # ==========================================================================
     # 2.5. OPTIMIZER, SCHEDULER & LOSS CONFIGURATION
     # ==========================================================================
-    # Parse comma-separated arguments
-    betas = tuple(float(x.strip()) for x in args.betas.split(','))
+    # Parse comma-separated arguments with validation
+    try:
+        betas_list = [float(x.strip()) for x in args.betas.split(',')]
+        if len(betas_list) != 2:
+            raise ValueError(f"--betas must have exactly 2 values, got {len(betas_list)}")
+        if not all(0.0 <= b < 1.0 for b in betas_list):
+            raise ValueError(f"--betas values must be in [0, 1), got {betas_list}")
+        betas = tuple(betas_list)
+    except ValueError as e:
+        raise ValueError(f"Invalid --betas format '{args.betas}': {e}. Expected format: '0.9,0.999'")
+    
     loss_weights = None
     if args.loss_weights:
         loss_weights = [float(x.strip()) for x in args.loss_weights.split(',')]
@@ -387,6 +406,8 @@ def main():
         weights=loss_weights,
         delta=args.huber_delta,
     )
+    # Move criterion to device (important for WeightedMSELoss buffer)
+    criterion = criterion.to(accelerator.device)
     
     # Track if scheduler should step per batch (OneCycleLR) or per epoch
     scheduler_step_per_batch = not is_epoch_based(args.scheduler)
@@ -702,7 +723,11 @@ def main():
                         pickle.dump({
                             "epoch": epoch + 1,
                             "best_val_loss": best_val_loss,
-                            "patience_ctr": patience_ctr
+                            "patience_ctr": patience_ctr,
+                            # Model info for auto-detection during inference
+                            "model_name": args.model,
+                            "in_shape": in_shape,
+                            "out_dim": out_dim,
                         }, f)
                     
                     unwrapped = accelerator.unwrap_model(model)
@@ -734,7 +759,11 @@ def main():
                         pickle.dump({
                             "epoch": epoch + 1,
                             "best_val_loss": best_val_loss,
-                            "patience_ctr": patience_ctr
+                            "patience_ctr": patience_ctr,
+                            # Model info for auto-detection during inference
+                            "model_name": args.model,
+                            "in_shape": in_shape,
+                            "out_dim": out_dim,
                         }, f)
                     logger.info(f"   📁 Periodic checkpoint: {ckpt_name}")
             

@@ -136,11 +136,11 @@ class WeightedMSELoss(nn.Module):
                     f"output dimension ({pred.shape[-1]}). "
                     f"Check your --loss_weights argument."
                 )
-            # Ensure weights are on same device
-            if self.weights.device != mse.device:
-                self.weights = self.weights.to(mse.device)
+            # Use local variable to avoid mutating registered buffer
+            # (mutating self.weights breaks state_dict semantics)
+            weights = self.weights.to(mse.device)
             # Apply per-target weights with correct broadcasting: (N, T) * (T,) -> (N, T)
-            mse = mse * self.weights
+            mse = mse * weights
         
         if self.reduction == 'none':
             return mse
@@ -148,6 +148,7 @@ class WeightedMSELoss(nn.Module):
             return mse.sum()
         else:  # mean
             return mse.mean()
+
 
 
 # ==============================================================================

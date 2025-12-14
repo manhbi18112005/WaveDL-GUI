@@ -262,10 +262,19 @@ class _TransposedH5Dataset:
     
     This is critical for MATSource.load_mmap() to return consistent axis
     ordering with the eager loader (MATSource.load()).
+    
+    IMPORTANT: Holds a strong reference to the h5py.File to prevent
+    premature garbage collection while datasets are in use.
     """
     
-    def __init__(self, h5_dataset):
+    def __init__(self, h5_dataset, file_handle=None):
+        """
+        Args:
+            h5_dataset: The h5py dataset to wrap
+            file_handle: Optional h5py.File reference to keep alive
+        """
         self._dataset = h5_dataset
+        self._file = file_handle  # Keep file alive to prevent GC
         # Transpose shape: MATLAB (cols, rows, ...) -> Python (rows, cols, ...)
         self.shape = tuple(reversed(h5_dataset.shape))
         self.dtype = h5_dataset.dtype
@@ -317,6 +326,14 @@ class _TransposedH5Dataset:
         
         else:
             raise TypeError(f"Unsupported index type: {type(idx)}")
+    
+    def close(self):
+        """Close the underlying file handle if we own it."""
+        if self._file is not None:
+            try:
+                self._file.close()
+            except Exception:
+                pass
 
 
 class MATSource(DataSource):
@@ -440,13 +457,14 @@ class MATSource(DataSource):
             else:
                 # Wrap h5py dataset with transpose view for consistent axis order
                 # MATLAB stores column-major, Python expects row-major
-                inp = _TransposedH5Dataset(inp_dataset)
+                # Pass file handle to keep it alive
+                inp = _TransposedH5Dataset(inp_dataset, file_handle=f)
             
             if self._is_sparse_dataset(outp_dataset):
                 outp = self._load_sparse_to_dense(outp_dataset).T
             else:
-                # Wrap h5py dataset with transpose view
-                outp = _TransposedH5Dataset(outp_dataset)
+                # Wrap h5py dataset with transpose view (shares same file handle)
+                outp = _TransposedH5Dataset(outp_dataset, file_handle=f)
             
             return inp, outp
             
@@ -743,7 +761,13 @@ def prepare_data(
             
             # Detect shape (handle sparse matrices) - DIMENSION AGNOSTIC
             num_samples = len(inp)
-            out_dim = outp.shape[1]
+            
+            # Handle 1D targets: (N,) -> treat as single output
+            if outp.ndim == 1:
+                out_dim = 1
+            else:
+                out_dim = outp.shape[1]
+            
             sample_0 = inp[0]
             if issparse(sample_0) or hasattr(sample_0, 'toarray'):
                 sample_0 = sample_0.toarray()
