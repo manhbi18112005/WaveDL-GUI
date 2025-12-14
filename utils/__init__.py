@@ -27,6 +27,7 @@ from utils.data import (
     MATSource,
     get_data_source,
     load_training_data,
+    load_outputs_only,
 )
 
 from utils.distributed import (
@@ -86,6 +87,7 @@ __all__ = [
     "MATSource",
     "get_data_source",
     "load_training_data",
+    "load_outputs_only",
     # Distributed
     "broadcast_early_stop",
     "broadcast_value",

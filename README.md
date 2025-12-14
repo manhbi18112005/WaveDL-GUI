@@ -549,7 +549,7 @@ WaveDL supports multiple data formats for training and inference:
 |--------|-----------|----------------|
 | **NPZ** | `.npz` | Native NumPy, fast loading, recommended |
 | **HDF5** | `.h5`, `.hdf5` | Large datasets, hierarchical, cross-platform |
-| **MAT** | `.mat` | MATLAB compatibility |
+| **MAT** | `.mat` | MATLAB compatibility (**v7.3+ only**, saved with `-v7.3` flag) |
 
 **The framework automatically detects file format and data dimensionality** (1D, 2D, or 3D) — you only need to provide the appropriate model architecture.
 
@@ -564,8 +564,15 @@ WaveDL supports multiple data formats for training and inference:
 >   - `X`/`Y`, `x`/`y` (ML convention)
 >   - `data`/`labels`, `inputs`/`outputs`, `features`/`targets`
 > - **Automatic Dimension Detection**: Channel dimension is added automatically. No manual reshaping required!
-> - **Sparse Matrix Support**: NPZ and MAT files with scipy/MATLAB sparse matrices are automatically converted to dense arrays.
+> - **Sparse Matrix Support**: NPZ and MAT v7.3 files with scipy/MATLAB sparse matrices are automatically converted to dense arrays.
 > - **Auto-Normalization**: Target values are automatically standardized during training. MAE is reported in original physical units.
+
+> [!IMPORTANT]
+> **MATLAB Users**: MAT files must be saved with the `-v7.3` flag for memory-efficient loading:
+> ```matlab
+> save('data.mat', 'input_train', 'output_train', '-v7.3')
+> ```
+> Older MAT formats (v5/v7) are not supported. Convert to NPZ for best compatibility.
 
 <details>
 <summary><b>Example: Basic Preparation</b></summary>

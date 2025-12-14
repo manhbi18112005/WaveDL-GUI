@@ -133,12 +133,12 @@ class CNN(BaseModel):
         self.block4 = self._make_conv_block(c3, c4, dropout=0.05)
         self.block5 = self._make_conv_block(c4, c5, dropout=dropout_rate)
         
-        # Adaptive pooling to fixed spatial size (2^dim elements per channel)
-        adaptive_size = 2 if self.dim <= 2 else (2, 2, 2)
-        self.adaptive_pool = self._AdaptivePool(adaptive_size)
+        # Global average pooling (output size = 1) - ONNX compatible with any input size
+        # Using output size 1 ensures compatibility regardless of encoder output dimensions
+        self.adaptive_pool = self._AdaptivePool(1)
         
-        # Compute flattened feature size
-        flat_size = c5 * (2 ** self.dim)  # c5 channels × adaptive pool output size
+        # Compute flattened feature size (1 element per channel after global pooling)
+        flat_size = c5  # 256 channels × 1 spatial element
         
         # Regression head
         self.head = nn.Sequential(

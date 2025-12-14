@@ -14,3 +14,8 @@ h5py>=3.8.0
 # Optional: ONNX export (for model deployment)
 # onnx>=1.14.0
 # onnxruntime>=1.15.0
+
+# Optional: torch.compile acceleration (--compile flag)
+# Note: Triton may have compatibility issues on HPC systems.
+# If not installed, training proceeds without compilation.
+# triton>=2.0.0

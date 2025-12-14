@@ -329,9 +329,29 @@ def main():
     if args.wandb and WANDB_AVAILABLE and accelerator.is_main_process:
         wandb.watch(model, log="gradients", log_freq=100)
     
-    # Torch 2.0 compilation
+    # Torch 2.0 compilation (requires compatible Triton on GPU)
     if args.compile:
-        model = torch.compile(model)
+        compile_enabled = False
+        try:
+            # Test if Triton is available AND compatible with this PyTorch version
+            # PyTorch needs triton_key from triton.compiler.compiler
+            from triton.compiler.compiler import triton_key
+            model = torch.compile(model)
+            compile_enabled = True
+            if accelerator.is_main_process:
+                logger.info("   ✔ torch.compile enabled (Triton backend)")
+        except ImportError as e:
+            if accelerator.is_main_process:
+                if "triton" in str(e).lower():
+                    logger.warning(
+                        "   ⚠ Triton not installed or incompatible version - torch.compile disabled. "
+                        "Training will proceed without compilation."
+                    )
+                else:
+                    logger.warning(f"   ⚠ torch.compile setup failed: {e}. Continuing without compilation.")
+        except Exception as e:
+            if accelerator.is_main_process:
+                logger.warning(f"   ⚠ torch.compile failed: {e}. Continuing without compilation.")
     
     # ==========================================================================
     # 2.5. OPTIMIZER, SCHEDULER & LOSS CONFIGURATION

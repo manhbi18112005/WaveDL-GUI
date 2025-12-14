@@ -52,7 +52,8 @@ class DataSource(ABC):
     """
     Abstract base class for data loaders supporting multiple file formats.
     
-    Subclasses must implement the `load()` method to return input/output arrays.
+    Subclasses must implement the `load()` method to return input/output arrays,
+    and optionally `load_outputs_only()` for memory-efficient target loading.
     """
     
     @abstractmethod
@@ -65,6 +66,22 @@ class DataSource(ABC):
             
         Returns:
             Tuple of (inputs, outputs) as numpy arrays
+        """
+        pass
+    
+    @abstractmethod
+    def load_outputs_only(self, path: str) -> np.ndarray:
+        """
+        Load only output/target arrays from a file (memory-efficient).
+        
+        This avoids loading large input arrays when only targets are needed,
+        which is critical for HPC environments with memory constraints.
+        
+        Args:
+            path: Path to the data file
+            
+        Returns:
+            Output/target array
         """
         pass
     
@@ -122,6 +139,47 @@ class NPZSource(DataSource):
             inp = np.array([x.toarray() if hasattr(x, 'toarray') else x for x in inp])
         
         return inp, outp
+    
+    def load_mmap(self, path: str) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Load data using memory-mapped mode for zero-copy access.
+        
+        This allows processing large datasets without loading them entirely
+        into RAM. Critical for HPC environments with memory constraints.
+        
+        Note: Returns memory-mapped arrays - do NOT modify them.
+        """
+        data = np.load(path, allow_pickle=True, mmap_mode='r')
+        keys = list(data.keys())
+        
+        input_key = self._find_key(keys, INPUT_KEYS)
+        output_key = self._find_key(keys, OUTPUT_KEYS)
+        
+        if input_key is None or output_key is None:
+            raise KeyError(
+                f"NPZ must contain input and output arrays. "
+                f"Supported keys: {INPUT_KEYS} / {OUTPUT_KEYS}. "
+                f"Found: {keys}"
+            )
+        
+        inp = data[input_key]
+        outp = data[output_key]
+        
+        return inp, outp
+    
+    def load_outputs_only(self, path: str) -> np.ndarray:
+        """Load only targets from NPZ (avoids loading large input arrays)."""
+        data = np.load(path, allow_pickle=True)
+        keys = list(data.keys())
+        
+        output_key = self._find_key(keys, OUTPUT_KEYS)
+        if output_key is None:
+            raise KeyError(
+                f"NPZ must contain output array. "
+                f"Supported keys: {OUTPUT_KEYS}. Found: {keys}"
+            )
+        
+        return data[output_key]
 
 
 class HDF5Source(DataSource):
@@ -146,44 +204,211 @@ class HDF5Source(DataSource):
             outp = f[output_key][:]
         
         return inp, outp
-
-
-class MATSource(DataSource):
-    """Load data from MATLAB .mat files."""
     
-    def load(self, path: str) -> Tuple[np.ndarray, np.ndarray]:
-        if not HAS_SCIPY_IO:
-            raise ImportError("scipy required for MAT files: pip install scipy")
+    def load_mmap(self, path: str) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Load HDF5 file with lazy/memory-mapped access.
         
-        mat = scipy.io.loadmat(path)
-        keys = [k for k in mat.keys() if not k.startswith('__')]
+        Returns h5py datasets that read from disk on-demand,
+        avoiding loading the entire file into RAM.
+        """
+        f = h5py.File(path, 'r')  # Keep file open for lazy access
+        keys = list(f.keys())
         
         input_key = self._find_key(keys, INPUT_KEYS)
         output_key = self._find_key(keys, OUTPUT_KEYS)
         
         if input_key is None or output_key is None:
+            f.close()
             raise KeyError(
-                f"MAT file must contain input and output arrays. "
+                f"HDF5 must contain input and output datasets. "
                 f"Supported keys: {INPUT_KEYS} / {OUTPUT_KEYS}. "
                 f"Found: {keys}"
             )
         
-        inp = mat[input_key]
-        outp = mat[output_key]
+        # Return h5py datasets (lazy - doesn't load into RAM)
+        return f[input_key], f[output_key]
+    
+    def load_outputs_only(self, path: str) -> np.ndarray:
+        """Load only targets from HDF5 (avoids loading large input arrays)."""
+        with h5py.File(path, 'r') as f:
+            keys = list(f.keys())
+            
+            output_key = self._find_key(keys, OUTPUT_KEYS)
+            if output_key is None:
+                raise KeyError(
+                    f"HDF5 must contain output dataset. "
+                    f"Supported keys: {OUTPUT_KEYS}. Found: {keys}"
+                )
+            
+            outp = f[output_key][:]
         
-        # Handle sparse matrices (MATLAB sparse → scipy.sparse → dense)
-        if issparse(inp):
-            inp = inp.toarray()
-        if issparse(outp):
-            outp = outp.toarray()
+        return outp
+
+
+class MATSource(DataSource):
+    """
+    Load data from MATLAB .mat files (v7.3+ only, which uses HDF5 format).
+    
+    Note: MAT v7.3 files are HDF5 files under the hood, so we use h5py for
+    memory-efficient lazy loading. Save with: save('file.mat', '-v7.3')
+    
+    Supports MATLAB sparse matrices (automatically converted to dense).
+    
+    For older MAT files (v5/v7), convert to NPZ or save with -v7.3 flag.
+    """
+    
+    @staticmethod
+    def _is_sparse_dataset(dataset) -> bool:
+        """Check if an HDF5 dataset/group represents a MATLAB sparse matrix."""
+        # MATLAB v7.3 stores sparse matrices as groups with 'data', 'ir', 'jc' keys
+        if hasattr(dataset, 'keys'):
+            keys = set(dataset.keys())
+            return {'data', 'ir', 'jc'}.issubset(keys)
+        return False
+    
+    @staticmethod
+    def _load_sparse_to_dense(group) -> np.ndarray:
+        """Convert MATLAB sparse matrix (CSC format in HDF5) to dense numpy array."""
+        from scipy.sparse import csc_matrix
         
-        # Handle MATLAB's column-major quirks
-        if inp.ndim == 2 and inp.shape[0] == 1:
-            inp = inp.T
-        if outp.ndim == 2 and outp.shape[0] < outp.shape[1] and outp.shape[0] <= 10:
-            outp = outp.T
+        data = np.array(group['data'])
+        ir = np.array(group['ir'])  # row indices
+        jc = np.array(group['jc'])  # column pointers
+        
+        # Get shape from MATLAB attributes or infer
+        if 'MATLAB_sparse' in group.attrs:
+            nrows = group.attrs['MATLAB_sparse']
+        else:
+            nrows = ir.max() + 1 if len(ir) > 0 else 0
+        ncols = len(jc) - 1
+        
+        sparse_mat = csc_matrix((data, ir, jc), shape=(nrows, ncols))
+        return sparse_mat.toarray()
+    
+    def _load_dataset(self, f, key: str) -> np.ndarray:
+        """Load a dataset, handling sparse matrices automatically."""
+        dataset = f[key]
+        
+        if self._is_sparse_dataset(dataset):
+            # Sparse matrix: convert to dense
+            arr = self._load_sparse_to_dense(dataset)
+        else:
+            # Regular dense array
+            arr = np.array(dataset)
+        
+        # Transpose for MATLAB column-major -> Python row-major
+        return arr.T
+    
+    def load(self, path: str) -> Tuple[np.ndarray, np.ndarray]:
+        """Load MAT v7.3 file using h5py."""
+        try:
+            with h5py.File(path, 'r') as f:
+                keys = list(f.keys())
+                
+                input_key = self._find_key(keys, INPUT_KEYS)
+                output_key = self._find_key(keys, OUTPUT_KEYS)
+                
+                if input_key is None or output_key is None:
+                    raise KeyError(
+                        f"MAT file must contain input and output arrays. "
+                        f"Supported keys: {INPUT_KEYS} / {OUTPUT_KEYS}. "
+                        f"Found: {keys}"
+                    )
+                
+                # Load with sparse matrix support
+                inp = self._load_dataset(f, input_key)
+                outp = self._load_dataset(f, output_key)
+                
+                # Handle 1D outputs that become (1, N) after transpose
+                if outp.ndim == 2 and outp.shape[0] == 1:
+                    outp = outp.T
+                
+        except OSError as e:
+            raise ValueError(
+                f"Failed to load MAT file: {path}. "
+                f"Ensure it's saved as v7.3: save('file.mat', '-v7.3'). "
+                f"Original error: {e}"
+            )
         
         return inp, outp
+    
+    def load_mmap(self, path: str) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Load MAT v7.3 file with lazy/memory-mapped access.
+        
+        Returns h5py datasets that read from disk on-demand,
+        avoiding loading the entire file into RAM.
+        
+        Note: For sparse matrices, this will load and convert them.
+        For dense arrays, returns h5py datasets with lazy access.
+        """
+        try:
+            f = h5py.File(path, 'r')  # Keep file open for lazy access
+            keys = list(f.keys())
+            
+            input_key = self._find_key(keys, INPUT_KEYS)
+            output_key = self._find_key(keys, OUTPUT_KEYS)
+            
+            if input_key is None or output_key is None:
+                f.close()
+                raise KeyError(
+                    f"MAT file must contain input and output arrays. "
+                    f"Supported keys: {INPUT_KEYS} / {OUTPUT_KEYS}. "
+                    f"Found: {keys}"
+                )
+            
+            # Check for sparse matrices - must load them eagerly
+            inp_dataset = f[input_key]
+            outp_dataset = f[output_key]
+            
+            if self._is_sparse_dataset(inp_dataset):
+                inp = self._load_sparse_to_dense(inp_dataset).T
+            else:
+                inp = inp_dataset  # Lazy h5py dataset
+            
+            if self._is_sparse_dataset(outp_dataset):
+                outp = self._load_sparse_to_dense(outp_dataset).T
+            else:
+                outp = outp_dataset  # Lazy h5py dataset
+            
+            return inp, outp
+            
+        except OSError as e:
+            raise ValueError(
+                f"Failed to load MAT file: {path}. "
+                f"Ensure it's saved as v7.3: save('file.mat', '-v7.3'). "
+                f"Original error: {e}"
+            )
+    
+    def load_outputs_only(self, path: str) -> np.ndarray:
+        """Load only targets from MAT v7.3 file (avoids loading large input arrays)."""
+        try:
+            with h5py.File(path, 'r') as f:
+                keys = list(f.keys())
+                
+                output_key = self._find_key(keys, OUTPUT_KEYS)
+                if output_key is None:
+                    raise KeyError(
+                        f"MAT file must contain output array. "
+                        f"Supported keys: {OUTPUT_KEYS}. Found: {keys}"
+                    )
+                
+                # Load with sparse matrix support
+                outp = self._load_dataset(f, output_key)
+                
+                # Handle 1D outputs
+                if outp.ndim == 2 and outp.shape[0] == 1:
+                    outp = outp.T
+                
+        except OSError as e:
+            raise ValueError(
+                f"Failed to load MAT file: {path}. "
+                f"Ensure it's saved as v7.3: save('file.mat', '-v7.3'). "
+                f"Original error: {e}"
+            )
+        
+        return outp
 
 
 def get_data_source(format: str) -> DataSource:
@@ -231,6 +456,27 @@ def load_training_data(path: str, format: str = 'auto') -> Tuple[np.ndarray, np.
     
     source = get_data_source(format)
     return source.load(path)
+
+
+def load_outputs_only(path: str, format: str = 'auto') -> np.ndarray:
+    """
+    Load only output/target arrays from file (memory-efficient).
+    
+    This function avoids loading large input arrays when only targets are needed,
+    which is critical for HPC environments with memory constraints during DDP.
+    
+    Args:
+        path: Path to data file
+        format: Format hint ('npz', 'hdf5', 'mat', or 'auto' for detection)
+        
+    Returns:
+        Output/target array
+    """
+    if format == 'auto':
+        format = DataSource.detect_format(path)
+    
+    source = get_data_source(format)
+    return source.load_outputs_only(path)
 
 
 
@@ -379,14 +625,18 @@ def prepare_data(
     # ==========================================================================
     # PHASE 1: DATA GENERATION (Rank 0 Only)
     # ==========================================================================
-    with accelerator.main_process_first():
-        cache_exists = (
-            os.path.exists(CACHE_FILE) and 
-            os.path.exists(SCALER_FILE) and 
-            os.path.exists(META_FILE)
-        )
-        
-        if not cache_exists:
+    # Check cache existence on all ranks first (fast, no synchronization needed)
+    cache_exists = (
+        os.path.exists(CACHE_FILE) and 
+        os.path.exists(SCALER_FILE) and 
+        os.path.exists(META_FILE)
+    )
+    
+    if not cache_exists:
+        if accelerator.is_main_process:
+            # RANK 0: Create cache (can take a long time for large datasets)
+            # Other ranks will wait at the barrier below
+            
             # Detect format from extension
             data_format = DataSource.detect_format(args.data_path)
             logger.info(f"⚡ [Rank 0] Initializing Data Processing from: {args.data_path} (format: {data_format})")
@@ -395,9 +645,21 @@ def prepare_data(
             if not os.path.exists(args.data_path):
                 raise FileNotFoundError(f"CRITICAL: Data file not found: {args.data_path}")
             
-            # Load raw data using multi-format loader
+            # Load raw data using memory-mapped mode for all formats
+            # This avoids loading the entire dataset into RAM at once
             try:
-                inp, outp = load_training_data(args.data_path, format=data_format)
+                if data_format == 'npz':
+                    source = NPZSource()
+                    inp, outp = source.load_mmap(args.data_path)
+                elif data_format == 'hdf5':
+                    source = HDF5Source()
+                    inp, outp = source.load_mmap(args.data_path)
+                elif data_format == 'mat':
+                    source = MATSource()
+                    inp, outp = source.load_mmap(args.data_path)
+                else:
+                    inp, outp = load_training_data(args.data_path, format=data_format)
+                logger.info("   Using memory-mapped loading (low memory mode)")
             except Exception as e:
                 logger.error(f"Failed to load data file: {e}")
                 raise
@@ -478,6 +740,22 @@ def prepare_data(
             # Cleanup
             del inp, outp
             gc.collect()
+            
+            logger.info("   ✔ Cache creation complete, synchronizing ranks...")
+        else:
+            # NON-MAIN RANKS: Wait for cache creation
+            # Log that we're waiting (helps with debugging)
+            import time
+            wait_start = time.time()
+            while not (os.path.exists(CACHE_FILE) and 
+                      os.path.exists(SCALER_FILE) and 
+                      os.path.exists(META_FILE)):
+                time.sleep(5)  # Check every 5 seconds
+                elapsed = time.time() - wait_start
+                if elapsed > 60 and int(elapsed) % 60 < 5:  # Log every ~minute
+                    logger.info(f"   [Rank {accelerator.process_index}] Waiting for cache creation... ({int(elapsed)}s)")
+            # Small delay to ensure files are fully written
+            time.sleep(2)
     
     # ==========================================================================
     # PHASE 2: SYNCHRONIZED LOADING (All Ranks)
@@ -497,9 +775,9 @@ def prepare_data(
     if not hasattr(scaler, 'scale_') or scaler.scale_ is None:
         raise RuntimeError("CRITICAL: Scaler is not properly fitted (scale_ is None)")
     
-    # Load targets (lightweight compared to input data)
-    # Use multi-format loader to get outputs
-    _, outp = load_training_data(args.data_path)
+    # Load targets only (memory-efficient - avoids loading large input arrays)
+    # This is critical for HPC environments with memory constraints during DDP
+    outp = load_outputs_only(args.data_path)
     y_scaled = scaler.transform(outp).astype(np.float32)
     y_tensor = torch.tensor(y_scaled)
     
