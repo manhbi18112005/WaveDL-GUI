@@ -227,56 +227,56 @@ python test.py --checkpoint <checkpoint_folder> --data_path <test_data> \
 
 ```
 WaveDL/
-├── train.py              # Training entry point
-├── test.py               # Testing & inference script
-├── run_training.sh       # HPC helper script (recommended)
-├── requirements.txt      # Python dependencies
-├── pytest.ini            # Pytest (unit test) configuration
-├── CONTRIBUTING.md       # Contribution guidelines
-├── CODE_OF_CONDUCT.md    # Community standards
-├── CITATION.cff          # Citation metadata
+├── train.py                        # Training entry point
+├── test.py                         # Testing & inference script
+├── run_training.sh                 # HPC helper script (recommended)
+├── requirements.txt                # Python dependencies
+├── pytest.ini                      # Pytest (unit test) configuration
+├── CONTRIBUTING.md                 # Contribution guidelines
+├── CODE_OF_CONDUCT.md              # Community standards
+├── CITATION.cff                    # Citation metadata
 │
 ├── models/
-│   ├── __init__.py       # Model exports
-│   ├── registry.py       # Model factory (@register_model)
-│   ├── base.py           # Abstract base class
-│   ├── cnn.py            # Baseline CNN architecture
-│   └── _template.py      # Template for new models
+│   ├── __init__.py                 # Model exports
+│   ├── registry.py                 # Model factory (@register_model)
+│   ├── base.py                     # Abstract base class
+│   ├── cnn.py                      # Baseline CNN architecture
+│   └── _template.py                # Template for new models
 │
 ├── utils/
-│   ├── __init__.py       # Utility exports
-│   ├── data.py           # Memory-mapped data pipeline
-│   ├── metrics.py        # R², Pearson, visualization
-│   ├── distributed.py    # DDP synchronization utils
-│   ├── losses.py         # Loss function factory
-│   ├── optimizers.py     # Optimizer factory
-│   ├── schedulers.py     # LR scheduler factory
-│   ├── cross_validation.py # K-fold cross-validation
-│   └── config.py         # YAML configuration support
+│   ├── __init__.py                 # Utility exports
+│   ├── data.py                     # Memory-mapped data pipeline
+│   ├── metrics.py                  # R², Pearson, visualization
+│   ├── distributed.py              # DDP synchronization utils
+│   ├── losses.py                   # Loss function factory
+│   ├── optimizers.py               # Optimizer factory
+│   ├── schedulers.py               # LR scheduler factory
+│   ├── cross_validation.py         # K-fold cross-validation
+│   └── config.py                   # YAML configuration support
 │
-├── configs/              # Example configuration files
-│   ├── default.yaml      # Standard training setup
-│   ├── huber_robust.yaml # Robust training for noisy data
-│   └── fast_convergence.yaml # OneCycleLR fast training
+├── configs/                        # Example configuration files
+│   ├── default.yaml                # Standard training setup
+│   ├── huber_robust.yaml           # Robust training for noisy data
+│   └── fast_convergence.yaml       # OneCycleLR fast training
 │
-├── examples/             # Ready-to-run example with pre-trained model
-│   ├── trained_cnn/      # Pre-trained CNN checkpoint
-│   ├── Test_data_100.mat # Sample test data (100 samples)
-│   ├── model.onnx        # Exported ONNX model
-│   ├── test_results/     # Example inference output
-│   └── WaveDL_ONNX_Inference.m  # MATLAB inference script
+├── examples/                       # Ready-to-run example with pre-trained model
+│   ├── trained_cnn/                # Pre-trained CNN checkpoint
+│   ├── Test_data_100.mat           # Sample test data (100 samples)
+│   ├── model.onnx                  # Exported ONNX model
+│   ├── test_results/               # Example inference output
+│   └── WaveDL_ONNX_Inference.m     # MATLAB inference script
 │
-└── unit_tests/           # Unit test suite (pytest)
-    ├── conftest.py       # Pytest fixtures
-    ├── test_architecture.py # Model architecture tests
-    ├── test_data.py      # Data pipeline tests
-    ├── test_metrics.py   # Metrics calculation tests
-    ├── test_registry.py  # Model registry tests
-    ├── test_distributed.py # DDP utilities tests
-    ├── test_integration.py # End-to-end tests
-    ├── test_losses.py    # Loss function tests
-    ├── test_optimizers.py # Optimizer tests
-    └── test_schedulers.py # Scheduler tests
+└── unit_tests/                     # Unit test suite (pytest)
+    ├── conftest.py                 # Pytest fixtures
+    ├── test_architecture.py        # Model architecture tests
+    ├── test_data.py                # Data pipeline tests
+    ├── test_metrics.py             # Metrics calculation tests
+    ├── test_registry.py            # Model registry tests
+    ├── test_distributed.py         # DDP utilities tests
+    ├── test_integration.py         # End-to-end tests
+    ├── test_losses.py              # Loss function tests
+    ├── test_optimizers.py          # Optimizer tests
+    └── test_schedulers.py          # Scheduler tests
 ```
 
 ---
