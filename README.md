@@ -678,7 +678,7 @@ python test.py --checkpoint ./examples/trained_cnn/best_checkpoint \
 
 | File | Description |
 |------|-------------|
-| `trained_cnn/` | Pre-trained CNN checkpoint (R² = 0.99 on test data) |
+| `trained_cnn/` | Pre-trained CNN checkpoint |
 | `Test_data_100.mat` | 100 sample test set (500×500 dispersion curves → *h*, √(*E*/ρ), *μ*) |
 | `model.onnx` | ONNX export with embedded de-normalization |
 | `test_results/` | Example predictions and scatter plots |
@@ -687,11 +687,8 @@ python test.py --checkpoint ./examples/trained_cnn/best_checkpoint \
 **Example Results:**
 
 <p align="center">
-  <img src="examples/test_results/test_scatter_all.png" alt="Example scatter plot showing R²=0.99" width="700">
+  <img src="examples/test_results/test_scatter_all.png" alt="Example scatter plot showing R²=0.99" width="900">
 </p>
-
-> [!TIP]
-> Use this example to verify your installation works correctly before training your own models.
 
 ---
 
