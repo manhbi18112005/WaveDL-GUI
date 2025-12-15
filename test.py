@@ -108,7 +108,7 @@ def parse_args() -> argparse.Namespace:
     # Inference options
     parser.add_argument('--batch_size', type=int, default=128,
                         help="Batch size for inference")
-    parser.add_argument('--workers', type=int, default=4,
+    parser.add_argument('--workers', type=int, default=0,
                         help="DataLoader workers")
     
     # Output options

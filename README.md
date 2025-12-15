@@ -349,7 +349,7 @@ accelerate launch train.py --model my_transformer --wandb
 | Argument | Default | Description |
 |----------|---------|-------------|
 | `--data_path` | `train_data.npz` | Dataset path |
-| `--workers` | `8` | DataLoader workers |
+| `--workers` | `0` | DataLoader workers |
 | `--seed` | `2025` | Random seed |
 | `--output_dir` | `.` | Output directory for checkpoints |
 | `--resume` | `None` | Checkpoint to resume (auto-detected if not set) |

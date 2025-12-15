@@ -173,7 +173,7 @@ def parse_args() -> argparse.Namespace:
     
     # Data
     parser.add_argument('--data_path', type=str, default='train_data.npz', help="Path to NPZ dataset")
-    parser.add_argument('--workers', type=int, default=8, help="DataLoader workers")
+    parser.add_argument('--workers', type=int, default=0, help="DataLoader workers")
     parser.add_argument('--seed', type=int, default=2025, help="Random seed")
     
     # Cross-Validation
