@@ -21,3 +21,7 @@ safetensors>=0.3.0
 # Note: Triton may have compatibility issues on HPC systems.
 # If not installed, training proceeds without compilation.
 # triton>=2.0.0
+
+# Development dependencies (linting, formatting)
+# ruff>=0.8.0
+# pre-commit>=3.5.0

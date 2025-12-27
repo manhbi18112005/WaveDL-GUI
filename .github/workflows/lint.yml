@@ -1,0 +1,44 @@
+# WaveDL Linting & Formatting Pipeline
+# =====================================
+# Runs Ruff linter and formatter on every push and pull request.
+# This ensures consistent code style across the project.
+#
+# Ruff is an extremely fast Python linter and formatter, written in Rust.
+# It replaces Black, Flake8, isort, and more.
+# Docs: https://docs.astral.sh/ruff/
+
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel in-progress runs when a new commit is pushed
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Ruff Lint & Format Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Ruff
+        run: pip install ruff
+
+      - name: Run Ruff linter
+        run: ruff check . --output-format=github
+
+      - name: Run Ruff formatter check
+        run: ruff format . --check --diff

@@ -19,41 +19,40 @@ Author: Ductho Le (ductho.le@outlook.com)
 Version: 1.0.0
 """
 
-from typing import List, Optional, Union
 import torch.optim as optim
 from torch.optim.lr_scheduler import (
-    ReduceLROnPlateau,
     CosineAnnealingLR,
     CosineAnnealingWarmRestarts,
-    OneCycleLR,
-    StepLR,
-    MultiStepLR,
     ExponentialLR,
     LinearLR,
-    SequentialLR,
     LRScheduler,
+    MultiStepLR,
+    OneCycleLR,
+    ReduceLROnPlateau,
+    SequentialLR,
+    StepLR,
 )
 
 
 # ==============================================================================
 # SCHEDULER REGISTRY
 # ==============================================================================
-def list_schedulers() -> List[str]:
+def list_schedulers() -> list[str]:
     """
     Return list of available scheduler names.
-    
+
     Returns:
         List of registered scheduler names
     """
     return [
-        'plateau',
-        'cosine',
-        'cosine_restarts',
-        'onecycle',
-        'step',
-        'multistep',
-        'exponential',
-        'linear_warmup',
+        "plateau",
+        "cosine",
+        "cosine_restarts",
+        "onecycle",
+        "step",
+        "multistep",
+        "exponential",
+        "linear_warmup",
     ]
 
 
@@ -62,30 +61,30 @@ def get_scheduler(
     optimizer: optim.Optimizer,
     # Common parameters
     epochs: int = 100,
-    steps_per_epoch: Optional[int] = None,
+    steps_per_epoch: int | None = None,
     min_lr: float = 1e-6,
     # ReduceLROnPlateau parameters
     patience: int = 10,
     factor: float = 0.5,
     # Cosine parameters
-    T_max: Optional[int] = None,
+    T_max: int | None = None,
     T_0: int = 10,
     T_mult: int = 2,
     # OneCycleLR parameters
-    max_lr: Optional[float] = None,
+    max_lr: float | None = None,
     pct_start: float = 0.3,
     # Step/MultiStep parameters
     step_size: int = 30,
-    milestones: Optional[List[int]] = None,
+    milestones: list[int] | None = None,
     gamma: float = 0.1,
     # Linear warmup parameters
     warmup_epochs: int = 5,
     start_factor: float = 0.1,
-    **kwargs
+    **kwargs,
 ) -> LRScheduler:
     """
     Factory function to create learning rate scheduler by name.
-    
+
     Args:
         name: Scheduler name (see list_schedulers())
         optimizer: Optimizer instance to schedule
@@ -105,52 +104,49 @@ def get_scheduler(
         warmup_epochs: Number of warmup epochs for linear_warmup
         start_factor: Starting LR factor for warmup (LR * start_factor)
         **kwargs: Additional arguments passed to scheduler
-    
+
     Returns:
         Instantiated learning rate scheduler
-    
+
     Raises:
         ValueError: If scheduler name is not recognized
-    
+
     Example:
-        >>> scheduler = get_scheduler('plateau', optimizer, patience=15)
-        >>> scheduler = get_scheduler('cosine', optimizer, epochs=100)
-        >>> scheduler = get_scheduler('onecycle', optimizer, epochs=100, 
-        ...                           steps_per_epoch=1000, max_lr=1e-3)
+        >>> scheduler = get_scheduler("plateau", optimizer, patience=15)
+        >>> scheduler = get_scheduler("cosine", optimizer, epochs=100)
+        >>> scheduler = get_scheduler(
+        ...     "onecycle", optimizer, epochs=100, steps_per_epoch=1000, max_lr=1e-3
+        ... )
     """
-    name_lower = name.lower().replace('-', '_')
-    
+    name_lower = name.lower().replace("-", "_")
+
     # Get initial LR from optimizer
-    base_lr = optimizer.param_groups[0]['lr']
-    
-    if name_lower == 'plateau':
+    base_lr = optimizer.param_groups[0]["lr"]
+
+    if name_lower == "plateau":
         return ReduceLROnPlateau(
             optimizer,
-            mode='min',
+            mode="min",
             factor=factor,
             patience=patience,
             min_lr=min_lr,
-            **kwargs
+            **kwargs,
         )
-    
-    elif name_lower == 'cosine':
+
+    elif name_lower == "cosine":
         return CosineAnnealingLR(
             optimizer,
             T_max=T_max if T_max is not None else epochs,
             eta_min=min_lr,
-            **kwargs
+            **kwargs,
         )
-    
-    elif name_lower == 'cosine_restarts':
+
+    elif name_lower == "cosine_restarts":
         return CosineAnnealingWarmRestarts(
-            optimizer,
-            T_0=T_0,
-            T_mult=T_mult,
-            eta_min=min_lr,
-            **kwargs
+            optimizer, T_0=T_0, T_mult=T_mult, eta_min=min_lr, **kwargs
         )
-    
-    elif name_lower == 'onecycle':
+
+    elif name_lower == "onecycle":
         if steps_per_epoch is None:
             raise ValueError(
                 "OneCycleLR requires 'steps_per_epoch'. "
@@ -162,50 +158,33 @@ def get_scheduler(
             epochs=epochs,
             steps_per_epoch=steps_per_epoch,
             pct_start=pct_start,
-            **kwargs
+            **kwargs,
         )
-    
-    elif name_lower == 'step':
-        return StepLR(
-            optimizer,
-            step_size=step_size,
-            gamma=gamma,
-            **kwargs
-        )
-    
-    elif name_lower == 'multistep':
+
+    elif name_lower == "step":
+        return StepLR(optimizer, step_size=step_size, gamma=gamma, **kwargs)
+
+    elif name_lower == "multistep":
         if milestones is None:
             # Default milestones at 30%, 60%, 90% of epochs
             milestones = [int(epochs * 0.3), int(epochs * 0.6), int(epochs * 0.9)]
-        return MultiStepLR(
-            optimizer,
-            milestones=milestones,
-            gamma=gamma,
-            **kwargs
-        )
-    
-    elif name_lower == 'exponential':
-        return ExponentialLR(
-            optimizer,
-            gamma=gamma,
-            **kwargs
-        )
-    
-    elif name_lower == 'linear_warmup':
+        return MultiStepLR(optimizer, milestones=milestones, gamma=gamma, **kwargs)
+
+    elif name_lower == "exponential":
+        return ExponentialLR(optimizer, gamma=gamma, **kwargs)
+
+    elif name_lower == "linear_warmup":
         return LinearLR(
             optimizer,
             start_factor=start_factor,
             end_factor=1.0,
             total_iters=warmup_epochs,
-            **kwargs
+            **kwargs,
         )
-    
+
     else:
-        available = ', '.join(list_schedulers())
-        raise ValueError(
-            f"Unknown scheduler: '{name}'. "
-            f"Available options: {available}"
-        )
+        available = ", ".join(list_schedulers())
+        raise ValueError(f"Unknown scheduler: '{name}'. Available options: {available}")
 
 
 def get_scheduler_with_warmup(
@@ -213,26 +192,26 @@ def get_scheduler_with_warmup(
     optimizer: optim.Optimizer,
     warmup_epochs: int = 5,
     start_factor: float = 0.1,
-    **kwargs
+    **kwargs,
 ) -> LRScheduler:
     """
     Create a scheduler with linear warmup phase.
-    
+
     Combines LinearLR warmup with any other scheduler using SequentialLR.
-    
+
     Args:
         name: Main scheduler name (after warmup)
         optimizer: Optimizer instance
         warmup_epochs: Number of warmup epochs
         start_factor: Starting LR factor for warmup
         **kwargs: Arguments for main scheduler (see get_scheduler)
-    
+
     Returns:
         SequentialLR combining warmup and main scheduler
-    
+
     Example:
         >>> scheduler = get_scheduler_with_warmup(
-        ...     'cosine', optimizer, warmup_epochs=5, epochs=100
+        ...     "cosine", optimizer, warmup_epochs=5, epochs=100
         ... )
     """
     # Create warmup scheduler
@@ -242,10 +221,10 @@ def get_scheduler_with_warmup(
         end_factor=1.0,
         total_iters=warmup_epochs,
     )
-    
+
     # Create main scheduler
     main_scheduler = get_scheduler(name, optimizer, **kwargs)
-    
+
     # Combine with SequentialLR
     return SequentialLR(
         optimizer,
@@ -257,16 +236,16 @@ def get_scheduler_with_warmup(
 def is_epoch_based(name: str) -> bool:
     """
     Check if scheduler should be stepped per epoch (True) or per batch (False).
-    
+
     Args:
         name: Scheduler name
-        
+
     Returns:
         True if scheduler should step per epoch, False for per batch
     """
-    name_lower = name.lower().replace('-', '_')
-    
+    name_lower = name.lower().replace("-", "_")
+
     # OneCycleLR steps per batch, all others step per epoch
-    per_batch_schedulers = {'onecycle'}
-    
+    per_batch_schedulers = {"onecycle"}
+
     return name_lower not in per_batch_schedulers

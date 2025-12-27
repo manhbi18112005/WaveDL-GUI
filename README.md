@@ -7,7 +7,9 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg?style=plastic&logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![PyTorch 2.x](https://img.shields.io/badge/PyTorch-2.x-ee4c2c.svg?style=plastic&logo=pytorch&logoColor=white)](https://pytorch.org/)
 [![Accelerate](https://img.shields.io/badge/Accelerate-Enabled-yellow.svg?style=plastic&logo=huggingface&logoColor=white)](https://huggingface.co/docs/accelerate/)
+
 [![Tests](https://img.shields.io/github/actions/workflow/status/ductho-le/WaveDL/test.yml?branch=main&style=plastic&logo=githubactions&logoColor=white&label=Tests)](https://github.com/ductho-le/WaveDL/actions/workflows/test.yml)
+[![Lint](https://img.shields.io/github/actions/workflow/status/ductho-le/WaveDL/lint.yml?branch=main&style=plastic&logo=ruff&logoColor=white&label=Lint)](https://github.com/ductho-le/WaveDL/actions/workflows/lint.yml)
 [![Try it on Colab](https://img.shields.io/badge/Try_it_on_Colab-8E44AD?style=plastic&logo=googlecolab&logoColor=white)](https://colab.research.google.com/github/ductho-le/WaveDL/blob/main/notebooks/demo.ipynb)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-orange.svg?style=plastic)](LICENSE)
@@ -233,13 +235,15 @@ python test.py --checkpoint <checkpoint_folder> --data_path <test_data> \
 
 ```
 WaveDL/
+├── .github/                   # CI workflows, contribution guidelines
+├── .pre-commit-config.yaml    # Pre-commit hooks for local dev
+│
 ├── train.py                   # Training entry point
 ├── test.py                    # Testing & inference script
 ├── run_training.sh            # HPC helper script (recommended)
+│
+├── pyproject.toml             # Project config, Ruff & pytest settings
 ├── requirements.txt           # Python dependencies
-├── pytest.ini                 # Pytest (unit test) configuration
-├── CONTRIBUTING.md            # Contribution guidelines
-├── CODE_OF_CONDUCT.md         # Community standards
 ├── CITATION.cff               # Citation metadata
 │
 ├── models/

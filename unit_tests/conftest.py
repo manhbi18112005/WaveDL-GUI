@@ -12,19 +12,21 @@ Author: Ductho Le (ductho.le@outlook.com)
 """
 
 import os
+import shutil
 import sys
 import tempfile
-import shutil
-from typing import Tuple
 from unittest.mock import MagicMock
 
 # Set matplotlib backend before importing pyplot (prevents display issues in tests)
 import matplotlib
-matplotlib.use('Agg')
 
-import pytest
+
+matplotlib.use("Agg")
+
 import numpy as np
+import pytest
 import torch
+
 
 # Ensure the parent directory is in path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -46,81 +48,81 @@ def set_random_seeds():
 # SAMPLE DATA FIXTURES
 # ==============================================================================
 @pytest.fixture
-def sample_1d_data() -> Tuple[np.ndarray, np.ndarray]:
+def sample_1d_data() -> tuple[np.ndarray, np.ndarray]:
     """Generate sample 1D signal data (e.g., waveforms).
-    
+
     Returns:
         Tuple of (inputs, targets) where inputs are 1D signals.
     """
     n_samples = 100
     signal_length = 256
     n_targets = 3
-    
+
     X = np.random.randn(n_samples, signal_length).astype(np.float32)
     y = np.random.randn(n_samples, n_targets).astype(np.float32)
-    
+
     return X, y
 
 
 @pytest.fixture
-def sample_2d_data() -> Tuple[np.ndarray, np.ndarray]:
+def sample_2d_data() -> tuple[np.ndarray, np.ndarray]:
     """Generate sample 2D image data (e.g., spectrograms).
-    
+
     Returns:
         Tuple of (inputs, targets) where inputs are 2D images.
     """
     n_samples = 50
     height, width = 64, 64
     n_targets = 5
-    
+
     X = np.random.randn(n_samples, height, width).astype(np.float32)
     y = np.random.randn(n_samples, n_targets).astype(np.float32)
-    
+
     return X, y
 
 
 @pytest.fixture
-def sample_3d_data() -> Tuple[np.ndarray, np.ndarray]:
+def sample_3d_data() -> tuple[np.ndarray, np.ndarray]:
     """Generate sample 3D volumetric data.
-    
+
     Returns:
         Tuple of (inputs, targets) where inputs are 3D volumes.
     """
     n_samples = 20
     depth, height, width = 16, 32, 32
     n_targets = 4
-    
+
     X = np.random.randn(n_samples, depth, height, width).astype(np.float32)
     y = np.random.randn(n_samples, n_targets).astype(np.float32)
-    
+
     return X, y
 
 
 @pytest.fixture
 def sample_batch_2d() -> torch.Tensor:
     """Generate a batch of 2D tensors with channel dimension.
-    
+
     Returns:
         Tensor of shape (B, C, H, W).
     """
     batch_size = 8
     channels = 1
     height, width = 64, 64
-    
+
     return torch.randn(batch_size, channels, height, width)
 
 
 @pytest.fixture
 def sample_batch_1d() -> torch.Tensor:
     """Generate a batch of 1D tensors with channel dimension.
-    
+
     Returns:
         Tensor of shape (B, C, L).
     """
     batch_size = 8
     channels = 1
     length = 256
-    
+
     return torch.randn(batch_size, channels, length)
 
 
@@ -163,7 +165,9 @@ def mock_accelerator():
 def mock_accelerator_multi_gpu():
     """Create a mock Accelerator simulating multi-GPU setup."""
     accelerator = MagicMock()
-    accelerator.device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
+    accelerator.device = (
+        torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
+    )
     accelerator.num_processes = 4
     accelerator.process_index = 0
     accelerator.local_process_index = 0
@@ -201,6 +205,4 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "gpu: marks tests that require GPU (deselect with '-m \"not gpu\"')"
     )
-    config.addinivalue_line(
-        "markers", "integration: marks integration tests"
-    )
+    config.addinivalue_line("markers", "integration: marks integration tests")
