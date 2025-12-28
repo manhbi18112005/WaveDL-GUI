@@ -29,6 +29,7 @@ from utils.data import (
     NPZSource,
     get_data_source,
     load_outputs_only,
+    load_test_data,
     load_training_data,
     memmap_worker_init_fn,
     prepare_data,
@@ -126,6 +127,7 @@ __all__ = [
     # Config
     "load_config",
     "load_outputs_only",
+    "load_test_data",
     "load_training_data",
     "memmap_worker_init_fn",
     "merge_config_with_args",

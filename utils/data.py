@@ -382,7 +382,7 @@ class _TransposedH5Dataset:
         Handles integer indexing, slices, and fancy indexing.
         All operations return data with fully reversed axes to match .T behavior.
         """
-        if isinstance(idx, (int, np.integer)):
+        if isinstance(idx, int | np.integer):
             # Single sample: index into last axis of h5py dataset (column-major)
             # Result needs full transpose of remaining dimensions
             data = self._dataset[..., idx]
@@ -407,7 +407,7 @@ class _TransposedH5Dataset:
             # This matches the behavior of .T on a numpy array
             return np.transpose(data, axes=self._transpose_axes)
 
-        elif isinstance(idx, (list, np.ndarray)):
+        elif isinstance(idx, list | np.ndarray):
             # Fancy indexing: load samples one at a time (h5py limitation)
             # This is slower but necessary for compatibility
             samples = [self[i] for i in idx]
@@ -670,6 +670,121 @@ def load_outputs_only(path: str, format: str = "auto") -> np.ndarray:
 
     source = get_data_source(format)
     return source.load_outputs_only(path)
+
+
+def load_test_data(
+    path: str,
+    format: str = "auto",
+    input_key: str | None = None,
+    output_key: str | None = None,
+) -> tuple[torch.Tensor, torch.Tensor | None]:
+    """
+    Load test/inference data and return PyTorch tensors ready for model input.
+
+    This is the unified data loading function for inference. It:
+    - Auto-detects file format from extension
+    - Handles custom key names for non-standard datasets
+    - Adds channel dimension if missing (dimension-agnostic)
+    - Returns None for targets if not present in file
+
+    Supports any input dimensionality:
+        - 1D: (N, L) → (N, 1, L)
+        - 2D: (N, H, W) → (N, 1, H, W)
+        - 3D: (N, D, H, W) → (N, 1, D, H, W)
+        - Already has channel: (N, C, ...) → unchanged
+
+    Args:
+        path: Path to data file (NPZ, HDF5, or MAT v7.3)
+        format: Format hint ('npz', 'hdf5', 'mat', or 'auto' for detection)
+        input_key: Custom key for input data (overrides auto-detection)
+        output_key: Custom key for output data (overrides auto-detection)
+
+    Returns:
+        Tuple of:
+            - X: Input tensor with channel dimension (N, 1, *spatial_dims)
+            - y: Target tensor (N, T) or None if targets not present
+
+    Example:
+        >>> X, y = load_test_data("test_data.npz")
+        >>> X, y = load_test_data("data.mat", input_key="waveforms", output_key="params")
+    """
+    if format == "auto":
+        format = DataSource.detect_format(path)
+
+    source = get_data_source(format)
+
+    # Build custom key lists if provided
+    if input_key:
+        custom_input_keys = [input_key] + INPUT_KEYS
+    else:
+        # Prioritize test keys for inference
+        custom_input_keys = ["input_test"] + [
+            k for k in INPUT_KEYS if k != "input_test"
+        ]
+
+    if output_key:
+        custom_output_keys = [output_key] + OUTPUT_KEYS
+    else:
+        custom_output_keys = ["output_test"] + [
+            k for k in OUTPUT_KEYS if k != "output_test"
+        ]
+
+    # Load data using appropriate source
+    try:
+        inp, outp = source.load(path)
+    except KeyError:
+        # Try with just inputs if outputs not found
+        if format == "npz":
+            data = np.load(path, allow_pickle=True)
+            keys = list(data.keys())
+            inp_key = DataSource._find_key(keys, custom_input_keys)
+            if inp_key is None:
+                raise KeyError(
+                    f"Input key not found. Tried: {custom_input_keys}. Found: {keys}"
+                )
+            inp = data[inp_key]
+            if inp.dtype == object:
+                inp = np.array(
+                    [x.toarray() if hasattr(x, "toarray") else x for x in inp]
+                )
+            out_key = DataSource._find_key(keys, custom_output_keys)
+            outp = data[out_key] if out_key else None
+        else:
+            raise
+
+    # Handle sparse matrices
+    if issparse(inp):
+        inp = inp.toarray()
+    if outp is not None and issparse(outp):
+        outp = outp.toarray()
+
+    # Convert to tensors
+    X = torch.tensor(np.asarray(inp), dtype=torch.float32)
+
+    if outp is not None:
+        y = torch.tensor(np.asarray(outp), dtype=torch.float32)
+        # Normalize target shape: (N,) → (N, 1)
+        if y.ndim == 1:
+            y = y.unsqueeze(1)
+    else:
+        y = None
+
+    # Add channel dimension if needed (dimension-agnostic)
+    # X.ndim == 2: 1D data (N, L) → (N, 1, L)
+    # X.ndim == 3: 2D data (N, H, W) → (N, 1, H, W)
+    # X.ndim == 4: Check if already has channel dim (C <= 16 heuristic)
+    if X.ndim == 2:
+        X = X.unsqueeze(1)  # 1D signal: (N, L) → (N, 1, L)
+    elif X.ndim == 3:
+        X = X.unsqueeze(1)  # 2D image: (N, H, W) → (N, 1, H, W)
+    elif X.ndim == 4:
+        # Could be 3D volume (N, D, H, W) or 2D with channel (N, C, H, W)
+        # Heuristic: if dim 1 is small (<=16), assume it's already a channel dim
+        if X.shape[1] > 16:
+            X = X.unsqueeze(1)  # 3D volume: (N, D, H, W) → (N, 1, D, H, W)
+    # X.ndim >= 5: assume channel dimension already exists
+
+    return X, y
 
 
 # ==============================================================================

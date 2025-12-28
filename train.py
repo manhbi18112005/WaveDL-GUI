@@ -62,6 +62,7 @@ import pandas as pd
 import torch
 from accelerate import Accelerator
 from accelerate.utils import set_seed
+from sklearn.metrics import r2_score
 from tqdm.auto import tqdm
 
 # Local imports
@@ -232,7 +233,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--data_path", type=str, default="train_data.npz", help="Path to NPZ dataset"
     )
-    parser.add_argument("--workers", type=int, default=0, help="DataLoader workers")
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=-1,
+        help="DataLoader workers per GPU (-1=auto-detect based on CPU cores)",
+    )
     parser.add_argument("--seed", type=int, default=2025, help="Random seed")
 
     # Cross-Validation
@@ -402,6 +408,19 @@ def main():
 
     # Ensure output directory exists (critical for cache files, checkpoints, etc.)
     os.makedirs(args.output_dir, exist_ok=True)
+
+    # Auto-detect optimal DataLoader workers if not specified
+    if args.workers < 0:
+        cpu_count = os.cpu_count() or 4
+        num_gpus = accelerator.num_processes
+        # Heuristic: 4-8 workers per GPU, bounded by available CPU cores
+        # Leave some cores for main process and system overhead
+        args.workers = min(8, max(2, (cpu_count - 2) // num_gpus))
+        if accelerator.is_main_process:
+            logger.info(
+                f"⚙️  Auto-detected workers: {args.workers} per GPU "
+                f"(CPUs: {cpu_count}, GPUs: {num_gpus})"
+            )
 
     if accelerator.is_main_process:
         logger.info(f"🚀 Cluster Status: {accelerator.num_processes}x GPUs detected")
@@ -660,7 +679,8 @@ def main():
 
             # ==================== TRAINING PHASE ====================
             model.train()
-            train_loss_sum = 0.0
+            # Use GPU tensor for loss accumulation to avoid .item() sync per batch
+            train_loss_sum = torch.tensor(0.0, device=accelerator.device)
             train_samples = 0
             grad_norm_tracker = MetricTracker()
 
@@ -686,21 +706,22 @@ def main():
                             grad_norm_tracker.update(grad_norm.item())
 
                     optimizer.step()
-                    optimizer.zero_grad()
+                    optimizer.zero_grad(set_to_none=True)  # Faster than zero_grad()
 
                     # Per-batch LR scheduling (e.g., OneCycleLR)
                     if scheduler_step_per_batch:
                         scheduler.step()
 
-                    train_loss_sum += loss.item() * x.size(0)
+                    # Accumulate as tensors to avoid .item() sync per batch
+                    train_loss_sum += loss.detach() * x.size(0)
                     train_samples += x.size(0)
 
-                    if accelerator.is_main_process:
-                        pbar.set_postfix({"Loss": f"{loss.item():.4f}"})
+            # Single .item() call at end of epoch (reduces GPU sync overhead)
+            train_loss_scalar = train_loss_sum.item()
 
             # Synchronize training metrics across GPUs
             global_loss = accelerator.reduce(
-                torch.tensor([train_loss_sum], device=accelerator.device),
+                torch.tensor([train_loss_scalar], device=accelerator.device),
                 reduction="sum",
             ).item()
             global_samples = accelerator.reduce(
@@ -711,36 +732,44 @@ def main():
 
             # ==================== VALIDATION PHASE ====================
             model.eval()
-            val_loss_sum = 0.0
+            # Use GPU tensor for loss accumulation (consistent with training phase)
+            val_loss_sum = torch.tensor(0.0, device=accelerator.device)
             val_mae_sum = torch.zeros(out_dim, device=accelerator.device)
             val_samples = 0
 
-            preds_buffer = []
-            targets_buffer = []
+            # Accumulate predictions locally, gather ONCE at end (reduces sync overhead)
+            local_preds = []
+            local_targets = []
 
             with torch.inference_mode():
                 for x, y in val_dl:
                     pred = model(x)
                     loss = criterion(pred, y)
 
-                    val_loss_sum += loss.item() * x.size(0)
+                    val_loss_sum += loss.detach() * x.size(0)
                     val_samples += x.size(0)
 
                     # Physical MAE
                     mae_batch = torch.abs((pred - y) * phys_scale).sum(dim=0)
                     val_mae_sum += mae_batch
 
-                    # Gather for metrics
-                    all_pred = accelerator.gather_for_metrics(pred)
-                    all_y = accelerator.gather_for_metrics(y)
+                    # Store locally (no GPU sync per batch)
+                    local_preds.append(pred)
+                    local_targets.append(y)
 
-                    if accelerator.is_main_process:
-                        preds_buffer.append(all_pred.cpu())
-                        targets_buffer.append(all_y.cpu())
+            # Single gather at end of validation (2 syncs instead of 2×num_batches)
+            all_local_preds = torch.cat(local_preds)
+            all_local_targets = torch.cat(local_targets)
+            all_preds = accelerator.gather_for_metrics(all_local_preds)
+            all_targets = accelerator.gather_for_metrics(all_local_targets)
 
             # Synchronize validation metrics
+            val_loss_scalar = val_loss_sum.item()
             val_metrics = torch.cat(
-                [torch.tensor([val_loss_sum], device=accelerator.device), val_mae_sum]
+                [
+                    torch.tensor([val_loss_scalar], device=accelerator.device),
+                    val_mae_sum,
+                ]
             )
             val_metrics_sync = accelerator.reduce(val_metrics, reduction="sum")
 
@@ -758,16 +787,14 @@ def main():
             # ==================== LOGGING & CHECKPOINTING ====================
             if accelerator.is_main_process:
                 # Scientific metrics - cast to float32 before numpy (bf16 can't convert)
-                y_pred = torch.cat(preds_buffer).float().numpy()
-                y_true = torch.cat(targets_buffer).float().numpy()
+                y_pred = all_preds.float().cpu().numpy()
+                y_true = all_targets.float().cpu().numpy()
 
                 # Trim DDP padding
                 real_len = len(val_dl.dataset)
                 if len(y_pred) > real_len:
                     y_pred = y_pred[:real_len]
                     y_true = y_true[:real_len]
-
-                from sklearn.metrics import r2_score
 
                 # Guard against tiny validation sets (R² undefined for <2 samples)
                 if len(y_true) >= 2:
@@ -798,9 +825,6 @@ def main():
                     epoch_stats[f"MAE_Phys_P{i}"] = mae
 
                 history.append(epoch_stats)
-                pd.DataFrame(history).to_csv(
-                    os.path.join(args.output_dir, "training_history.csv"), index=False
-                )
 
                 # Console display
                 base_str = f"{epoch + 1:<4} | {avg_train_loss:<8.4f} | {avg_val_loss:<8.4f} | {r2:<6.4f} | {pcc:<6.4f} | {grad_norm_tracker.avg:<6.4f} | {current_lr:<8.2e} | {avg_mae:<8.4f}"
@@ -882,6 +906,12 @@ def main():
                     logger.info(
                         f"   💾 Best model saved (val_loss: {best_val_loss:.6f})"
                     )
+
+                    # Also save CSV on best model (ensures progress is saved)
+                    pd.DataFrame(history).to_csv(
+                        os.path.join(args.output_dir, "training_history.csv"),
+                        index=False,
+                    )
             else:
                 if accelerator.is_main_process:
                     patience_ctr += 1
@@ -910,6 +940,12 @@ def main():
                             f,
                         )
                     logger.info(f"   📁 Periodic checkpoint: {ckpt_name}")
+
+                    # Save CSV with each checkpoint (keeps logs in sync with model state)
+                    pd.DataFrame(history).to_csv(
+                        os.path.join(args.output_dir, "training_history.csv"),
+                        index=False,
+                    )
 
             # Learning rate scheduling (epoch-based schedulers only)
             if not scheduler_step_per_batch:
@@ -954,6 +990,13 @@ def main():
                 logger.info(f"✅ Training completed after {args.epochs} epochs")
 
     finally:
+        # Final CSV write to capture all epochs (handles non-multiple-of-10 endings)
+        if accelerator.is_main_process and len(history) > 0:
+            pd.DataFrame(history).to_csv(
+                os.path.join(args.output_dir, "training_history.csv"),
+                index=False,
+            )
+
         # Generate training curves plot (PNG + SVG)
         if accelerator.is_main_process and len(history) > 0:
             try:

@@ -343,7 +343,7 @@ WaveDL/
 | Argument | Default | Description |
 |----------|---------|-------------|
 | `--data_path` | `train_data.npz` | Dataset path |
-| `--workers` | `0` | DataLoader workers |
+| `--workers` | `-1` | DataLoader workers per GPU (-1=auto-detect) |
 | `--seed` | `2025` | Random seed |
 | `--output_dir` | `.` | Output directory for checkpoints |
 | `--resume` | `None` | Checkpoint to resume (auto-detected if not set) |

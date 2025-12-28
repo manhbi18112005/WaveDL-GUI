@@ -156,7 +156,7 @@ def train_fold(
         all_preds = []
         all_targets = []
 
-        with torch.no_grad():
+        with torch.inference_mode():
             for x, y in val_loader:
                 x, y = x.to(device), y.to(device)
                 pred = model(x)
@@ -213,7 +213,7 @@ def train_fold(
     all_preds = []
     all_targets = []
 
-    with torch.no_grad():
+    with torch.inference_mode():
         for x, y in val_loader:
             x, y = x.to(device), y.to(device)
             pred = model(x)
