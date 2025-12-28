@@ -49,6 +49,84 @@ INPUT_KEYS = ["input_train", "input_test", "X", "data", "inputs", "features", "x
 OUTPUT_KEYS = ["output_train", "output_test", "Y", "labels", "outputs", "targets", "y"]
 
 
+class LazyDataHandle:
+    """
+    Context manager wrapper for memory-mapped data handles.
+
+    Provides proper cleanup of file handles returned by load_mmap() methods.
+    Can be used either as a context manager (recommended) or with explicit close().
+
+    Usage:
+        # Context manager (recommended)
+        with source.load_mmap(path) as (inputs, outputs):
+            # Use inputs and outputs
+            pass  # File automatically closed
+
+        # Manual cleanup
+        handle = source.load_mmap(path)
+        inputs, outputs = handle.inputs, handle.outputs
+        # ... use data ...
+        handle.close()
+
+    Attributes:
+        inputs: Input data array/dataset
+        outputs: Output data array/dataset
+    """
+
+    def __init__(self, inputs, outputs, file_handle=None):
+        """
+        Initialize the handle.
+
+        Args:
+            inputs: Input array or lazy dataset
+            outputs: Output array or lazy dataset
+            file_handle: Optional file handle to close on cleanup
+        """
+        self.inputs = inputs
+        self.outputs = outputs
+        self._file = file_handle
+        self._closed = False
+
+    def __enter__(self):
+        """Return (inputs, outputs) tuple for unpacking."""
+        return self.inputs, self.outputs
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Close file handle on context exit."""
+        self.close()
+        return False  # Don't suppress exceptions
+
+    def close(self):
+        """
+        Close the underlying file handle.
+
+        Safe to call multiple times.
+        """
+        if self._closed:
+            return
+        self._closed = True
+
+        # Close the file handle if we have one
+        if self._file is not None:
+            try:
+                self._file.close()
+            except Exception:
+                pass
+            self._file = None
+
+        # Also close any _TransposedH5Dataset wrappers
+        for data in (self.inputs, self.outputs):
+            if hasattr(data, "close"):
+                try:
+                    data.close()
+                except Exception:
+                    pass
+
+    def __repr__(self) -> str:
+        status = "closed" if self._closed else "open"
+        return f"LazyDataHandle(status={status})"
+
+
 class DataSource(ABC):
     """
     Abstract base class for data loaders supporting multiple file formats.
@@ -104,7 +182,12 @@ class DataSource(ABC):
             ".hdf5": "hdf5",
             ".mat": "mat",
         }
-        return format_map.get(ext, "npz")
+        if ext not in format_map:
+            raise ValueError(
+                f"Unsupported file extension: '{ext}'. "
+                f"Supported formats: .npz, .h5, .hdf5, .mat"
+            )
+        return format_map[ext]
 
     @staticmethod
     def _find_key(available_keys: list[str], candidates: list[str]) -> str | None:
@@ -206,12 +289,17 @@ class HDF5Source(DataSource):
 
         return inp, outp
 
-    def load_mmap(self, path: str) -> tuple[np.ndarray, np.ndarray]:
+    def load_mmap(self, path: str) -> LazyDataHandle:
         """
         Load HDF5 file with lazy/memory-mapped access.
 
-        Returns h5py datasets that read from disk on-demand,
+        Returns a LazyDataHandle that reads from disk on-demand,
         avoiding loading the entire file into RAM.
+
+        Usage:
+            with source.load_mmap(path) as (inputs, outputs):
+                # Use inputs and outputs
+                pass  # File automatically closed
         """
         f = h5py.File(path, "r")  # Keep file open for lazy access
         keys = list(f.keys())
@@ -227,8 +315,8 @@ class HDF5Source(DataSource):
                 f"Found: {keys}"
             )
 
-        # Return h5py datasets (lazy - doesn't load into RAM)
-        return f[input_key], f[output_key]
+        # Return wrapped handle for proper cleanup
+        return LazyDataHandle(f[input_key], f[output_key], file_handle=f)
 
     def load_outputs_only(self, path: str) -> np.ndarray:
         """Load only targets from HDF5 (avoids loading large input arrays)."""
@@ -424,15 +512,20 @@ class MATSource(DataSource):
 
         return inp, outp
 
-    def load_mmap(self, path: str) -> tuple[np.ndarray, np.ndarray]:
+    def load_mmap(self, path: str) -> LazyDataHandle:
         """
         Load MAT v7.3 file with lazy/memory-mapped access.
 
-        Returns h5py datasets that read from disk on-demand,
+        Returns a LazyDataHandle that reads from disk on-demand,
         avoiding loading the entire file into RAM.
 
         Note: For sparse matrices, this will load and convert them.
         For dense arrays, returns a transposed view wrapper for consistent axis ordering.
+
+        Usage:
+            with source.load_mmap(path) as (inputs, outputs):
+                # Use inputs and outputs
+                pass  # File automatically closed
         """
         try:
             f = h5py.File(path, "r")  # Keep file open for lazy access
@@ -467,7 +560,8 @@ class MATSource(DataSource):
                 # Wrap h5py dataset with transpose view (shares same file handle)
                 outp = _TransposedH5Dataset(outp_dataset, file_handle=f)
 
-            return inp, outp
+            # Return wrapped handle for proper cleanup
+            return LazyDataHandle(inp, outp, file_handle=f)
 
         except OSError as e:
             raise ValueError(
@@ -768,10 +862,12 @@ def prepare_data(
                     inp, outp = source.load_mmap(args.data_path)
                 elif data_format == "hdf5":
                     source = HDF5Source()
-                    inp, outp = source.load_mmap(args.data_path)
+                    handle = source.load_mmap(args.data_path)
+                    inp, outp = handle.inputs, handle.outputs
                 elif data_format == "mat":
                     source = MATSource()
-                    inp, outp = source.load_mmap(args.data_path)
+                    handle = source.load_mmap(args.data_path)
+                    inp, outp = handle.inputs, handle.outputs
                 else:
                     inp, outp = load_training_data(args.data_path, format=data_format)
                 logger.info("   Using memory-mapped loading (low memory mode)")

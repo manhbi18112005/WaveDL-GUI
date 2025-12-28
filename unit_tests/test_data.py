@@ -25,6 +25,7 @@ from torch.utils.data import DataLoader
 from utils.data import (
     DataSource,
     HDF5Source,
+    LazyDataHandle,
     MATSource,
     MemmapDataset,
     NPZSource,
@@ -166,7 +167,7 @@ class TestMemmapDataset:
         )
 
         # Dataset index 0 should map to memmap index 0
-        x, y = dataset[0]
+        _x, y = dataset[0]
         assert torch.allclose(y, setup["targets"][0])
 
         # Dataset index 5 should map to memmap index 5
@@ -477,10 +478,12 @@ class TestFormatAutoDetection:
         assert DataSource.detect_format("data.mat") == "mat"
         assert DataSource.detect_format("/path/to/data.MAT") == "mat"
 
-    def test_unknown_extension_defaults_to_npz(self):
-        """Test unknown extension defaults to NPZ."""
-        assert DataSource.detect_format("data.xyz") == "npz"
-        assert DataSource.detect_format("data.txt") == "npz"
+    def test_unknown_extension_raises_error(self):
+        """Test unknown extension raises ValueError."""
+        with pytest.raises(ValueError, match="Unsupported file extension"):
+            DataSource.detect_format("data.xyz")
+        with pytest.raises(ValueError, match="Unsupported file extension"):
+            DataSource.detect_format("data.txt")
 
 
 class TestNPZSource:
@@ -648,3 +651,84 @@ class TestGetDataSource:
         """Test that ValueError is raised for unsupported formats."""
         with pytest.raises(ValueError):
             get_data_source("unsupported")
+
+
+# ==============================================================================
+# LAZY DATA HANDLE TESTS
+# ==============================================================================
+class TestLazyDataHandle:
+    """Tests for the LazyDataHandle context manager."""
+
+    def test_context_manager_returns_data(self, temp_dir):
+        """Test context manager returns inputs and outputs."""
+        X = np.random.randn(20, 32, 32).astype(np.float32)
+        y = np.random.randn(20, 3).astype(np.float32)
+
+        path = os.path.join(temp_dir, "data.h5")
+        with h5py.File(path, "w") as f:
+            f.create_dataset("input_train", data=X)
+            f.create_dataset("output_train", data=y)
+
+        source = HDF5Source()
+        with source.load_mmap(path) as (inputs, outputs):
+            assert inputs.shape == X.shape
+            assert outputs.shape == y.shape
+            # Verify we can read data
+            np.testing.assert_array_equal(inputs[:], X)
+            np.testing.assert_array_equal(outputs[:], y)
+
+    def test_context_manager_closes_file(self, temp_dir):
+        """Test file is closed after exiting context."""
+        X = np.random.randn(10, 16, 16).astype(np.float32)
+        y = np.random.randn(10, 2).astype(np.float32)
+
+        path = os.path.join(temp_dir, "data.h5")
+        with h5py.File(path, "w") as f:
+            f.create_dataset("X", data=X)
+            f.create_dataset("y", data=y)
+
+        source = HDF5Source()
+        handle = source.load_mmap(path)
+
+        # Before close, handle should be open
+        assert repr(handle) == "LazyDataHandle(status=open)"
+
+        handle.close()
+
+        # After close, handle should be closed
+        assert repr(handle) == "LazyDataHandle(status=closed)"
+        # Calling close again should be safe
+        handle.close()
+
+    def test_attributes_access(self, temp_dir):
+        """Test accessing inputs and outputs via attributes."""
+        X = np.random.randn(15, 24).astype(np.float32)
+        y = np.random.randn(15, 4).astype(np.float32)
+
+        path = os.path.join(temp_dir, "data.h5")
+        with h5py.File(path, "w") as f:
+            f.create_dataset("data", data=X)
+            f.create_dataset("labels", data=y)
+
+        source = HDF5Source()
+        handle = source.load_mmap(path)
+
+        try:
+            assert handle.inputs.shape == X.shape
+            assert handle.outputs.shape == y.shape
+        finally:
+            handle.close()
+
+    def test_basic_handle_without_file(self):
+        """Test LazyDataHandle works with plain numpy arrays (no file)."""
+        inputs = np.array([1, 2, 3])
+        outputs = np.array([4, 5, 6])
+
+        handle = LazyDataHandle(inputs, outputs)
+
+        with handle as (inp, outp):
+            np.testing.assert_array_equal(inp, inputs)
+            np.testing.assert_array_equal(outp, outputs)
+
+        # Should be closed now but safe to access
+        assert handle._closed is True

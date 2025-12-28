@@ -273,7 +273,7 @@ WaveDL/
 ├── configs/                   # YAML config template (all options documented)
 ├── examples/                  # Ready-to-run example with pre-trained model
 ├── notebooks/                 # Jupyter notebooks (Colab demo)
-└── unit_tests/                # Pytest test suite (420 tests)
+└── unit_tests/                # Pytest test suite (422 tests)
 ```
 ---
 
