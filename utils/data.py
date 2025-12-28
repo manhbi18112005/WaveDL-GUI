@@ -706,7 +706,9 @@ def load_test_data(
 
     Example:
         >>> X, y = load_test_data("test_data.npz")
-        >>> X, y = load_test_data("data.mat", input_key="waveforms", output_key="params")
+        >>> X, y = load_test_data(
+        ...     "data.mat", input_key="waveforms", output_key="params"
+        ... )
     """
     if format == "auto":
         format = DataSource.detect_format(path)
