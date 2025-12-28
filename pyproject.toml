@@ -105,7 +105,7 @@ ignore = [
     "RUF003",  # Ambiguous Unicode in comment (× is intentional)
     "RUF005",  # Collection literal concatenation (style preference)
     "RUF013",  # PEP 484 implicit Optional (legacy code pattern)
-    "RUF059",  # Unused unpacked variable (common: x, _ = func())
+    "UP038",   # isinstance tuple vs union (both valid, tuple more readable)
 ]
 
 # Allow fix for all enabled rules (when `--fix` is provided)

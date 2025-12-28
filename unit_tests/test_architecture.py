@@ -142,9 +142,10 @@ class TestAllModels:
             assert out.shape[0] == 4
             assert out.shape[1] == out_size
         else:
-            assert out.shape == (4, out_size), (
-                f"{model_name}: Expected {(4, out_size)}, got {out.shape}"
-            )
+            assert out.shape == (
+                4,
+                out_size,
+            ), f"{model_name}: Expected {(4, out_size)}, got {out.shape}"
 
     @pytest.mark.parametrize("model_name", list_models())
     def test_model_eval_deterministic(self, model_name):
@@ -159,9 +160,9 @@ class TestAllModels:
             out1 = model(x)
             out2 = model(x)
 
-        assert torch.allclose(out1, out2), (
-            f"{model_name}: Not deterministic in eval mode"
-        )
+        assert torch.allclose(
+            out1, out2
+        ), f"{model_name}: Not deterministic in eval mode"
 
     @pytest.mark.parametrize("model_name", list_models())
     def test_model_has_parameters(self, model_name):
@@ -186,9 +187,9 @@ class TestAllModels:
         with torch.no_grad():
             out = model(x)
 
-        assert out.shape[0] == batch_size, (
-            f"{model_name}: Batch size {batch_size} failed"
-        )
+        assert (
+            out.shape[0] == batch_size
+        ), f"{model_name}: Batch size {batch_size} failed"
 
     @pytest.mark.parametrize(
         "model_name",

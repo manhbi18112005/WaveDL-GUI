@@ -71,11 +71,11 @@ for i = 1:N
     sample = squeeze(input_data(i, :, :, :));
     sample = reshape(sample, [size(sample, 1), size(sample, 2), 1]);
     sample = single(sample);
-    
+
     dlSample = dlarray(sample, 'SSC');
     dlPred = predict(net, dlSample);
     all_predictions(i, :) = extractdata(dlPred)';
-    
+
     if mod(i, 100) == 0
         fprintf('  Processed %d/%d samples\n', i, N);
     end
@@ -112,18 +112,18 @@ for p = 1:size(ground_truth, 2)
     subplot(1, size(ground_truth, 2), p);
     scatter(ground_truth(:, p), all_predictions(:, p), 10, 'filled', 'MarkerFaceAlpha', 0.5);
     hold on;
-    
+
     lims = [min([ground_truth(:, p); all_predictions(:, p)]), ...
             max([ground_truth(:, p); all_predictions(:, p)])];
     plot(lims, lims, 'r--', 'LineWidth', 1.5);
-    
+
     xlabel(sprintf('True P%d', p));
     ylabel(sprintf('Predicted P%d', p));
-    
+
     ss_res_p = sum((ground_truth(:, p) - all_predictions(:, p)).^2);
     ss_tot_p = sum((ground_truth(:, p) - mean(ground_truth(:, p))).^2);
     r2_p = 1 - (ss_res_p / ss_tot_p);
-    
+
     title(sprintf('Parameter %d (R² = %.4f)', p, r2_p));
     grid on; axis equal;
 end

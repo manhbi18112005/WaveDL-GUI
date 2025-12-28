@@ -27,7 +27,7 @@ keywords:
   - distributed training
 abstract: >-
   WaveDL is a deep learning framework built for wave-based inverse problems —
-  from ultrasonic NDE and geophysics to biomedical 
-  tissue characterization. It provides a robust, scalable training pipeline for 
-  mapping multi-dimensional data to physical quantities, with support for 
+  from ultrasonic NDE and geophysics to biomedical
+  tissue characterization. It provides a robust, scalable training pipeline for
+  mapping multi-dimensional data to physical quantities, with support for
   memory-mapped datasets, multi-GPU distributed training, and HPC deployment.

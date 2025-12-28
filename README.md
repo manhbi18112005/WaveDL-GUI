@@ -286,7 +286,7 @@ WaveDL/
 > ```bash
 > # Using run_training.sh
 > ./run_training.sh --model cnn --batch_size 256 --lr 5e-4 --compile
-> 
+>
 > # Using accelerate launch directly
 > accelerate launch train.py --model cnn --batch_size 256 --lr 5e-4 --compile
 > ```
@@ -585,7 +585,7 @@ from pathlib import Path
 import pandas as pd
 
 # Load images
-images = [np.array(Image.open(f).convert('L'), dtype=np.float32) 
+images = [np.array(Image.open(f).convert('L'), dtype=np.float32)
           for f in sorted(Path("images/").glob("*.png"))]
 X = np.stack(images)
 

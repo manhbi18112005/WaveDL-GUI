@@ -2,7 +2,7 @@
 ################################################################################
 # WaveDL Training Launcher for HPC Environments
 ################################################################################
-# 
+#
 # Description:
 #   Configures environment variables and launches distributed training with
 #   Accelerate on High-Performance Computing clusters (e.g., Compute Canada).
@@ -147,7 +147,7 @@ echo "========================================"
 if [[ $EXIT_CODE -eq 0 ]]; then
     echo "✅ Training completed successfully!"
     echo "========================================"
-    
+
     # WandB sync instructions for offline mode
     if [[ "$WANDB_MODE" == "offline" ]]; then
         echo ""

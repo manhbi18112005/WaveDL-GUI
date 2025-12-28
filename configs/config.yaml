@@ -47,7 +47,7 @@ optimizer: adamw              # Options: adamw, adam, sgd, nadam, radam, rmsprop
 # =============================================================================
 # LEARNING RATE SCHEDULER
 # =============================================================================
-scheduler: plateau            # Options: plateau, cosine, cosine_restarts, onecycle, 
+scheduler: plateau            # Options: plateau, cosine, cosine_restarts, onecycle,
                               #          step, multistep, exponential, linear_warmup
 # scheduler_factor: 0.5       # LR reduction factor (for plateau/step)
 # scheduler_patience: 10      # Epochs to wait before reducing (for plateau)
