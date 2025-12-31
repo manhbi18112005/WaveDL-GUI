@@ -8,19 +8,19 @@ Author: Ductho Le (ductho.le@outlook.com)
 Version: 1.0.0
 """
 
-from utils.config import (
+from .config import (
     create_default_config,
     load_config,
     merge_config_with_args,
     save_config,
     validate_config,
 )
-from utils.cross_validation import (
+from .cross_validation import (
     CVDataset,
     run_cross_validation,
     train_fold,
 )
-from utils.data import (
+from .data import (
     # Multi-format data loading
     DataSource,
     HDF5Source,
@@ -34,18 +34,18 @@ from utils.data import (
     memmap_worker_init_fn,
     prepare_data,
 )
-from utils.distributed import (
+from .distributed import (
     broadcast_early_stop,
     broadcast_value,
     sync_tensor,
 )
-from utils.losses import (
+from .losses import (
     LogCoshLoss,
     WeightedMSELoss,
     get_loss,
     list_losses,
 )
-from utils.metrics import (
+from .metrics import (
     COLORS,
     FIGURE_DPI,
     FIGURE_WIDTH_CM,
@@ -70,12 +70,12 @@ from utils.metrics import (
     plot_residuals,
     plot_scientific_scatter,
 )
-from utils.optimizers import (
+from .optimizers import (
     get_optimizer,
     get_optimizer_with_param_groups,
     list_optimizers,
 )
-from utils.schedulers import (
+from .schedulers import (
     get_scheduler,
     get_scheduler_with_warmup,
     is_epoch_based,

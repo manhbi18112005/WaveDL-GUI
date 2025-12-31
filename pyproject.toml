@@ -2,8 +2,15 @@
 # WaveDL Project Configuration
 # ============================================================================
 # This file configures project metadata and development tools.
-# For package installation, use: pip install -r requirements.txt
+# For editable installation: pip install -e .
 # ============================================================================
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["models*", "utils*"]
 
 [project]
 name = "wavedl"
@@ -35,6 +42,33 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Scientific/Engineering :: Physics",
+]
+dependencies = [
+    "torch>=2.0.0",
+    "torchvision>=0.15.0",
+    "accelerate>=0.20.0",
+    "numpy>=1.24.0",
+    "scipy>=1.10.0",
+    "scikit-learn>=1.2.0",
+    "pandas>=2.0.0",
+    "matplotlib>=3.7.0",
+    "tqdm>=4.65.0",
+    "wandb>=0.15.0",
+    "pyyaml>=6.0.0",
+    "h5py>=3.8.0",
+    "safetensors>=0.3.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0.0", "ruff>=0.8.0", "pre-commit>=3.5.0"]
+onnx = ["onnx>=1.14.0", "onnxruntime>=1.15.0"]
+compile = ["triton"]  # Version resolved by PyTorch compatibility
+hpo = ["optuna>=3.0.0"]  # Hyperparameter optimization
+all = [
+    "pytest>=7.0.0", "ruff>=0.8.0", "pre-commit>=3.5.0",
+    "onnx>=1.14.0", "onnxruntime>=1.15.0",
+    "triton",
+    "optuna>=3.0.0",
 ]
 
 [project.urls]

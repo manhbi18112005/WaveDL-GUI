@@ -153,8 +153,18 @@ Deploy models anywhere:
 ### Installation
 
 ```bash
-pip install -r requirements.txt
+git clone https://github.com/ductho-le/WaveDL.git
+cd WaveDL
+
+# Basic install (training + inference)
+pip install -e .
+
+# Full install (adds ONNX export, torch.compile, HPO, dev tools)
+pip install -e ".[all]"
 ```
+
+> [!NOTE]
+> Dependencies are managed in `pyproject.toml`. Python 3.11+ required.
 
 ### Quick Start
 
@@ -240,10 +250,10 @@ WaveDL/
 │
 ├── train.py                   # Training entry point
 ├── test.py                    # Testing & inference script
+├── hpo.py                     # Hyperparameter optimization (Optuna)
 ├── run_training.sh            # HPC helper script (recommended)
 │
-├── pyproject.toml             # Project config, Ruff & pytest settings
-├── requirements.txt           # Python dependencies
+├── pyproject.toml             # Package config, dependencies, Ruff & pytest
 ├── CITATION.cff               # Citation metadata
 │
 ├── models/
@@ -523,6 +533,77 @@ seed: 2025
 
 > [!TIP]
 > See [`configs/config.yaml`](configs/config.yaml) for the complete template with all available options documented.
+
+</details>
+
+<details>
+<summary><b>Hyperparameter Search (HPO)</b></summary>
+
+Automatically find the best training configuration using [Optuna](https://optuna.org/).
+
+**Step 1: Install**
+```bash
+pip install -e ".[hpo]"
+```
+
+**Step 2: Run HPO**
+
+You specify which models to search and how many trials to run:
+```bash
+# Search 3 models with 100 trials
+python hpo.py --data_path train.npz --models cnn resnet18 efficientnet_b0 --n_trials 100
+
+# Search 1 model (faster)
+python hpo.py --data_path train.npz --models cnn --n_trials 50
+
+# Search all your candidate models
+python hpo.py --data_path train.npz --models cnn resnet18 resnet50 vit_small densenet121 --n_trials 200
+```
+
+**Step 3: Train with best parameters**
+
+After HPO completes, it prints the optimal command:
+```bash
+accelerate launch train.py --data_path train.npz --model cnn --lr 3.2e-4 --batch_size 128 ...
+```
+
+---
+
+**What Gets Searched:**
+
+| Parameter | Default | You Can Override With |
+|-----------|---------|----------------------|
+| Models | cnn, resnet18, resnet34 | `--models X Y Z` |
+| Optimizers | [all 6](#optimizers) | `--optimizers X Y` |
+| Schedulers | [all 8](#learning-rate-schedulers) | `--schedulers X Y` |
+| Losses | [all 6](#loss-functions) | `--losses X Y` |
+| Learning rate | 1e-5 → 1e-2 | (always searched) |
+| Batch size | 64, 128, 256, 512 | (always searched) |
+
+**Quick Mode** (`--quick`):
+- Uses minimal defaults: cnn + adamw + plateau + mse
+- Faster for testing your setup before running full search
+- You can still override any option with the flags above
+
+---
+
+**All Arguments:**
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--data_path` | (required) | Training data file |
+| `--models` | 3 defaults | Models to search (specify any number) |
+| `--n_trials` | `50` | Number of trials to run |
+| `--quick` | `False` | Use minimal defaults (faster) |
+| `--optimizers` | all 6 | Optimizers to search |
+| `--schedulers` | all 8 | Schedulers to search |
+| `--losses` | all 6 | Losses to search |
+| `--n_jobs` | `1` | Parallel trials (multi-GPU) |
+| `--max_epochs` | `50` | Max epochs per trial |
+| `--output` | `hpo_results.json` | Output file |
+
+> [!TIP]
+> See [Available Models](#available-models) for all 21 architectures you can search.
 
 </details>
 

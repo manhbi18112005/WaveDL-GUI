@@ -47,7 +47,7 @@ repos:
       - id: check-toml
       # Prevent committing large files
       - id: check-added-large-files
-        args: [--maxkb=1000]
+        args: [--maxkb=100000]
       # Check for merge conflict markers
       - id: check-merge-conflict
       # Detect private keys

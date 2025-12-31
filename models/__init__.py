@@ -36,23 +36,23 @@ Version: 1.0.0
 
 # Import registry first (no dependencies)
 # Import base class (depends only on torch)
-from models.base import BaseModel
+from .base import BaseModel
 
 # Import model implementations (triggers registration via decorators)
-from models.cnn import CNN
-from models.convnext import ConvNeXtBase_, ConvNeXtSmall, ConvNeXtTiny
-from models.densenet import DenseNet121, DenseNet169
-from models.efficientnet import EfficientNetB0, EfficientNetB1, EfficientNetB2
-from models.registry import (
+from .cnn import CNN
+from .convnext import ConvNeXtBase_, ConvNeXtSmall, ConvNeXtTiny
+from .densenet import DenseNet121, DenseNet169
+from .efficientnet import EfficientNetB0, EfficientNetB1, EfficientNetB2
+from .registry import (
     MODEL_REGISTRY,
     build_model,
     get_model,
     list_models,
     register_model,
 )
-from models.resnet import ResNet18, ResNet34, ResNet50
-from models.unet import UNet, UNetRegression
-from models.vit import ViTBase_, ViTSmall, ViTTiny
+from .resnet import ResNet18, ResNet34, ResNet50
+from .unet import UNet, UNetRegression
+from .vit import ViTBase_, ViTSmall, ViTTiny
 
 
 # Export public API
