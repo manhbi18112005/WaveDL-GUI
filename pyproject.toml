@@ -60,12 +60,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0.0", "ruff>=0.8.0", "pre-commit>=3.5.0"]
+dev = ["pytest>=7.0.0", "pytest-xdist>=3.5.0", "ruff>=0.8.0", "pre-commit>=3.5.0"]
 onnx = ["onnx>=1.14.0", "onnxruntime>=1.15.0"]
 compile = ["triton"]  # Version resolved by PyTorch compatibility
 hpo = ["optuna>=3.0.0"]  # Hyperparameter optimization
 all = [
-    "pytest>=7.0.0", "ruff>=0.8.0", "pre-commit>=3.5.0",
+    "pytest>=7.0.0", "pytest-xdist>=3.5.0", "ruff>=0.8.0", "pre-commit>=3.5.0",
     "onnx>=1.14.0", "onnxruntime>=1.15.0",
     "triton",
     "optuna>=3.0.0",
