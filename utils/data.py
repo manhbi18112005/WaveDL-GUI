@@ -796,9 +796,12 @@ def memmap_worker_init_fn(worker_id: int):
     """
     Worker initialization function for proper memmap handling in multi-worker DataLoader.
 
-    Each DataLoader worker process runs this function after forking. It resets the
-    memmap file handle to None, forcing each worker to open its own read-only handle.
-    This prevents file descriptor sharing issues and race conditions.
+    Each DataLoader worker process runs this function after forking. It:
+    1. Resets the memmap file handle to None, forcing each worker to open its own
+       read-only handle (prevents file descriptor sharing issues and race conditions)
+    2. Seeds numpy's random state per worker to ensure statistical diversity in
+       random augmentations (prevents all workers from applying identical "random"
+       transformations to their batches)
 
     Args:
         worker_id: Worker index (0 to num_workers-1), provided by DataLoader
@@ -811,6 +814,10 @@ def memmap_worker_init_fn(worker_id: int):
         dataset = worker_info.dataset
         # Force re-initialization of memmap in each worker
         dataset.data = None
+
+        # Seed numpy RNG per worker using PyTorch's worker seed for reproducibility
+        # This ensures random augmentations (noise, shifts, etc.) are unique per worker
+        np.random.seed(worker_info.seed % (2**32 - 1))
 
 
 # ==============================================================================

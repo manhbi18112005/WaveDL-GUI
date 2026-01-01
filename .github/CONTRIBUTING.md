@@ -87,6 +87,51 @@ New models should:
 - Support 1D, 2D, and 3D input shapes (if possible)
 - Include docstrings and type hints
 
+## Releasing (Maintainers)
+
+We use automated releases via GitHub Actions. When you push a version tag, a GitHub Release is created automatically with notes from `CHANGELOG.md`.
+
+### Release Process
+
+1. **Update `CHANGELOG.md`** with the new version's changes:
+   ```markdown
+   ## [1.2.0] - 2025-01-15
+
+   ### Added
+   - New feature description
+
+   ### Changed
+   - Updated behavior
+
+   ### Fixed
+   - Bug fix description
+   ```
+
+2. **Bump version** in `pyproject.toml`:
+   ```toml
+   version = "1.2.0"
+   ```
+
+3. **Commit and tag**:
+   ```bash
+   git add CHANGELOG.md pyproject.toml
+   git commit -m "Release v1.2.0"
+   git tag v1.2.0
+   git push origin main --tags
+   ```
+
+4. **GitHub Actions** will automatically:
+   - Run the test suite
+   - Extract changelog notes for the version
+   - Create a GitHub Release
+
+### Version Guidelines
+
+- Follow [Semantic Versioning](https://semver.org/):
+  - **MAJOR** (1.0.0 → 2.0.0): Breaking API changes
+  - **MINOR** (1.0.0 → 1.1.0): New features, backward compatible
+  - **PATCH** (1.0.0 → 1.0.1): Bug fixes only
+
 ## Questions?
 
 Open an issue or start a [GitHub Discussion](https://github.com/ductho-le/WaveDL/discussions).

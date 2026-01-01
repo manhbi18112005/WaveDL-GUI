@@ -1,0 +1,89 @@
+# =============================================================================
+# Automated Release Workflow
+# =============================================================================
+# Triggers when a version tag (v*.*.*) is pushed.
+# Creates a GitHub Release with changelog notes automatically.
+#
+# Usage:
+#   1. Update CHANGELOG.md with release notes
+#   2. Bump version in pyproject.toml
+#   3. Commit, tag, and push:
+#      git tag v1.2.0
+#      git push origin main --tags
+# =============================================================================
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run tests
+        run: pytest unit_tests -v
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Extract changelog for this version
+        id: changelog
+        run: |
+          # Extract the section for this version from CHANGELOG.md
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          VERSION_NUM="${VERSION#v}"  # Remove 'v' prefix for matching
+
+          # Extract content between this version header and the next version header
+          NOTES=$(awk -v ver="$VERSION_NUM" '
+            /^## \[/ {
+              if (found) exit
+              if (index($0, "[" ver "]") > 0) found=1
+              next
+            }
+            found { print }
+          ' CHANGELOG.md)
+
+          # Handle multi-line output for GitHub Actions
+          echo "NOTES<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ steps.version.outputs.VERSION }}
+          body: ${{ steps.changelog.outputs.NOTES }}
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.VERSION, '-') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
