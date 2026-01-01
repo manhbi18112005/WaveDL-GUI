@@ -255,6 +255,7 @@ WaveDL/
 │
 ├── pyproject.toml             # Package config, dependencies, Ruff & pytest
 ├── CITATION.cff               # Citation metadata
+├── CHANGELOG.md               # Version history and release notes
 │
 ├── models/
 │   ├── __init__.py            # Model exports
