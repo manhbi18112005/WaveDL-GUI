@@ -5,16 +5,16 @@ Automated hyperparameter search for finding optimal training configurations.
 
 Usage:
     # Basic HPO (50 trials)
-    python hpo.py --data_path train.npz --n_trials 50
+    wavedl-hpo --data_path train.npz --n_trials 50
 
     # Quick search (fewer parameters)
-    python hpo.py --data_path train.npz --n_trials 30 --quick
+    wavedl-hpo --data_path train.npz --n_trials 30 --quick
 
     # Full search with specific models
-    python hpo.py --data_path train.npz --n_trials 100 --models cnn resnet18 efficientnet_b0
+    wavedl-hpo --data_path train.npz --n_trials 100 --models cnn resnet18 efficientnet_b0
 
     # Parallel trials on multiple GPUs
-    python hpo.py --data_path train.npz --n_trials 100 --n_jobs 4
+    wavedl-hpo --data_path train.npz --n_trials 100 --n_jobs 4
 
 Author: Ductho Le (ductho.le@outlook.com)
 """
@@ -205,9 +205,9 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-    python hpo.py --data_path train.npz --n_trials 50
-    python hpo.py --data_path train.npz --n_trials 30 --quick
-    python hpo.py --data_path train.npz --n_trials 100 --models cnn resnet18
+    wavedl-hpo --data_path train.npz --n_trials 50
+    wavedl-hpo --data_path train.npz --n_trials 30 --quick
+    wavedl-hpo --data_path train.npz --n_trials 100 --models cnn resnet18
         """,
     )
 
@@ -355,7 +355,7 @@ Examples:
     print("\n" + "=" * 60)
     print("TO TRAIN WITH BEST PARAMETERS:")
     print("=" * 60)
-    cmd_parts = ["accelerate launch train.py"]
+    cmd_parts = ["accelerate launch -m wavedl.train"]
     cmd_parts.append(f"--data_path {args.data_path}")
     for key, value in study.best_params.items():
         cmd_parts.append(f"--{key} {value}")

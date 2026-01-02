@@ -6,7 +6,7 @@
 # ============================================================================
 
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=61.0,<77"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
@@ -33,8 +33,9 @@ keywords = [
     "ultrasonic",
     "guided-waves",
     "non-destructive-testing",
-    "material-characterization",
+    "machine-learning",
     "pytorch",
+    "regression",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -66,12 +67,12 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=7.0.0", "pytest-xdist>=3.5.0", "ruff>=0.8.0", "pre-commit>=3.5.0"]
 onnx = ["onnx>=1.14.0", "onnxruntime>=1.15.0"]
-compile = ["triton"]  # Version resolved by PyTorch compatibility
+compile = ["triton; sys_platform == 'linux'"]  # Linux-only, enables torch.compile
 hpo = ["optuna>=3.0.0"]  # Hyperparameter optimization
 all = [
     "pytest>=7.0.0", "pytest-xdist>=3.5.0", "ruff>=0.8.0", "pre-commit>=3.5.0",
     "onnx>=1.14.0", "onnxruntime>=1.15.0",
-    "triton",
+    "triton; sys_platform == 'linux'",
     "optuna>=3.0.0",
 ]
 
@@ -79,6 +80,7 @@ all = [
 wavedl-train = "wavedl.train:main"
 wavedl-test = "wavedl.test:main"
 wavedl-hpo = "wavedl.hpo:main"
+wavedl-hpc = "wavedl.hpc:main"
 
 [project.urls]
 Homepage = "https://github.com/ductho-le/WaveDL"

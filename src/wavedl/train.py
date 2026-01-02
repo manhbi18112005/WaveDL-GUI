@@ -12,26 +12,25 @@ A modular training framework for wave-based inverse problems and regression:
   6. Deep Observability: WandB integration with scatter analysis
 
 Usage:
-    # Recommended: Using the HPC helper script
-    ./run_training.sh --model cnn --batch_size 128 --wandb
+    # Recommended: Using the HPC launcher
+    wavedl-hpc --model cnn --batch_size 128 --wandb
 
     # Or with direct accelerate launch
-    accelerate launch train.py --model cnn --batch_size 128 --wandb
+    accelerate launch -m wavedl.train --model cnn --batch_size 128 --wandb
 
     # Multi-GPU with explicit config
-    accelerate launch --num_processes=4 --mixed_precision=bf16 \
-        train.py --model cnn --wandb --project_name "MyProject"
+    wavedl-hpc --num_gpus 4 --mixed_precision bf16 --model cnn --wandb
 
     # Resume from checkpoint
-    accelerate launch train.py --model cnn --resume best_checkpoint --wandb
+    accelerate launch -m wavedl.train --model cnn --resume best_checkpoint --wandb
 
     # List available models
-    python train.py --list_models
+    wavedl-train --list_models
 
 Note:
-    For HPC clusters (Compute Canada, etc.), use run_training.sh which handles
+    For HPC clusters (Compute Canada, etc.), use wavedl-hpc which handles
     environment configuration automatically. Mixed precision is controlled via
-    --precision flag (default: bf16).
+    --mixed_precision flag (default: bf16).
 
 Author: Ductho Le (ductho.le@outlook.com)
 """

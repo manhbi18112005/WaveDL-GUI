@@ -153,40 +153,43 @@ Deploy models anywhere:
 ### Installation
 
 ```bash
+# Install from PyPI (recommended)
+pip install wavedl
+
+# Or install with all extras (ONNX export, HPO, dev tools)
+pip install wavedl[all]
+```
+
+#### From Source (for development)
+
+```bash
 git clone https://github.com/ductho-le/WaveDL.git
 cd WaveDL
-
-# Basic install (training + inference)
-pip install -e .
-
-# Full install (adds ONNX export, torch.compile, HPO, dev tools)
-pip install -e ".[all]"
+pip install -e ".[dev]"
 ```
 
 > [!NOTE]
-> Dependencies are managed in `pyproject.toml`. Python 3.11+ required.
->
-> For development setup (running tests, contributing), see [CONTRIBUTING.md](.github/CONTRIBUTING.md).
+> Python 3.11+ required. For development setup, see [CONTRIBUTING.md](.github/CONTRIBUTING.md).
 
 ### Quick Start
 
 > [!TIP]
 > In all examples below, replace `<...>` placeholders with your values. See [Configuration](#️-configuration) for defaults and options.
 
-#### Option 1: Using the Helper Script (Recommended for HPC)
+#### Option 1: Using wavedl-hpc (Recommended for HPC)
 
-The `run_training.sh` wrapper automatically configures the environment for HPC systems:
+The `wavedl-hpc` command automatically configures the environment for HPC systems:
 
 ```bash
-# Make executable (first time only)
-chmod +x run_training.sh
-
 # Basic training (auto-detects available GPUs)
-./run_training.sh --model <model_name> --data_path <train_data> --batch_size <number> --output_dir <output_folder>
+wavedl-hpc --model <model_name> --data_path <train_data> --batch_size <number> --output_dir <output_folder>
 
 # Detailed configuration
-./run_training.sh --model <model_name> --data_path <train_data> --batch_size <number> \
+wavedl-hpc --model <model_name> --data_path <train_data> --batch_size <number> \
   --lr <number> --epochs <number> --patience <number> --compile --output_dir <output_folder>
+
+# Specify GPU count explicitly
+wavedl-hpc --num_gpus 4 --model cnn --data_path train.npz --output_dir results
 ```
 
 #### Option 2: Direct Accelerate Launch
@@ -203,13 +206,13 @@ accelerate launch -m wavedl.train --model <model_name> --data_path <train_data> 
 accelerate launch -m wavedl.train --model <model_name> --data_path <train_data> --output_dir <output_folder> --fresh
 
 # List available models
-python -m wavedl.train --list_models
+wavedl-train --list_models
 ```
 
 > [!TIP]
 > **Auto-Resume**: If training crashes or is interrupted, simply re-run with the same `--output_dir`. The framework automatically detects incomplete training and resumes from the last checkpoint. Use `--fresh` to force a fresh start.
 >
-> **GPU Auto-Detection**: By default, `run_training.sh` automatically detects available GPUs using `nvidia-smi`. Set `NUM_GPUS` to override this behavior.
+> **GPU Auto-Detection**: `wavedl-hpc` automatically detects available GPUs using `nvidia-smi`. Use `--num_gpus` to override.
 
 ### Testing & Inference
 
@@ -253,6 +256,7 @@ WaveDL/
 │       ├── train.py           # Training entry point
 │       ├── test.py            # Testing & inference script
 │       ├── hpo.py             # Hyperparameter optimization
+│       ├── hpc.py             # HPC distributed training launcher
 │       │
 │       ├── models/            # Model architectures
 │       │   ├── registry.py    # Model factory (@register_model)
@@ -274,7 +278,6 @@ WaveDL/
 │           ├── schedulers.py  # LR scheduler factory
 │           └── config.py      # YAML configuration support
 │
-├── run_training.sh            # HPC helper script
 ├── configs/                   # YAML config templates
 ├── examples/                  # Ready-to-run examples
 ├── notebooks/                 # Jupyter notebooks
@@ -289,12 +292,12 @@ WaveDL/
 ## ⚙️ Configuration
 
 > [!NOTE]
-> All configuration options below work with **both** `run_training.sh` and direct `accelerate launch`. The wrapper script passes all arguments directly to `train.py`.
+> All configuration options below work with **both** `wavedl-hpc` and direct `accelerate launch`. The wrapper script passes all arguments directly to `train.py`.
 >
 > **Examples:**
 > ```bash
-> # Using run_training.sh
-> ./run_training.sh --model cnn --batch_size 256 --lr 5e-4 --compile
+> # Using wavedl-hpc
+> wavedl-hpc --model cnn --batch_size 256 --lr 5e-4 --compile
 >
 > # Using accelerate launch directly
 > accelerate launch -m wavedl.train --model cnn --batch_size 256 --lr 5e-4 --compile
@@ -376,7 +379,7 @@ WaveDL/
 </details>
 
 <details>
-<summary><b>Environment Variables (run_training.sh)</b></summary>
+<summary><b>Environment Variables (wavedl-hpc)</b></summary>
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -469,15 +472,15 @@ For robust model evaluation, simply add the `--cv` flag:
 
 ```bash
 # 5-fold cross-validation (works with both methods!)
-./run_training.sh --model cnn --cv 5 --data_path train_data.npz
+wavedl-hpc --model cnn --cv 5 --data_path train_data.npz
 # OR
 accelerate launch -m wavedl.train --model cnn --cv 5 --data_path train_data.npz
 
 # Stratified CV (recommended for unbalanced data)
-./run_training.sh --model cnn --cv 5 --cv_stratify --loss huber --epochs 100
+wavedl-hpc --model cnn --cv 5 --cv_stratify --loss huber --epochs 100
 
 # Full configuration
-./run_training.sh --model cnn --cv 5 --cv_stratify \
+wavedl-hpc --model cnn --cv 5 --cv_stratify \
     --loss huber --optimizer adamw --scheduler cosine \
     --output_dir ./cv_results
 ```

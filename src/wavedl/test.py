@@ -13,14 +13,14 @@ Production-grade inference script for evaluating trained WaveDL models:
 
 Usage:
     # Basic inference
-    python test.py --checkpoint ./best_checkpoint --data_path test_data.npz
+    wavedl-test --checkpoint ./best_checkpoint --data_path test_data.npz
 
     # With visualization and detailed output
-    python test.py --checkpoint ./best_checkpoint --data_path test_data.npz \\
+    wavedl-test --checkpoint ./best_checkpoint --data_path test_data.npz \\
         --plot --plot_format png pdf --output_dir ./test_results --save_predictions
 
     # Export model to ONNX for deployment
-    python test.py --checkpoint ./best_checkpoint --data_path test_data.npz \\
+    wavedl-test --checkpoint ./best_checkpoint --data_path test_data.npz \\
         --export onnx --export_path model.onnx
 
 Author: Ductho Le (ductho.le@outlook.com)

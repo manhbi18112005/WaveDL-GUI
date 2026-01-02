@@ -11,7 +11,7 @@ Steps to Add a New Model:
     3. Implement the __init__ and forward methods
     4. Import your model in models/__init__.py:
        from wavedl.models.your_model import YourModel
-    5. Run: accelerate launch train.py --model your_model --wandb
+    5. Run: accelerate launch -m wavedl.train --model your_model --wandb
 
 Author: Ductho Le (ductho.le@outlook.com)
 Version: 1.0.0
