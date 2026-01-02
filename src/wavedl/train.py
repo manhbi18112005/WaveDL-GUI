@@ -121,6 +121,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--list_models", action="store_true", help="List all available models and exit"
     )
+    parser.add_argument(
+        "--import",
+        dest="import_modules",
+        type=str,
+        nargs="+",
+        default=[],
+        help="Python modules to import before training (for custom models)",
+    )
 
     # Configuration File
     parser.add_argument(
@@ -312,6 +320,37 @@ def parse_args() -> argparse.Namespace:
 # ==============================================================================
 def main():
     args, parser = parse_args()
+
+    # Import custom model modules if specified
+    if args.import_modules:
+        import importlib
+        import sys
+
+        for module_name in args.import_modules:
+            try:
+                # Handle both module names (my_model) and file paths (./my_model.py)
+                if module_name.endswith(".py"):
+                    # Import from file path
+                    import importlib.util
+
+                    spec = importlib.util.spec_from_file_location(
+                        "custom_module", module_name
+                    )
+                    if spec and spec.loader:
+                        module = importlib.util.module_from_spec(spec)
+                        sys.modules["custom_module"] = module
+                        spec.loader.exec_module(module)
+                        print(f"✓ Imported custom module from: {module_name}")
+                else:
+                    # Import as regular module
+                    importlib.import_module(module_name)
+                    print(f"✓ Imported module: {module_name}")
+            except ImportError as e:
+                print(f"✗ Failed to import '{module_name}': {e}", file=sys.stderr)
+                print(
+                    "  Make sure the module is in your Python path or current directory."
+                )
+                sys.exit(1)
 
     # Handle --list_models flag
     if args.list_models:

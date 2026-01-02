@@ -244,6 +244,56 @@ python -m wavedl.test --checkpoint <checkpoint_folder> --data_path <test_data> \
 > [!NOTE]
 > `wavedl.test` auto-detects the model architecture from checkpoint metadata. If unavailable, it falls back to folder name parsing. Use `--model` to override if needed.
 
+### Adding Custom Models
+
+<details>
+<summary><b>Creating Your Own Architecture</b></summary>
+
+**Requirements** (your model must):
+1. Inherit from `BaseModel`
+2. Accept `in_channels`, `num_outputs`, `input_shape` in `__init__`
+3. Return a tensor of shape `(batch, num_outputs)` from `forward()`
+
+---
+
+**Step 1: Create `my_model.py`**
+
+```python
+import torch.nn as nn
+import torch.nn.functional as F
+from wavedl.models import BaseModel, register_model
+
+@register_model("my_model")  # This name is used with --model flag
+class MyModel(BaseModel):
+    def __init__(self, in_channels, num_outputs, input_shape):
+        # in_channels: number of input channels (auto-detected from data)
+        # num_outputs: number of parameters to predict (auto-detected from data)
+        # input_shape: spatial dimensions, e.g., (128,) or (64, 64) or (32, 32, 32)
+        super().__init__(in_channels, num_outputs, input_shape)
+
+        # Define your layers (this is just an example)
+        self.conv1 = nn.Conv2d(in_channels, 64, 3, padding=1)
+        self.conv2 = nn.Conv2d(64, 128, 3, padding=1)
+        self.fc = nn.Linear(128, num_outputs)
+
+    def forward(self, x):
+        # Input x has shape: (batch, in_channels, *input_shape)
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = x.mean(dim=[-2, -1])  # Global average pooling
+        return self.fc(x)  # Output shape: (batch, num_outputs)
+```
+
+**Step 2: Train**
+
+```bash
+wavedl-hpc --import my_model --model my_model --data_path train.npz
+```
+
+WaveDL handles everything else: training loop, logging, checkpoints, multi-GPU, early stopping, etc.
+
+</details>
+
 ---
 
 ## 📁 Project Structure
@@ -340,6 +390,7 @@ WaveDL/
 | Argument | Default | Description |
 |----------|---------|-------------|
 | `--model` | `cnn` | Model architecture |
+| `--import` | - | Python modules to import (for custom models) |
 | `--batch_size` | `128` | Per-GPU batch size |
 | `--lr` | `1e-3` | Learning rate |
 | `--epochs` | `1000` | Maximum epochs |

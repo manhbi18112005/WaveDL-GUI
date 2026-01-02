@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- `wavedl-hpc` command for HPC distributed training (replaces `run_training.sh`)
+- `--import` flag for loading custom model modules without wrapper scripts
+- PyPI package: `pip install wavedl`
+
+### Changed
+- Removed `run_training.sh` (use `wavedl-hpc` instead)
+- Made `triton` dependency Linux-only for cross-platform compatibility
+- Simplified custom model documentation to 2-step workflow
+- Updated all CLI examples to use `wavedl-*` commands
+
+### Fixed
+- Pinned `setuptools<77` for PyPI metadata compatibility
+
 ## [1.2.0] - 2026-01-02
 
 ### Added
