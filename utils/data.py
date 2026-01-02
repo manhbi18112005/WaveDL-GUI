@@ -986,12 +986,12 @@ def prepare_data(
                     inp, outp = source.load_mmap(args.data_path)
                 elif data_format == "hdf5":
                     source = HDF5Source()
-                    handle = source.load_mmap(args.data_path)
-                    inp, outp = handle.inputs, handle.outputs
+                    _lazy_handle = source.load_mmap(args.data_path)
+                    inp, outp = _lazy_handle.inputs, _lazy_handle.outputs
                 elif data_format == "mat":
                     source = MATSource()
-                    handle = source.load_mmap(args.data_path)
-                    inp, outp = handle.inputs, handle.outputs
+                    _lazy_handle = source.load_mmap(args.data_path)
+                    inp, outp = _lazy_handle.inputs, _lazy_handle.outputs
                 else:
                     inp, outp = load_training_data(args.data_path, format=data_format)
                 logger.info("   Using memory-mapped loading (low memory mode)")
@@ -1012,8 +1012,36 @@ def prepare_data(
             if issparse(sample_0) or hasattr(sample_0, "toarray"):
                 sample_0 = sample_0.toarray()
 
-            # Automatically detect dimensionality from sample shape
-            spatial_shape = sample_0.shape  # Could be (L,), (H, W), or (D, H, W)
+            # Detect dimensionality and validate single-channel assumption
+            raw_shape = sample_0.shape
+
+            # Heuristic for ambiguous multi-channel detection:
+            # Trigger when shape is EXACTLY 3D (could be C,H,W or D,H,W) with:
+            #   - First dim small (<=16) - looks like channels
+            #   - BOTH remaining dims large (>16) - confirming it's an image, not a tiny patch
+            # This distinguishes (3, 256, 256) from (8, 1024) or (128, 128)
+            # Use --single_channel to confirm shallow 3D volumes like (8, 128, 128)
+            is_ambiguous_shape = (
+                len(raw_shape) == 3  # Exactly 3D: could be (C, H, W) or (D, H, W)
+                and raw_shape[0] <= 16  # First dim looks like channels
+                and raw_shape[1] > 16
+                and raw_shape[2] > 16  # Both spatial dims are large
+            )
+
+            # Check for user confirmation via --single_channel flag
+            user_confirmed_single_channel = getattr(args, "single_channel", False)
+
+            if is_ambiguous_shape and not user_confirmed_single_channel:
+                raise ValueError(
+                    f"Ambiguous input shape detected: sample shape {raw_shape}. "
+                    f"This could be either:\n"
+                    f"  - Multi-channel 2D data (C={raw_shape[0]}, H={raw_shape[1]}, W={raw_shape[2]})\n"
+                    f"  - Single-channel 3D volume (D={raw_shape[0]}, H={raw_shape[1]}, W={raw_shape[2]})\n\n"
+                    f"If this is single-channel 3D/shallow volume data, use --single_channel flag.\n"
+                    f"If this is multi-channel 2D data, reshape to (N*C, H, W) with adjusted targets."
+                )
+
+            spatial_shape = raw_shape
             full_shape = (
                 num_samples,
                 1,
@@ -1104,7 +1132,12 @@ def prepare_data(
                 with open(SCALER_FILE, "wb") as f:
                     pickle.dump(scaler, f)
 
-            # Cleanup
+            # Cleanup: close file handles BEFORE deleting references
+            if "_lazy_handle" in dir() and _lazy_handle is not None:
+                try:
+                    _lazy_handle.close()
+                except Exception:
+                    pass
             del inp, outp
             gc.collect()
 

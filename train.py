@@ -240,6 +240,11 @@ def parse_args() -> argparse.Namespace:
         help="DataLoader workers per GPU (-1=auto-detect based on CPU cores)",
     )
     parser.add_argument("--seed", type=int, default=2025, help="Random seed")
+    parser.add_argument(
+        "--single_channel",
+        action="store_true",
+        help="Confirm data is single-channel (suppress ambiguous shape warnings for shallow 3D volumes)",
+    )
 
     # Cross-Validation
     parser.add_argument(
@@ -346,46 +351,87 @@ def main():
         print(f"🔄 Cross-Validation Mode: {args.cv} folds")
         from utils.cross_validation import run_cross_validation
 
-        # Load data for CV
-        data = np.load(args.data_path, allow_pickle=True)
-        X = data["input_train"]
-        y = data["output_train"]
+        # Load data for CV using memory-efficient loader
+        from utils.data import DataSource, get_data_source
 
-        # Handle sparse matrices
-        if hasattr(X[0], "toarray"):
+        data_format = DataSource.detect_format(args.data_path)
+        source = get_data_source(data_format)
+
+        # Use memory-mapped loading when available
+        _cv_handle = None
+        if hasattr(source, "load_mmap"):
+            result = source.load_mmap(args.data_path)
+            if hasattr(result, "inputs"):
+                _cv_handle = result
+                X, y = result.inputs, result.outputs
+            else:
+                X, y = result  # NPZ returns tuple directly
+        else:
+            X, y = source.load(args.data_path)
+
+        # Handle sparse matrices (must materialize for CV shuffling)
+        if hasattr(X, "__getitem__") and len(X) > 0 and hasattr(X[0], "toarray"):
             X = np.stack([x.toarray() for x in X])
 
         # Normalize target shape: (N,) -> (N, 1) for consistency
         if y.ndim == 1:
             y = y.reshape(-1, 1)
 
-        # Determine input shape (spatial dimensions only, channel is added during training)
-        # Data from NPZ: (N, *spatial) where spatial can be (L,), (H, W), or (D, H, W)
-        # This matches prepare_data which adds channel dim: (N, 1, *spatial)
-        in_shape = X.shape[1:]  # Always take all spatial dimensions
+        # Validate and determine input shape (consistent with prepare_data)
+        # Check for ambiguous shapes that could be multi-channel or shallow 3D volume
+        sample_shape = X.shape[1:]  # Per-sample shape
+
+        # Same heuristic as prepare_data: detect ambiguous 3D shapes
+        is_ambiguous_shape = (
+            len(sample_shape) == 3  # Exactly 3D: could be (C, H, W) or (D, H, W)
+            and sample_shape[0] <= 16  # First dim looks like channels
+            and sample_shape[1] > 16
+            and sample_shape[2] > 16  # Both spatial dims are large
+        )
+
+        if is_ambiguous_shape and not args.single_channel:
+            raise ValueError(
+                f"Ambiguous input shape detected: sample shape {sample_shape}. "
+                f"This could be either:\n"
+                f"  - Multi-channel 2D data (C={sample_shape[0]}, H={sample_shape[1]}, W={sample_shape[2]})\n"
+                f"  - Single-channel 3D volume (D={sample_shape[0]}, H={sample_shape[1]}, W={sample_shape[2]})\n\n"
+                f"If this is single-channel 3D/shallow volume data, use --single_channel flag.\n"
+                f"If this is multi-channel 2D data, reshape to (N*C, H, W) with adjusted targets."
+            )
+
+        # in_shape = spatial dimensions for model registry (channel added during training)
+        in_shape = sample_shape
 
         # Run cross-validation
-        run_cross_validation(
-            X=X,
-            y=y,
-            model_name=args.model,
-            in_shape=in_shape,
-            out_size=y.shape[1],
-            folds=args.cv,
-            stratify=args.cv_stratify,
-            stratify_bins=args.cv_bins,
-            batch_size=args.batch_size,
-            lr=args.lr,
-            epochs=args.epochs,
-            patience=args.patience,
-            weight_decay=args.weight_decay,
-            loss_name=args.loss,
-            optimizer_name=args.optimizer,
-            scheduler_name=args.scheduler,
-            output_dir=args.output_dir,
-            workers=args.workers,
-            seed=args.seed,
-        )
+        try:
+            run_cross_validation(
+                X=X,
+                y=y,
+                model_name=args.model,
+                in_shape=in_shape,
+                out_size=y.shape[1],
+                folds=args.cv,
+                stratify=args.cv_stratify,
+                stratify_bins=args.cv_bins,
+                batch_size=args.batch_size,
+                lr=args.lr,
+                epochs=args.epochs,
+                patience=args.patience,
+                weight_decay=args.weight_decay,
+                loss_name=args.loss,
+                optimizer_name=args.optimizer,
+                scheduler_name=args.scheduler,
+                output_dir=args.output_dir,
+                workers=args.workers,
+                seed=args.seed,
+            )
+        finally:
+            # Clean up file handle if HDF5/MAT
+            if _cv_handle is not None and hasattr(_cv_handle, "close"):
+                try:
+                    _cv_handle.close()
+                except Exception:
+                    pass
         return
 
     # ==========================================================================

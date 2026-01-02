@@ -360,6 +360,7 @@ WaveDL/
 | `--resume` | `None` | Checkpoint to resume (auto-detected if not set) |
 | `--save_every` | `50` | Checkpoint frequency |
 | `--fresh` | `False` | Force fresh training, ignore existing checkpoints |
+| `--single_channel` | `False` | Confirm data is single-channel (for shallow 3D volumes like `(8, 128, 128)`) |
 
 </details>
 

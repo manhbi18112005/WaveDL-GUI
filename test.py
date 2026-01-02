@@ -304,9 +304,11 @@ def load_checkpoint(
     if meta_path.exists():
         with open(meta_path, "rb") as f:
             meta = pickle.load(f)
+        best_val = meta.get("best_val_loss")
+        val_str = f"{best_val:.6f}" if isinstance(best_val, (int, float)) else "N/A"
         logging.info(
             f"   Checkpoint from epoch {meta.get('epoch', 'unknown')}, "
-            f"val_loss: {meta.get('best_val_loss', 'N/A'):.6f}"
+            f"val_loss: {val_str}"
         )
 
     # Auto-detect model architecture if not specified
