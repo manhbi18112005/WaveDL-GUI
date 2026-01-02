@@ -324,7 +324,6 @@ def main():
     # Import custom model modules if specified
     if args.import_modules:
         import importlib
-        import sys
 
         for module_name in args.import_modules:
             try:
