@@ -18,7 +18,7 @@ import torch.optim as optim
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils.optimizers import (
+from wavedl.utils.optimizers import (
     get_optimizer,
     get_optimizer_with_param_groups,
     list_optimizers,

@@ -10,11 +10,15 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["models*", "utils*"]
+where = ["src"]
+include = ["wavedl*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "wavedl.__version__"}
 
 [project]
 name = "wavedl"
-version = "1.1.0"
+dynamic = ["version"]
 description = "A Scalable Deep Learning Framework for Wave-Based Inverse Problems"
 readme = "README.md"
 license = {text = "MIT"}
@@ -70,6 +74,11 @@ all = [
     "triton",
     "optuna>=3.0.0",
 ]
+
+[project.scripts]
+wavedl-train = "wavedl.train:main"
+wavedl-test = "wavedl.test:main"
+wavedl-hpo = "wavedl.hpo:main"
 
 [project.urls]
 Homepage = "https://github.com/ductho-le/WaveDL"
@@ -150,7 +159,7 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 [tool.ruff.lint.isort]
 # Group imports: stdlib, third-party, local
-known-first-party = ["utils", "models"]
+known-first-party = ["wavedl"]
 force-single-line = false
 combine-as-imports = true
 lines-after-imports = 2
@@ -161,9 +170,9 @@ lines-after-imports = 2
 # Allow assert statements in tests
 "unit_tests/*" = ["B011", "S101"]
 # Allow unused imports for availability checks
-"train.py" = ["F401"]
-"test.py" = ["F401"]
-"utils/data.py" = ["F401"]
+"src/wavedl/train.py" = ["F401"]
+"src/wavedl/test.py" = ["F401"]
+"src/wavedl/utils/data.py" = ["F401"]
 
 [tool.ruff.format]
 # Format configuration (replaces Black)

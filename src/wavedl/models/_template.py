@@ -10,7 +10,7 @@ Steps to Add a New Model:
     2. Rename the class and update @register_model("your_model")
     3. Implement the __init__ and forward methods
     4. Import your model in models/__init__.py:
-       from models.your_model import YourModel
+       from wavedl.models.your_model import YourModel
     5. Run: accelerate launch train.py --model your_model --wandb
 
 Author: Ductho Le (ductho.le@outlook.com)
@@ -22,7 +22,7 @@ from typing import Any
 import torch
 import torch.nn as nn
 
-from models.base import BaseModel
+from wavedl.models.base import BaseModel
 
 
 # Uncomment the decorator to register this model

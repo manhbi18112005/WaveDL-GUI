@@ -22,7 +22,7 @@ import pytest
 import torch
 from torch.utils.data import DataLoader
 
-from utils.data import (
+from wavedl.utils.data import (
     DataSource,
     HDF5Source,
     LazyDataHandle,

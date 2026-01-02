@@ -10,7 +10,7 @@
 #   and offline WandB logging.
 #
 # Author: Ductho Le (ductho.le@outlook.com)
-# Version: 1.0.0
+#
 #
 # Usage:
 #   ./run_training.sh [OPTIONS]
@@ -101,10 +101,9 @@ fi
 # LAUNCH TRAINING
 # ==============================================================================
 
-# Check if train.py exists
-if [[ ! -f "train.py" ]]; then
-    echo "Error: train.py not found in current directory" >&2
-    echo "Please run this script from the WaveDL root directory" >&2
+# Check if wavedl package is importable
+if ! python -c "import wavedl" 2>/dev/null; then
+    echo "Error: wavedl package not found. Run: pip install -e ." >&2
     exit 1
 fi
 
@@ -132,7 +131,7 @@ accelerate launch \
   --machine_rank=0 \
   --mixed_precision="$MIXED_PRECISION" \
   --dynamo_backend="$DYNAMO_BACKEND" \
-  train.py \
+  -m wavedl.train \
   "$@"
 EXIT_CODE=$?
 set -e

@@ -34,7 +34,6 @@ Note:
     --precision flag (default: bf16).
 
 Author: Ductho Le (ductho.le@outlook.com)
-Version: 1.0.0
 """
 
 # ==============================================================================
@@ -66,8 +65,8 @@ from sklearn.metrics import r2_score
 from tqdm.auto import tqdm
 
 # Local imports
-from models import build_model, get_model, list_models
-from utils import (
+from wavedl.models import build_model, get_model, list_models
+from wavedl.utils import (
     FIGURE_DPI,
     MetricTracker,
     broadcast_early_stop,
@@ -333,7 +332,11 @@ def main():
 
     # Load and merge config file if provided
     if args.config:
-        from utils.config import load_config, merge_config_with_args, validate_config
+        from wavedl.utils.config import (
+            load_config,
+            merge_config_with_args,
+            validate_config,
+        )
 
         print(f"📄 Loading config from: {args.config}")
         config = load_config(args.config)
@@ -349,10 +352,10 @@ def main():
     # Handle --cv flag (cross-validation mode)
     if args.cv > 0:
         print(f"🔄 Cross-Validation Mode: {args.cv} folds")
-        from utils.cross_validation import run_cross_validation
+        from wavedl.utils.cross_validation import run_cross_validation
 
         # Load data for CV using memory-efficient loader
-        from utils.data import DataSource, get_data_source
+        from wavedl.utils.data import DataSource, get_data_source
 
         data_format = DataSource.detect_format(args.data_path)
         source = get_data_source(data_format)

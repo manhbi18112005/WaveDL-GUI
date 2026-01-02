@@ -347,8 +347,8 @@ def run_cross_validation(
         splits = list(kfold.split(X))
 
     # Import factories
-    from models import build_model
-    from utils import get_loss, get_optimizer, get_scheduler
+    from wavedl.models import build_model
+    from wavedl.utils import get_loss, get_optimizer, get_scheduler
 
     # Run folds
     fold_results = []

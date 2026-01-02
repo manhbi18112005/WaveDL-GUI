@@ -17,7 +17,7 @@ import torch.optim as optim
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils.schedulers import get_scheduler, is_epoch_based, list_schedulers
+from wavedl.utils.schedulers import get_scheduler, is_epoch_based, list_schedulers
 
 
 class TestListSchedulers:

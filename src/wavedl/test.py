@@ -24,7 +24,6 @@ Usage:
         --export onnx --export_path model.onnx
 
 Author: Ductho Le (ductho.le@outlook.com)
-Version: 1.0.0
 """
 
 # ==============================================================================
@@ -51,8 +50,8 @@ from torch.utils.data import DataLoader, TensorDataset
 from tqdm.auto import tqdm
 
 # Local imports
-from models import build_model, list_models
-from utils import (
+from wavedl.models import build_model, list_models
+from wavedl.utils import (
     FIGURE_DPI,
     calc_pearson,
     load_test_data,

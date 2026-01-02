@@ -19,9 +19,9 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
-from models.cnn import CNN
-from models.registry import build_model
-from utils.metrics import MetricTracker, calc_pearson, calc_per_target_r2
+from wavedl.models.cnn import CNN
+from wavedl.models.registry import build_model
+from wavedl.utils.metrics import MetricTracker, calc_pearson, calc_per_target_r2
 
 
 # ==============================================================================

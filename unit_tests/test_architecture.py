@@ -33,9 +33,9 @@ import pytest
 import torch
 import torch.nn as nn
 
-from models.base import BaseModel
-from models.cnn import CNN
-from models.registry import build_model, list_models, register_model
+from wavedl.models.base import BaseModel
+from wavedl.models.cnn import CNN
+from wavedl.models.registry import build_model, list_models, register_model
 
 
 # ==============================================================================

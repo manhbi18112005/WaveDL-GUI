@@ -5,19 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.2.0] - 2026-01-02
 
 ### Added
-- Pip-installable package with `pyproject.toml`
+- Console entry points: `wavedl-train`, `wavedl-test`, `wavedl-hpo`
+- Single version source in `src/wavedl/__init__.py` with dynamic `pyproject.toml` reading
+- `--single_channel` flag for explicit channel handling in data loading
 - Optuna hyperparameter optimization support (`hpo.py`)
 
 ### Changed
+- **BREAKING**: Restructured to `src/wavedl/` namespace package layout
+  - Use `python -m wavedl.train` instead of `python train.py`
+  - Use `from wavedl.models import CNN` instead of `from models import CNN`
 - Migrated CI workflows to use `pyproject.toml` for dependencies
 - Improved data loading robustness with lazy handles and format detection
 - Optimized training loop and consolidated data utilities
 - Updated Ruff linter to v0.14.10 for consistent formatting
 - Enhanced contributor guidelines with pre-commit setup
 - Pinned Ruff version across pre-commit, CI, and local configs
+- Moved development setup instructions to CONTRIBUTING.md
 
 ### Fixed
 - Worker seeding in DataLoader for diverse random augmentations
@@ -48,6 +54,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Example configurations and training scripts
 - MIT License and citation file
 
-[Unreleased]: https://github.com/ductho-le/WaveDL/compare/v1.1.0...HEAD
+[1.2.0]: https://github.com/ductho-le/WaveDL/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/ductho-le/WaveDL/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/ductho-le/WaveDL/releases/tag/v1.0.0

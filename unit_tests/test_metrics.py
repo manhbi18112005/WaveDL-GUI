@@ -16,7 +16,7 @@ import pytest
 import torch
 from torch import optim
 
-from utils.metrics import (
+from wavedl.utils.metrics import (
     MetricTracker,
     calc_pearson,
     calc_per_target_r2,

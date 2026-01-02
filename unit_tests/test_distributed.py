@@ -17,7 +17,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import torch
 
-from utils.distributed import (
+from wavedl.utils.distributed import (
     broadcast_early_stop,
     broadcast_value,
     get_world_info,

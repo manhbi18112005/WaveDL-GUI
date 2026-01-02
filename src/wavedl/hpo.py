@@ -17,7 +17,6 @@ Usage:
     python hpo.py --data_path train.npz --n_trials 100 --n_jobs 4
 
 Author: Ductho Le (ductho.le@outlook.com)
-Version: 1.0.0
 """
 
 import argparse
@@ -111,7 +110,8 @@ def create_objective(args):
         # Build command
         cmd = [
             sys.executable,
-            "train.py",
+            "-m",
+            "wavedl.train",
             "--data_path",
             str(args.data_path),
             "--model",

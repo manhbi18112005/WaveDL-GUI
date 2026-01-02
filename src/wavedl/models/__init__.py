@@ -6,7 +6,7 @@ This module provides a centralized registry for neural network architectures,
 enabling dynamic model selection via command-line arguments.
 
 Usage:
-    from models import get_model, list_models, MODEL_REGISTRY
+    from wavedl.models import get_model, list_models, MODEL_REGISTRY
 
     # List available models
     print(list_models())
@@ -21,8 +21,8 @@ Adding New Models:
     3. Use the @register_model decorator
 
     Example:
-        from models.base import BaseModel
-        from models.registry import register_model
+        from wavedl.models.base import BaseModel
+        from wavedl.models.registry import register_model
 
         @register_model("my_model")
         class MyModel(BaseModel):

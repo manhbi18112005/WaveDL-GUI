@@ -21,12 +21,24 @@ python -m venv venv
 source venv/bin/activate  # Linux/Mac
 # or: venv\Scripts\activate  # Windows
 
-# Install dependencies
-pip install -r requirements.txt
+# Install in editable mode with dev dependencies
+pip install -e ".[dev]"
 
 # Install pre-commit hooks (required for contributors)
-pip install pre-commit
 pre-commit install
+```
+
+### Verify Installation
+
+```bash
+# Check package imports work
+python -c "from wavedl import __version__; print(f'WaveDL v{__version__}')"
+
+# Run tests
+pytest
+
+# Run linting
+ruff check .
 ```
 
 ## Code Quality
@@ -79,7 +91,7 @@ All tests should pass with no warnings.
 
 ## Adding New Models
 
-See [`models/_template.py`](../models/_template.py) for a template to create new model architectures.
+See [`src/wavedl/models/_template.py`](../src/wavedl/models/_template.py) for a template to create new model architectures.
 
 New models should:
 - Inherit from `BaseModel`
@@ -107,10 +119,12 @@ We use automated releases via GitHub Actions. When you push a version tag, a Git
    - Bug fix description
    ```
 
-2. **Bump version** in `pyproject.toml`:
-   ```toml
-   version = "1.2.0"
+2. **Bump version** in `src/wavedl/__init__.py` (single source of truth):
+   ```python
+   __version__ = "1.2.0"
    ```
+
+   > Note: `pyproject.toml` reads the version dynamically from `__init__.py`, so you only need to update it in one place.
 
 3. **Commit and tag**:
    ```bash

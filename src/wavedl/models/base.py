@@ -34,8 +34,8 @@ class BaseModel(nn.Module, ABC):
         out_size: Number of output targets
 
     Example:
-        from models.base import BaseModel
-        from models.registry import register_model
+        from wavedl.models.base import BaseModel
+        from wavedl.models.registry import register_model
 
         @register_model("my_model")
         class MyModel(BaseModel):

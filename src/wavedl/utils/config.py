@@ -201,8 +201,8 @@ def validate_config(config: dict[str, Any]) -> list[str]:
     warnings = []
 
     # Known valid options
-    from models import list_models
-    from utils import list_losses, list_optimizers, list_schedulers
+    from wavedl.models import list_models
+    from wavedl.utils import list_losses, list_optimizers, list_schedulers
 
     valid_options = {
         "model": list_models(),

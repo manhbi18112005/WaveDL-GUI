@@ -15,8 +15,8 @@ import pytest
 import torch
 import torch.nn as nn
 
-from models.base import BaseModel
-from models.registry import (
+from wavedl.models.base import BaseModel
+from wavedl.models.registry import (
     MODEL_REGISTRY,
     build_model,
     get_model,
@@ -321,7 +321,7 @@ class TestRegistryIntegration:
 
     def test_build_cnn(self):
         """Test building CNN through registry."""
-        from models.cnn import CNN
+        from wavedl.models.cnn import CNN
 
         model = build_model("cnn", in_shape=(64, 64), out_size=5)
 

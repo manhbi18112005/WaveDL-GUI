@@ -24,8 +24,8 @@ from typing import Any
 import torch
 import torch.nn as nn
 
-from models.base import BaseModel
-from models.registry import register_model
+from wavedl.models.base import BaseModel
+from wavedl.models.registry import register_model
 
 
 # Type alias for spatial shapes

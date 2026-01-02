@@ -36,8 +36,8 @@ try:
 except ImportError:
     TORCHVISION_AVAILABLE = False
 
-from models.base import BaseModel
-from models.registry import register_model
+from wavedl.models.base import BaseModel
+from wavedl.models.registry import register_model
 
 
 class EfficientNetBase(BaseModel):

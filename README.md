@@ -165,6 +165,8 @@ pip install -e ".[all]"
 
 > [!NOTE]
 > Dependencies are managed in `pyproject.toml`. Python 3.11+ required.
+>
+> For development setup (running tests, contributing), see [CONTRIBUTING.md](.github/CONTRIBUTING.md).
 
 ### Quick Start
 
@@ -191,17 +193,17 @@ chmod +x run_training.sh
 
 ```bash
 # Local - auto-detects GPUs
-accelerate launch train.py --model <model_name> --data_path <train_data> --batch_size <number> --output_dir <output_folder>
+accelerate launch -m wavedl.train --model <model_name> --data_path <train_data> --batch_size <number> --output_dir <output_folder>
 
 # Resume training (automatic - just re-run with same output_dir)
 # Manual resume from specific checkpoint:
-accelerate launch train.py --model <model_name> --data_path <train_data> --resume <checkpoint_folder> --output_dir <output_folder>
+accelerate launch -m wavedl.train --model <model_name> --data_path <train_data> --resume <checkpoint_folder> --output_dir <output_folder>
 
 # Force fresh start (ignores existing checkpoints)
-accelerate launch train.py --model <model_name> --data_path <train_data> --output_dir <output_folder> --fresh
+accelerate launch -m wavedl.train --model <model_name> --data_path <train_data> --output_dir <output_folder> --fresh
 
 # List available models
-python train.py --list_models
+python -m wavedl.train --list_models
 ```
 
 > [!TIP]
@@ -211,22 +213,22 @@ python train.py --list_models
 
 ### Testing & Inference
 
-After training, use `test.py` to evaluate your model on test data:
+After training, use `wavedl.test` to evaluate your model on test data:
 
 ```bash
 # Basic inference
-python test.py --checkpoint <checkpoint_folder> --data_path <test_data>
+python -m wavedl.test --checkpoint <checkpoint_folder> --data_path <test_data>
 
 # With visualization, CSV export, and multiple file formats
-python test.py --checkpoint <checkpoint_folder> --data_path <test_data> \
+python -m wavedl.test --checkpoint <checkpoint_folder> --data_path <test_data> \
   --plot --plot_format png pdf --save_predictions --output_dir <output_folder>
 
 # With custom parameter names
-python test.py --checkpoint <checkpoint_folder> --data_path <test_data> \
+python -m wavedl.test --checkpoint <checkpoint_folder> --data_path <test_data> \
   --param_names '$p_1$' '$p_2$' '$p_3$' --plot
 
 # Export model to ONNX for deployment (LabVIEW, MATLAB, C++, etc.)
-python test.py --checkpoint <checkpoint_folder> --data_path <test_data> \
+python -m wavedl.test --checkpoint <checkpoint_folder> --data_path <test_data> \
   --export onnx --export_path <output_file.onnx>
 ```
 
@@ -237,7 +239,7 @@ python test.py --checkpoint <checkpoint_folder> --data_path <test_data> \
 - **Format** (with `--plot_format`): Supported formats: `png` (default), `pdf` (vector), `svg` (vector), `eps` (LaTeX), `tiff`, `jpg`, `ps`
 
 > [!NOTE]
-> `test.py` auto-detects the model architecture from checkpoint metadata. If unavailable, it falls back to folder name parsing. Use `--model` to override if needed.
+> `wavedl.test` auto-detects the model architecture from checkpoint metadata. If unavailable, it falls back to folder name parsing. Use `--model` to override if needed.
 
 ---
 
@@ -245,46 +247,42 @@ python test.py --checkpoint <checkpoint_folder> --data_path <test_data> \
 
 ```
 WaveDL/
-├── .github/                   # CI workflows, contribution guidelines
-├── .pre-commit-config.yaml    # Pre-commit hooks for local dev
+├── src/
+│   └── wavedl/                # Main package (namespaced)
+│       ├── __init__.py        # Package init with __version__
+│       ├── train.py           # Training entry point
+│       ├── test.py            # Testing & inference script
+│       ├── hpo.py             # Hyperparameter optimization
+│       │
+│       ├── models/            # Model architectures
+│       │   ├── registry.py    # Model factory (@register_model)
+│       │   ├── base.py        # Abstract base class
+│       │   ├── cnn.py         # Baseline CNN
+│       │   ├── resnet.py      # ResNet-18/34/50 (1D/2D/3D)
+│       │   ├── efficientnet.py# EfficientNet-B0/B1/B2
+│       │   ├── vit.py         # Vision Transformer (1D/2D)
+│       │   ├── convnext.py    # ConvNeXt (1D/2D/3D)
+│       │   ├── densenet.py    # DenseNet-121/169 (1D/2D/3D)
+│       │   └── unet.py        # U-Net / U-Net Regression
+│       │
+│       └── utils/             # Utilities
+│           ├── data.py        # Memory-mapped data pipeline
+│           ├── metrics.py     # R², Pearson, visualization
+│           ├── distributed.py # DDP synchronization
+│           ├── losses.py      # Loss function factory
+│           ├── optimizers.py  # Optimizer factory
+│           ├── schedulers.py  # LR scheduler factory
+│           └── config.py      # YAML configuration support
 │
-├── train.py                   # Training entry point
-├── test.py                    # Testing & inference script
-├── hpo.py                     # Hyperparameter optimization (Optuna)
-├── run_training.sh            # HPC helper script (recommended)
+├── run_training.sh            # HPC helper script
+├── configs/                   # YAML config templates
+├── examples/                  # Ready-to-run examples
+├── notebooks/                 # Jupyter notebooks
+├── unit_tests/                # Pytest test suite (422 tests)
 │
-├── pyproject.toml             # Package config, dependencies, Ruff & pytest
-├── CITATION.cff               # Citation metadata
-├── CHANGELOG.md               # Version history and release notes
-│
-├── models/
-│   ├── __init__.py            # Model exports
-│   ├── registry.py            # Model factory (@register_model)
-│   ├── base.py                # Abstract base class
-│   ├── cnn.py                 # Baseline CNN architecture
-│   ├── resnet.py              # ResNet-18/34/50 (1D/2D/3D)
-│   ├── efficientnet.py        # EfficientNet-B0/B1/B2 (2D, pretrained)
-│   ├── vit.py                 # Vision Transformer (1D/2D)
-│   ├── convnext.py            # ConvNeXt (1D/2D/3D)
-│   ├── densenet.py            # DenseNet-121/169 (1D/2D/3D)
-│   ├── unet.py                # U-Net / U-Net Regression (1D/2D/3D)
-│   └── _template.py           # Template for new models
-│
-├── utils/
-│   ├── __init__.py            # Utility exports
-│   ├── data.py                # Memory-mapped data pipeline
-│   ├── metrics.py             # R², Pearson, visualization
-│   ├── distributed.py         # DDP synchronization utils
-│   ├── losses.py              # Loss function factory
-│   ├── optimizers.py          # Optimizer factory
-│   ├── schedulers.py          # LR scheduler factory
-│   ├── cross_validation.py    # K-fold cross-validation
-│   └── config.py              # YAML configuration support
-│
-├── configs/                   # YAML config template (all options documented)
-├── examples/                  # Ready-to-run example with pre-trained model
-├── notebooks/                 # Jupyter notebooks (Colab demo)
-└── unit_tests/                # Pytest test suite (422 tests)
+├── pyproject.toml             # Package config, dependencies
+├── CHANGELOG.md               # Version history
+└── CITATION.cff               # Citation metadata
 ```
 ---
 
@@ -299,7 +297,7 @@ WaveDL/
 > ./run_training.sh --model cnn --batch_size 256 --lr 5e-4 --compile
 >
 > # Using accelerate launch directly
-> accelerate launch train.py --model cnn --batch_size 256 --lr 5e-4 --compile
+> accelerate launch -m wavedl.train --model cnn --batch_size 256 --lr 5e-4 --compile
 > ```
 
 <details>
@@ -405,10 +403,10 @@ WaveDL/
 **Example:**
 ```bash
 # Use Huber loss for noisy NDE data
-accelerate launch train.py --model cnn --loss huber --huber_delta 0.5
+accelerate launch -m wavedl.train --model cnn --loss huber --huber_delta 0.5
 
 # Weighted MSE: prioritize thickness (first target)
-accelerate launch train.py --model cnn --loss weighted_mse --loss_weights "2.0,1.0,1.0"
+accelerate launch -m wavedl.train --model cnn --loss weighted_mse --loss_weights "2.0,1.0,1.0"
 ```
 
 </details>
@@ -428,10 +426,10 @@ accelerate launch train.py --model cnn --loss weighted_mse --loss_weights "2.0,1
 **Example:**
 ```bash
 # SGD with Nesterov momentum (often better generalization)
-accelerate launch train.py --model cnn --optimizer sgd --lr 0.01 --momentum 0.9 --nesterov
+accelerate launch -m wavedl.train --model cnn --optimizer sgd --lr 0.01 --momentum 0.9 --nesterov
 
 # RAdam for more stable training
-accelerate launch train.py --model cnn --optimizer radam --lr 1e-3
+accelerate launch -m wavedl.train --model cnn --optimizer radam --lr 1e-3
 ```
 
 </details>
@@ -453,13 +451,13 @@ accelerate launch train.py --model cnn --optimizer radam --lr 1e-3
 **Example:**
 ```bash
 # Cosine annealing for 1000 epochs
-accelerate launch train.py --model cnn --scheduler cosine --epochs 1000 --min_lr 1e-7
+accelerate launch -m wavedl.train --model cnn --scheduler cosine --epochs 1000 --min_lr 1e-7
 
 # OneCycleLR for super-convergence
-accelerate launch train.py --model cnn --scheduler onecycle --lr 1e-2 --epochs 50
+accelerate launch -m wavedl.train --model cnn --scheduler onecycle --lr 1e-2 --epochs 50
 
 # MultiStep with custom milestones
-accelerate launch train.py --model cnn --scheduler multistep --milestones "100,200,300"
+accelerate launch -m wavedl.train --model cnn --scheduler multistep --milestones "100,200,300"
 ```
 
 </details>
@@ -473,7 +471,7 @@ For robust model evaluation, simply add the `--cv` flag:
 # 5-fold cross-validation (works with both methods!)
 ./run_training.sh --model cnn --cv 5 --data_path train_data.npz
 # OR
-accelerate launch train.py --model cnn --cv 5 --data_path train_data.npz
+accelerate launch -m wavedl.train --model cnn --cv 5 --data_path train_data.npz
 
 # Stratified CV (recommended for unbalanced data)
 ./run_training.sh --model cnn --cv 5 --cv_stratify --loss huber --epochs 100
@@ -504,10 +502,10 @@ Use YAML files for reproducible experiments. CLI arguments can override any conf
 
 ```bash
 # Use a config file
-accelerate launch train.py --config configs/config.yaml --data_path train.npz
+accelerate launch -m wavedl.train --config configs/config.yaml --data_path train.npz
 
 # Override specific values from config
-accelerate launch train.py --config configs/config.yaml --lr 5e-4 --epochs 500
+accelerate launch -m wavedl.train --config configs/config.yaml --lr 5e-4 --epochs 500
 ```
 
 **Example config (`configs/config.yaml`):**
@@ -553,20 +551,20 @@ pip install -e ".[hpo]"
 You specify which models to search and how many trials to run:
 ```bash
 # Search 3 models with 100 trials
-python hpo.py --data_path train.npz --models cnn resnet18 efficientnet_b0 --n_trials 100
+python -m wavedl.hpo --data_path train.npz --models cnn resnet18 efficientnet_b0 --n_trials 100
 
 # Search 1 model (faster)
-python hpo.py --data_path train.npz --models cnn --n_trials 50
+python -m wavedl.hpo --data_path train.npz --models cnn --n_trials 50
 
 # Search all your candidate models
-python hpo.py --data_path train.npz --models cnn resnet18 resnet50 vit_small densenet121 --n_trials 200
+python -m wavedl.hpo --data_path train.npz --models cnn resnet18 resnet50 vit_small densenet121 --n_trials 200
 ```
 
 **Step 3: Train with best parameters**
 
 After HPO completes, it prints the optimal command:
 ```bash
-accelerate launch train.py --data_path train.npz --model cnn --lr 3.2e-4 --batch_size 128 ...
+accelerate launch -m wavedl.train --data_path train.npz --model cnn --lr 3.2e-4 --batch_size 128 ...
 ```
 
 ---
@@ -751,12 +749,12 @@ The `examples/` folder contains a **complete, ready-to-run example** for **mater
 
 ```bash
 # Run inference on the example data
-python test.py --checkpoint ./examples/elastic_cnn_example/best_checkpoint \
+python -m wavedl.test --checkpoint ./examples/elastic_cnn_example/best_checkpoint \
   --data_path ./examples/elastic_cnn_example/Test_data_100.mat \
   --plot --save_predictions --output_dir ./examples/elastic_cnn_example/test_results
 
 # Export to ONNX (already included as model.onnx)
-python test.py --checkpoint ./examples/elastic_cnn_example/best_checkpoint \
+python -m wavedl.test --checkpoint ./examples/elastic_cnn_example/best_checkpoint \
   --data_path ./examples/elastic_cnn_example/Test_data_100.mat \
   --export onnx --export_path ./examples/elastic_cnn_example/model.onnx
 ```
