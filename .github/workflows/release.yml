@@ -2,11 +2,19 @@
 # Automated Release Workflow
 # =============================================================================
 # Triggers when a version tag (v*.*.*) is pushed.
-# Creates a GitHub Release with changelog notes automatically.
+# Creates a GitHub Release with changelog notes and publishes to PyPI.
+#
+# Setup (one-time):
+#   1. On PyPI: Add Trusted Publisher for this repo
+#      - Go to: https://pypi.org/manage/account/publishing/
+#      - Owner: ductho-le, Repository: WaveDL, Workflow: release.yml
+#      - Environment: pypi
+#   2. On GitHub: Create environment named "pypi"
+#      - Go to: Settings > Environments > New environment > "pypi"
 #
 # Usage:
 #   1. Update CHANGELOG.md with release notes
-#   2. Bump version in pyproject.toml
+#   2. Bump version in src/wavedl/__init__.py
 #   3. Commit, tag, and push:
 #      git tag v1.2.0
 #      git push origin main --tags
@@ -87,3 +95,32 @@ jobs:
           prerelease: ${{ contains(steps.version.outputs.VERSION, '-') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # =============================================================================
+  # Publish to PyPI
+  # =============================================================================
+  publish:
+    name: Publish to PyPI
+    needs: release
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write  # Required for Trusted Publishing
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install build tools
+        run: pip install build
+
+      - name: Build package
+        run: python -m build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
