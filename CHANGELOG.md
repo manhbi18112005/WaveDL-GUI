@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.3.0] - 2026-01-02
 
 ### Added
 - `wavedl-hpc` command for HPC distributed training (replaces `run_training.sh`)
@@ -70,6 +70,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Example configurations and training scripts
 - MIT License and citation file
 
+[1.3.0]: https://github.com/ductho-le/WaveDL/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/ductho-le/WaveDL/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/ductho-le/WaveDL/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/ductho-le/WaveDL/releases/tag/v1.0.0
