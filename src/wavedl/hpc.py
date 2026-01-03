@@ -33,7 +33,7 @@ from pathlib import Path
 def detect_gpus() -> int:
     """Auto-detect available GPUs using nvidia-smi."""
     if shutil.which("nvidia-smi") is None:
-        print("Warning: nvidia-smi not found, defaulting to 1 GPU")
+        print("Warning: nvidia-smi not found, defaulting to NUM_GPUS=1")
         return 1
 
     try:
@@ -50,7 +50,7 @@ def detect_gpus() -> int:
     except (subprocess.CalledProcessError, FileNotFoundError):
         pass
 
-    print("Warning: Could not detect GPUs, defaulting to 1")
+    print("Warning: No GPUs detected, defaulting to NUM_GPUS=1")
     return 1
 
 
@@ -61,10 +61,15 @@ def setup_hpc_environment() -> None:
     offline logging configurations.
     """
     # Use SLURM_TMPDIR if available, otherwise system temp
-    tmpdir = os.environ.get("SLURM_TMPDIR", tempfile.gettempdir())
+    tmpdir = os.environ.get(
+        "SLURM_TMPDIR", os.environ.get("TMPDIR", tempfile.gettempdir())
+    )
 
     # Configure directories for systems with restricted home directories
     os.environ.setdefault("MPLCONFIGDIR", f"{tmpdir}/matplotlib")
+    os.environ.setdefault(
+        "FONTCONFIG_PATH", os.environ.get("FONTCONFIG_PATH", "/etc/fonts")
+    )
     os.environ.setdefault("XDG_CACHE_HOME", f"{tmpdir}/.cache")
 
     # Ensure matplotlib config dir exists
@@ -147,11 +152,11 @@ Environment Variables:
 def print_summary(exit_code: int, wandb_mode: str, wandb_dir: str) -> None:
     """Print post-training summary and instructions."""
     print()
-    print("=" * 50)
+    print("=" * 40)
 
     if exit_code == 0:
         print("✅ Training completed successfully!")
-        print("=" * 50)
+        print("=" * 40)
 
         if wandb_mode == "offline":
             print()
@@ -162,15 +167,15 @@ def print_summary(exit_code: int, wandb_mode: str, wandb_dir: str) -> None:
             print("   This will upload your training logs to wandb.ai")
     else:
         print(f"❌ Training failed with exit code: {exit_code}")
-        print("=" * 50)
+        print("=" * 40)
         print()
         print("Common issues:")
         print("  - Missing data file (check --data_path)")
         print("  - Insufficient GPU memory (reduce --batch_size)")
-        print("  - Invalid model name (run: wavedl-train --list_models)")
+        print("  - Invalid model name (run: python train.py --list_models)")
         print()
 
-    print("=" * 50)
+    print("=" * 40)
     print()
 
 
@@ -182,17 +187,27 @@ def main() -> int:
     # Setup HPC environment
     setup_hpc_environment()
 
+    # Check if wavedl package is importable
+    try:
+        import wavedl  # noqa: F401
+    except ImportError:
+        print("Error: wavedl package not found. Run: pip install -e .", file=sys.stderr)
+        return 1
+
     # Auto-detect GPUs if not specified
-    num_gpus = args.num_gpus if args.num_gpus is not None else detect_gpus()
+    if args.num_gpus is not None:
+        num_gpus = args.num_gpus
+        print(f"Using NUM_GPUS={num_gpus} (set via command line)")
+    else:
+        num_gpus = detect_gpus()
 
     # Build accelerate launch command
     cmd = [
-        sys.executable,
-        "-m",
-        "accelerate.commands.launch",
+        "accelerate",
+        "launch",
         f"--num_processes={num_gpus}",
         f"--num_machines={args.num_machines}",
-        f"--machine_rank={args.machine_rank}",
+        "--machine_rank=0",
         f"--mixed_precision={args.mixed_precision}",
         f"--dynamo_backend={args.dynamo_backend}",
         "-m",
@@ -207,19 +222,6 @@ def main() -> int:
         if arg.startswith("--output_dir="):
             Path(arg.split("=", 1)[1]).mkdir(parents=True, exist_ok=True)
             break
-
-    # Print launch configuration
-    print()
-    print("=" * 50)
-    print("🚀 WaveDL HPC Training Launcher")
-    print("=" * 50)
-    print(f"   GPUs: {num_gpus}")
-    print(f"   Machines: {args.num_machines}")
-    print(f"   Mixed Precision: {args.mixed_precision}")
-    print(f"   Dynamo Backend: {args.dynamo_backend}")
-    print(f"   WandB Mode: {os.environ.get('WANDB_MODE', 'offline')}")
-    print("=" * 50)
-    print()
 
     # Launch training
     try:
