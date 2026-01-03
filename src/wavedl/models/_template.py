@@ -14,7 +14,6 @@ Steps to Add a New Model:
     5. Run: accelerate launch -m wavedl.train --model your_model --wandb
 
 Author: Ductho Le (ductho.le@outlook.com)
-Version: 1.0.0
 """
 
 from typing import Any

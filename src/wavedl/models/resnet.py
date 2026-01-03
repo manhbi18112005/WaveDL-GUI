@@ -11,12 +11,15 @@ Provides multiple depth variants (18, 34, 50) with optional pretrained weights f
     - 3D: Volumetric data, CT/MRI (N, 1, D, H, W) → Conv3d
 
 **Variants**:
-    - resnet18: Lightweight, fast training
-    - resnet34: Balanced capacity
-    - resnet50: Higher capacity with bottleneck blocks
+    - resnet18: Lightweight, fast training (~11M params)
+    - resnet34: Balanced capacity (~21M params)
+    - resnet50: Higher capacity with bottleneck blocks (~25M params)
+
+References:
+    He, K., Zhang, X., Ren, S., & Sun, J. (2016). Deep Residual Learning
+    for Image Recognition. CVPR 2016. https://arxiv.org/abs/1512.03385
 
 Author: Ductho Le (ductho.le@outlook.com)
-Version: 1.0.0
 """
 
 from typing import Any

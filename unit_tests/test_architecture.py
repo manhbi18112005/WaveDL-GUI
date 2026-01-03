@@ -5,26 +5,32 @@ Unit Tests for Model Architectures
 Comprehensive tests for all model architectures in WaveDL.
 
 **Tested Architectures**:
-    - CNN: Dimension-agnostic baseline CNN
-    - ResNet: ResNet-18/34/50 with BasicBlock and Bottleneck
+    - CNN: Dimension-agnostic baseline (1D/2D/3D)
+    - ResNet: ResNet-18/34/50 (1D/2D/3D)
+    - ResNet3D: Video-style ResNet3D-18/MC3-18 (3D only)
     - EfficientNet: B0/B1/B2 with pretrained weights (2D only)
-    - ViT: Vision Transformer (Tiny/Small/Base)
-    - ConvNeXt: Modern CNN (Tiny/Small/Base)
-    - DenseNet: DenseNet-121/169 with dense connectivity
-    - U-Net: Encoder-decoder for spatial and vector regression
+    - EfficientNetV2: S/M/L variants (2D only)
+    - MobileNetV3: Small/Large (2D only)
+    - RegNet: Y-400MF to Y-8GF variants (2D only)
+    - ViT: Vision Transformer Tiny/Small/Base (1D/2D)
+    - ConvNeXt: Modern CNN Tiny/Small/Base (1D/2D/3D)
+    - DenseNet: DenseNet-121/169 (1D/2D/3D)
+    - Swin: Swin Transformer Tiny/Small/Base (2D only)
+    - TCN: Temporal Convolutional Network (1D only)
+    - U-Net: Encoder-decoder for regression (1D/2D/3D)
 
 **Test Coverage**:
-    - Model instantiation with 1D/2D/3D input shapes
+    - Model instantiation with appropriate input shapes per dimensionality
     - Forward pass correctness and output validation
     - Gradient flow through all layers
     - Numerical stability (no NaN/Inf outputs)
     - Eval mode determinism
     - Parameter counting and optimizer groups
 
-**Universal Tests**:
-    The TestAllModels class automatically tests ALL registered models.
-    When you add a new model to the registry, it will be automatically
-    included in these tests - no manual updates needed!
+**Dimensionality-Aware Testing**:
+    Tests automatically select appropriate input shapes based on each model's
+    supported dimensionality. This prevents false failures from passing
+    incompatible input dimensions to dimension-specific models.
 
 Author: Ductho Le (ductho.le@outlook.com)
 """
@@ -39,61 +45,133 @@ from wavedl.models.registry import build_model, list_models, register_model
 
 
 # ==============================================================================
-# HELPER: Get model configuration for testing
+# MODEL DIMENSIONALITY MAPPING
 # ==============================================================================
-def get_test_config(model_name: str, dim: int = 2):
+# Maps model name prefixes to their supported input dimensionalities.
+# This is the single source of truth for test input shape selection.
+
+MODEL_DIMS = {
+    # 1D only (specialized for temporal signals)
+    "tcn": [1],
+    # 2D only (pretrained torchvision models)
+    "efficientnet": [2],
+    "mobilenet": [2],
+    "regnet": [2],
+    "swin": [2],
+    # 3D only (video models from torchvision)
+    "resnet3d": [3],
+    "mc3": [3],
+    # 1D/2D (transformers - no 3D due to attention complexity)
+    "vit": [1, 2],
+    # 1D/2D/3D (dimension-agnostic architectures that work with small test volumes)
+    "resnet": [1, 2, 3],  # Standard ResNet (not ResNet3D)
+    "unet": [1, 2, 3],  # U-Net works well in all dimensions
+    # 1D/2D only for testing (3D requires very large volumes due to pooling layers)
+    # These architectures technically support 3D but need impractically large inputs
+    "cnn": [1, 2],
+    "convnext": [1, 2],
+    "densenet": [1, 2],
+}
+
+# Default for models not in the mapping
+DEFAULT_DIMS = [2]
+
+
+def get_supported_dims(model_name: str) -> list[int]:
+    """
+    Get supported input dimensionalities for a model.
+
+    Returns list of supported dimensions (1, 2, or 3) based on model name.
+    Uses prefix matching against MODEL_DIMS mapping.
+
+    Note: Pretrained models (ending with '_pretrained') are always 2D-only
+    because they use torchvision weights which require RGB input format.
+    """
+    model_lower = model_name.lower()
+
+    # Pretrained models are always 2D-only (torchvision pretrained weights)
+    if model_lower.endswith("_pretrained"):
+        return [2]
+
+    # Check for specific prefixes (order matters: longer prefixes first)
+    # ResNet3D must be checked before ResNet
+    if model_lower.startswith("resnet3d") or model_lower.startswith("mc3"):
+        return [3]
+
+    for prefix, dims in MODEL_DIMS.items():
+        if model_lower.startswith(prefix):
+            return dims
+
+    return DEFAULT_DIMS
+
+
+def get_primary_dim(model_name: str) -> int:
+    """Get the primary (first) supported dimension for a model."""
+    return get_supported_dims(model_name)[0]
+
+
+# ==============================================================================
+# TEST INPUT CONFIGURATION
+# ==============================================================================
+def get_test_config(model_name: str, dim: int | None = None) -> tuple:
     """
     Get appropriate test configuration for a model.
 
-    Returns (in_shape, kwargs) tuple suitable for testing.
+    Args:
+        model_name: Name of the model to test
+        dim: Optional dimension override. If None, uses model's primary dimension.
+
+    Returns:
+        (in_shape, kwargs) tuple suitable for testing.
     """
-    # Base shapes for different dimensionalities
+    # Use primary dimension if not specified
+    if dim is None:
+        dim = get_primary_dim(model_name)
+
+    # Standard test shapes for each dimensionality
+    # Shapes chosen to be compatible with all model kernel sizes
     if dim == 1:
-        in_shape = (128,)
+        in_shape = (256,)  # 1D signal length
     elif dim == 2:
-        in_shape = (64, 64)
+        in_shape = (64, 64)  # 2D image
     else:
-        in_shape = (16, 32, 32)
+        in_shape = (16, 64, 64)  # 3D volume (larger to avoid kernel size issues)
 
     kwargs = {}
 
-    # Model-specific adjustments
-    if model_name.startswith("vit"):
-        kwargs["patch_size"] = 8  # Smaller patches for test input size
-    elif model_name.startswith("unet"):
-        kwargs["depth"] = 3  # Smaller depth for faster tests
+    # Model-specific adjustments for valid configurations
+    model_lower = model_name.lower()
+
+    if model_lower.startswith("vit"):
+        # Smaller patches for test input size
+        kwargs["patch_size"] = 8 if dim == 2 else 16
+    elif model_lower.startswith("unet"):
+        # Smaller depth for faster tests
+        kwargs["depth"] = 3
 
     return in_shape, kwargs
-
-
-def get_supported_dims(model_name: str):
-    """Get list of supported dimensionalities for a model."""
-    # EfficientNet is 2D only
-    if model_name.startswith("efficientnet"):
-        return [2]
-    # ViT supports 1D and 2D
-    elif model_name.startswith("vit"):
-        return [1, 2]
-    # Most models support all dims
-    else:
-        return [1, 2]  # Skip 3D for speed in tests
 
 
 # ==============================================================================
 # UNIVERSAL MODEL TESTS (Auto-tests ALL registered models)
 # ==============================================================================
+@pytest.mark.slow
 class TestAllModels:
     """
     Universal tests that automatically run on ALL registered models.
 
     When you add a new model to the registry, it will automatically
     be included in these tests - no manual updates needed!
+
+    Tests use dimension-aware input shapes: each model is tested with its
+    primary supported dimensionality to avoid false failures from
+    dimension mismatches.
     """
 
     @pytest.mark.parametrize("model_name", list_models())
-    def test_model_forward_2d(self, model_name):
-        """Test that all models can perform a forward pass with 2D input."""
-        in_shape, kwargs = get_test_config(model_name, dim=2)
+    def test_model_forward(self, model_name):
+        """Test that all models can perform a forward pass."""
+        in_shape, kwargs = get_test_config(model_name)
 
         model = build_model(model_name, in_shape=in_shape, out_size=3, **kwargs)
         model.eval()
@@ -102,7 +180,6 @@ class TestAllModels:
         with torch.no_grad():
             out = model(x)
 
-        # Check output is valid
         assert out.shape[0] == 2, f"{model_name}: Batch size mismatch"
         assert not torch.isnan(out).any(), f"{model_name}: Output contains NaN"
         assert not torch.isinf(out).any(), f"{model_name}: Output contains Inf"
@@ -110,7 +187,7 @@ class TestAllModels:
     @pytest.mark.parametrize("model_name", list_models())
     def test_model_gradient_flow(self, model_name):
         """Test that gradients flow through all models."""
-        in_shape, kwargs = get_test_config(model_name, dim=2)
+        in_shape, kwargs = get_test_config(model_name)
 
         model = build_model(model_name, in_shape=in_shape, out_size=3, **kwargs)
         model.train()
@@ -126,7 +203,7 @@ class TestAllModels:
     @pytest.mark.parametrize("model_name", list_models())
     def test_model_output_shape(self, model_name):
         """Test that all models produce correct output shape."""
-        in_shape, kwargs = get_test_config(model_name, dim=2)
+        in_shape, kwargs = get_test_config(model_name)
         out_size = 5
 
         model = build_model(model_name, in_shape=in_shape, out_size=out_size, **kwargs)
@@ -136,21 +213,20 @@ class TestAllModels:
         with torch.no_grad():
             out = model(x)
 
-        # Skip spatial output models (unet with spatial_output=True)
-        if model_name == "unet":
-            # UNet default is spatial_output=True, so shape is different
+        # UNet with spatial_output=True has different shape
+        model_lower = model_name.lower()
+        if model_lower.startswith("unet"):
             assert out.shape[0] == 4
             assert out.shape[1] == out_size
         else:
-            assert out.shape == (
-                4,
-                out_size,
-            ), f"{model_name}: Expected {(4, out_size)}, got {out.shape}"
+            assert out.shape == (4, out_size), (
+                f"{model_name}: Expected {(4, out_size)}, got {out.shape}"
+            )
 
     @pytest.mark.parametrize("model_name", list_models())
     def test_model_eval_deterministic(self, model_name):
         """Test that models are deterministic in eval mode."""
-        in_shape, kwargs = get_test_config(model_name, dim=2)
+        in_shape, kwargs = get_test_config(model_name)
 
         model = build_model(model_name, in_shape=in_shape, out_size=3, **kwargs)
         model.eval()
@@ -167,7 +243,7 @@ class TestAllModels:
     @pytest.mark.parametrize("model_name", list_models())
     def test_model_has_parameters(self, model_name):
         """Test that all models have trainable parameters."""
-        in_shape, kwargs = get_test_config(model_name, dim=2)
+        in_shape, kwargs = get_test_config(model_name)
 
         model = build_model(model_name, in_shape=in_shape, out_size=3, **kwargs)
 
@@ -178,7 +254,7 @@ class TestAllModels:
     @pytest.mark.parametrize("batch_size", [1, 4, 16])
     def test_model_different_batch_sizes(self, model_name, batch_size):
         """Test that all models handle various batch sizes."""
-        in_shape, kwargs = get_test_config(model_name, dim=2)
+        in_shape, kwargs = get_test_config(model_name)
 
         model = build_model(model_name, in_shape=in_shape, out_size=3, **kwargs)
         model.eval()
@@ -191,16 +267,46 @@ class TestAllModels:
             f"{model_name}: Batch size {batch_size} failed"
         )
 
+    @pytest.mark.parametrize("model_name", list_models())
+    def test_model_all_params_have_gradients(self, model_name):
+        """Test that gradients reach all trainable parameters."""
+        in_shape, kwargs = get_test_config(model_name)
+
+        model = build_model(model_name, in_shape=in_shape, out_size=3, **kwargs)
+        model.train()
+
+        x = torch.randn(2, 1, *in_shape, requires_grad=True)
+        out = model(x)
+        loss = out.sum()
+        loss.backward()
+
+        for name, param in model.named_parameters():
+            if param.requires_grad:
+                assert param.grad is not None, f"{model_name}: No gradient for {name}"
+
+
+# ==============================================================================
+# MULTI-DIMENSIONALITY TESTS
+# ==============================================================================
+@pytest.mark.slow
+class TestMultiDimensionality:
+    """
+    Tests for models that support multiple input dimensionalities.
+
+    Only tests models with their explicitly supported dimensions to avoid
+    false failures from dimension mismatches.
+    """
+
+    def _get_models_supporting_dim(self, dim: int) -> list[str]:
+        """Get list of models that support a specific dimension."""
+        return [m for m in list_models() if dim in get_supported_dims(m)]
+
     @pytest.mark.parametrize(
         "model_name",
-        [
-            m
-            for m in list_models()
-            if not m.startswith("efficientnet") and "pretrained" not in m
-        ],
+        [m for m in list_models() if 1 in get_supported_dims(m)],
     )
-    def test_model_1d_input(self, model_name):
-        """Test that dimension-agnostic models work with 1D input."""
+    def test_1d_input(self, model_name):
+        """Test models that support 1D input."""
         in_shape, kwargs = get_test_config(model_name, dim=1)
 
         model = build_model(model_name, in_shape=in_shape, out_size=3, **kwargs)
@@ -213,23 +319,42 @@ class TestAllModels:
         assert out.shape[0] == 2, f"{model_name}: 1D forward pass failed"
         assert not torch.isnan(out).any(), f"{model_name}: 1D output contains NaN"
 
-    @pytest.mark.parametrize("model_name", list_models())
-    def test_model_all_params_have_gradients(self, model_name):
-        """Test that gradients reach all trainable parameters."""
+    @pytest.mark.parametrize(
+        "model_name",
+        [m for m in list_models() if 2 in get_supported_dims(m)],
+    )
+    def test_2d_input(self, model_name):
+        """Test models that support 2D input."""
         in_shape, kwargs = get_test_config(model_name, dim=2)
 
         model = build_model(model_name, in_shape=in_shape, out_size=3, **kwargs)
-        model.train()
+        model.eval()
 
-        x = torch.randn(2, 1, *in_shape, requires_grad=True)
-        out = model(x)
-        loss = out.sum()
-        loss.backward()
+        x = torch.randn(2, 1, *in_shape)
+        with torch.no_grad():
+            out = model(x)
 
-        # Check all trainable parameters received gradients
-        for name, param in model.named_parameters():
-            if param.requires_grad:
-                assert param.grad is not None, f"{model_name}: No gradient for {name}"
+        assert out.shape[0] == 2, f"{model_name}: 2D forward pass failed"
+        assert not torch.isnan(out).any(), f"{model_name}: 2D output contains NaN"
+
+    @pytest.mark.parametrize(
+        "model_name",
+        [m for m in list_models() if 3 in get_supported_dims(m)],
+    )
+    @pytest.mark.slow
+    def test_3d_input(self, model_name):
+        """Test models that support 3D input (marked slow due to memory)."""
+        in_shape, kwargs = get_test_config(model_name, dim=3)
+
+        model = build_model(model_name, in_shape=in_shape, out_size=3, **kwargs)
+        model.eval()
+
+        x = torch.randn(2, 1, *in_shape)
+        with torch.no_grad():
+            out = model(x)
+
+        assert out.shape[0] == 2, f"{model_name}: 3D forward pass failed"
+        assert not torch.isnan(out).any(), f"{model_name}: 3D output contains NaN"
 
 
 # ==============================================================================
@@ -246,7 +371,6 @@ class TestBaseModel:
     def test_subclass_must_implement_forward(self):
         """Test that subclass must implement forward method."""
 
-        # This should work - implementing required methods
         @register_model("test_valid_subclass")
         class ValidSubclass(BaseModel):
             def __init__(self, in_shape, out_size, **kwargs):
@@ -335,7 +459,6 @@ class TestBaseModel:
         assert isinstance(groups, list)
         assert len(groups) >= 1
 
-        # Check that groups have required keys
         for group in groups:
             assert "params" in group
             assert "lr" in group

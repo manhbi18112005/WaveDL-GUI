@@ -6,7 +6,6 @@ Defines the interface contract that all models must implement for compatibility
 with the training pipeline. Provides common utilities and enforces consistency.
 
 Author: Ductho Le (ductho.le@outlook.com)
-Version: 1.0.0
 """
 
 from abc import ABC, abstractmethod

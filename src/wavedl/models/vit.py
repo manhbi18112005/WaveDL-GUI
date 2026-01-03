@@ -10,12 +10,16 @@ Supports both 1D (signals) and 2D (images) inputs via configurable patch embeddi
     - 2D: Images/spectrograms → patches are grid squares
 
 **Variants**:
-    - vit_tiny: Smallest (embed_dim=192, depth=12, heads=3)
-    - vit_small: Light (embed_dim=384, depth=12, heads=6)
-    - vit_base: Standard (embed_dim=768, depth=12, heads=12)
+    - vit_tiny: Smallest (~5.7M params, embed_dim=192, depth=12, heads=3)
+    - vit_small: Light (~22M params, embed_dim=384, depth=12, heads=6)
+    - vit_base: Standard (~86M params, embed_dim=768, depth=12, heads=12)
+
+References:
+    Dosovitskiy, A., et al. (2021). An Image is Worth 16x16 Words:
+    Transformers for Image Recognition at Scale. ICLR 2021.
+    https://arxiv.org/abs/2010.11929
 
 Author: Ductho Le (ductho.le@outlook.com)
-Version: 1.0.0
 """
 
 from typing import Any

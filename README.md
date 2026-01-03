@@ -153,19 +153,18 @@ Deploy models anywhere:
 ### Installation
 
 ```bash
-# Install from PyPI (recommended)
+# Install from PyPI
 pip install wavedl
-
-# Or install with all extras (ONNX export, HPO, dev tools)
-pip install wavedl[all]
 ```
+
+This installs everything you need: training, inference, HPO, ONNX export, and dev tools.
 
 #### From Source (for development)
 
 ```bash
 git clone https://github.com/ductho-le/WaveDL.git
 cd WaveDL
-pip install -e ".[dev]"
+pip install -e .
 ```
 
 > [!NOTE]
@@ -301,41 +300,47 @@ WaveDL handles everything else: training loop, logging, checkpoints, multi-GPU, 
 ```
 WaveDL/
 ├── src/
-│   └── wavedl/                # Main package (namespaced)
-│       ├── __init__.py        # Package init with __version__
-│       ├── train.py           # Training entry point
-│       ├── test.py            # Testing & inference script
-│       ├── hpo.py             # Hyperparameter optimization
-│       ├── hpc.py             # HPC distributed training launcher
+│   └── wavedl/                   # Main package (namespaced)
+│       ├── __init__.py           # Package init with __version__
+│       ├── train.py              # Training entry point
+│       ├── test.py               # Testing & inference script
+│       ├── hpo.py                # Hyperparameter optimization
+│       ├── hpc.py                # HPC distributed training launcher
 │       │
-│       ├── models/            # Model architectures
-│       │   ├── registry.py    # Model factory (@register_model)
-│       │   ├── base.py        # Abstract base class
-│       │   ├── cnn.py         # Baseline CNN
-│       │   ├── resnet.py      # ResNet-18/34/50 (1D/2D/3D)
-│       │   ├── efficientnet.py# EfficientNet-B0/B1/B2
-│       │   ├── vit.py         # Vision Transformer (1D/2D)
-│       │   ├── convnext.py    # ConvNeXt (1D/2D/3D)
-│       │   ├── densenet.py    # DenseNet-121/169 (1D/2D/3D)
-│       │   └── unet.py        # U-Net / U-Net Regression
+│       ├── models/               # Model architectures (38 variants)
+│       │   ├── registry.py       # Model factory (@register_model)
+│       │   ├── base.py           # Abstract base class
+│       │   ├── cnn.py            # Baseline CNN (1D/2D/3D)
+│       │   ├── resnet.py         # ResNet-18/34/50 (1D/2D/3D)
+│       │   ├── resnet3d.py       # ResNet3D-18, MC3-18 (3D only)
+│       │   ├── tcn.py            # TCN (1D only)
+│       │   ├── efficientnet.py   # EfficientNet-B0/B1/B2 (2D)
+│       │   ├── efficientnetv2.py # EfficientNetV2-S/M/L (2D)
+│       │   ├── mobilenetv3.py    # MobileNetV3-Small/Large (2D)
+│       │   ├── regnet.py         # RegNetY variants (2D)
+│       │   ├── swin.py           # Swin Transformer (2D)
+│       │   ├── vit.py            # Vision Transformer (1D/2D)
+│       │   ├── convnext.py       # ConvNeXt (1D/2D/3D)
+│       │   ├── densenet.py       # DenseNet-121/169 (1D/2D/3D)
+│       │   └── unet.py           # U-Net Regression
 │       │
-│       └── utils/             # Utilities
-│           ├── data.py        # Memory-mapped data pipeline
-│           ├── metrics.py     # R², Pearson, visualization
-│           ├── distributed.py # DDP synchronization
-│           ├── losses.py      # Loss function factory
-│           ├── optimizers.py  # Optimizer factory
-│           ├── schedulers.py  # LR scheduler factory
-│           └── config.py      # YAML configuration support
+│       └── utils/                # Utilities
+│           ├── data.py           # Memory-mapped data pipeline
+│           ├── metrics.py        # R², Pearson, visualization
+│           ├── distributed.py    # DDP synchronization
+│           ├── losses.py         # Loss function factory
+│           ├── optimizers.py     # Optimizer factory
+│           ├── schedulers.py     # LR scheduler factory
+│           └── config.py         # YAML configuration support
 │
-├── configs/                   # YAML config templates
-├── examples/                  # Ready-to-run examples
-├── notebooks/                 # Jupyter notebooks
-├── unit_tests/                # Pytest test suite (422 tests)
+├── configs/                      # YAML config templates
+├── examples/                     # Ready-to-run examples
+├── notebooks/                    # Jupyter notebooks
+├── unit_tests/                   # Pytest test suite (704 tests)
 │
-├── pyproject.toml             # Package config, dependencies
-├── CHANGELOG.md               # Version history
-└── CITATION.cff               # Citation metadata
+├── pyproject.toml                # Package config, dependencies
+├── CHANGELOG.md                  # Version history
+└── CITATION.cff                  # Citation metadata
 ```
 ---
 
@@ -354,33 +359,63 @@ WaveDL/
 > ```
 
 <details>
-<summary><b>Available Models</b> — 21 pre-built architectures</summary>
+<summary><b>Available Models</b> — 38 architectures</summary>
 
-| Model | Best For | Params (2D) | Dimensionality |
-|-------|----------|-------------|----------------|
-| `cnn` | Baseline, lightweight | 1.7M | 1D/2D/3D |
-| `resnet18` | Fast training, smaller datasets | 11.4M | 1D/2D/3D |
-| `resnet34` | Balanced performance | 21.5M | 1D/2D/3D |
-| `resnet50` | High capacity, complex patterns | 24.6M | 1D/2D/3D |
-| `resnet18_pretrained` | **Transfer learning** ⭐ | 11.4M | 2D only |
-| `resnet50_pretrained` | **Transfer learning** ⭐ | 24.6M | 2D only |
-| `efficientnet_b0` | Efficient, **pretrained** ⭐ | 4.7M | 2D only |
-| `efficientnet_b1` | Efficient, **pretrained** ⭐ | 7.2M | 2D only |
-| `efficientnet_b2` | Efficient, **pretrained** ⭐ | 8.4M | 2D only |
-| `vit_tiny` | Transformer, small datasets | 5.4M | 1D/2D |
-| `vit_small` | Transformer, balanced | 21.5M | 1D/2D |
-| `vit_base` | Transformer, high capacity | 85.5M | 1D/2D |
-| `convnext_tiny` | Modern CNN, transformer-inspired | 28.2M | 1D/2D/3D |
-| `convnext_tiny_pretrained` | **Transfer learning** ⭐ | 28.2M | 2D only |
-| `convnext_small` | Modern CNN, balanced | 49.8M | 1D/2D/3D |
-| `convnext_base` | Modern CNN, high capacity | 88.1M | 1D/2D/3D |
-| `densenet121` | Feature reuse, small data | 7.5M | 1D/2D/3D |
-| `densenet121_pretrained` | **Transfer learning** ⭐ | 7.5M | 2D only |
-| `densenet169` | Deeper DenseNet | 13.3M | 1D/2D/3D |
-| `unet` | Spatial output (velocity fields) | 31.0M | 1D/2D/3D |
-| `unet_regression` | Multi-scale features for regression | 31.1M | 1D/2D/3D |
+| Model | Params | Dim |
+|-------|--------|-----|
+| **CNN** — Convolutional Neural Network |||
+| `cnn` | 1.7M | 1D/2D/3D |
+| **ResNet** — Residual Network |||
+| `resnet18` | 11.4M | 1D/2D/3D |
+| `resnet34` | 21.5M | 1D/2D/3D |
+| `resnet50` | 24.6M | 1D/2D/3D |
+| `resnet18_pretrained` ⭐ | 11.4M | 2D |
+| `resnet50_pretrained` ⭐ | 24.6M | 2D |
+| **ResNet3D** — 3D Residual Network |||
+| `resnet3d_18` | 33.6M | 3D |
+| `mc3_18` — Mixed Convolution 3D | 11.9M | 3D |
+| **TCN** — Temporal Convolutional Network |||
+| `tcn_small` | 1.0M | 1D |
+| `tcn` | 7.0M | 1D |
+| `tcn_large` | 10.2M | 1D |
+| **EfficientNet** — Efficient Neural Network |||
+| `efficientnet_b0` ⭐ | 4.7M | 2D |
+| `efficientnet_b1` ⭐ | 7.2M | 2D |
+| `efficientnet_b2` ⭐ | 8.4M | 2D |
+| **EfficientNetV2** — Efficient Neural Network V2 |||
+| `efficientnet_v2_s` ⭐ | 21.0M | 2D |
+| `efficientnet_v2_m` ⭐ | 53.6M | 2D |
+| `efficientnet_v2_l` ⭐ | 118.0M | 2D |
+| **MobileNetV3** — Mobile Neural Network V3 |||
+| `mobilenet_v3_small` ⭐ | 1.1M | 2D |
+| `mobilenet_v3_large` ⭐ | 3.2M | 2D |
+| **RegNet** — Regularized Network |||
+| `regnet_y_400mf` ⭐ | 4.0M | 2D |
+| `regnet_y_800mf` ⭐ | 5.8M | 2D |
+| `regnet_y_1_6gf` ⭐ | 10.5M | 2D |
+| `regnet_y_3_2gf` ⭐ | 18.3M | 2D |
+| `regnet_y_8gf` ⭐ | 37.9M | 2D |
+| **Swin** — Shifted Window Transformer |||
+| `swin_t` ⭐ | 28.0M | 2D |
+| `swin_s` ⭐ | 49.4M | 2D |
+| `swin_b` ⭐ | 87.4M | 2D |
+| **ConvNeXt** — Convolutional Next |||
+| `convnext_tiny` | 28.2M | 1D/2D/3D |
+| `convnext_small` | 49.8M | 1D/2D/3D |
+| `convnext_base` | 88.1M | 1D/2D/3D |
+| `convnext_tiny_pretrained` ⭐ | 28.2M | 2D |
+| **DenseNet** — Densely Connected Network |||
+| `densenet121` | 7.5M | 1D/2D/3D |
+| `densenet169` | 13.3M | 1D/2D/3D |
+| `densenet121_pretrained` ⭐ | 7.5M | 2D |
+| **ViT** — Vision Transformer |||
+| `vit_tiny` | 5.5M | 1D/2D |
+| `vit_small` | 21.6M | 1D/2D |
+| `vit_base` | 85.6M | 1D/2D |
+| **U-Net** — U-shaped Network |||
+| `unet_regression` | 31.1M | 1D/2D/3D |
 
-> ⭐ **Pretrained models** use ImageNet weights for transfer learning.
+> ⭐ = Pretrained on ImageNet. Recommended for smaller datasets.
 
 </details>
 
@@ -595,12 +630,7 @@ seed: 2025
 
 Automatically find the best training configuration using [Optuna](https://optuna.org/).
 
-**Step 1: Install**
-```bash
-pip install -e ".[hpo]"
-```
-
-**Step 2: Run HPO**
+**Run HPO:**
 
 You specify which models to search and how many trials to run:
 ```bash
@@ -657,7 +687,7 @@ accelerate launch -m wavedl.train --data_path train.npz --model cnn --lr 3.2e-4 
 | `--output` | `hpo_results.json` | Output file |
 
 > [!TIP]
-> See [Available Models](#available-models) for all 21 architectures you can search.
+> See [Available Models](#available-models) for all 38 architectures you can search.
 
 </details>
 

@@ -15,8 +15,11 @@ Features: inverted bottleneck, LayerNorm, GELU activation, depthwise convolution
     - convnext_small: Medium (~50M params for 2D)
     - convnext_base: Standard (~89M params for 2D)
 
+References:
+    Liu, Z., et al. (2022). A ConvNet for the 2020s.
+    CVPR 2022. https://arxiv.org/abs/2201.03545
+
 Author: Ductho Le (ductho.le@outlook.com)
-Version: 1.0.0
 """
 
 from typing import Any

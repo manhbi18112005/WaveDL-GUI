@@ -6,14 +6,18 @@ Wrapper around torchvision's EfficientNet with a regression head.
 Provides optional ImageNet pretrained weights for transfer learning.
 
 **Variants**:
-    - efficientnet_b0: Smallest, fastest (5.3M params)
-    - efficientnet_b1: Light (7.8M params)
-    - efficientnet_b2: Balanced (9.1M params)
+    - efficientnet_b0: Smallest, fastest (~4.7M params)
+    - efficientnet_b1: Light (~7.2M params)
+    - efficientnet_b2: Balanced (~8.4M params)
 
-**Note**: EfficientNet is 2D-only. For 1D/3D data, use ResNet or CNN.
+**Note**: EfficientNet is 2D-only. For 1D data, use TCN. For 3D data, use ResNet3D.
+
+References:
+    Tan, M., & Le, Q. (2019). EfficientNet: Rethinking Model Scaling
+    for Convolutional Neural Networks. ICML 2019.
+    https://arxiv.org/abs/1905.11946
 
 Author: Ductho Le (ductho.le@outlook.com)
-Version: 1.0.0
 """
 
 from typing import Any

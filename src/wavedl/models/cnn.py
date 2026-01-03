@@ -17,7 +17,6 @@ Use this as:
     - A starting point for custom modifications
 
 Author: Ductho Le (ductho.le@outlook.com)
-Version: 1.0.0
 """
 
 from typing import Any

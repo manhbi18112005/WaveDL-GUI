@@ -6,7 +6,6 @@ Provides the core model registration and factory functionality.
 This module has no dependencies on other model modules to prevent circular imports.
 
 Author: Ductho Le (ductho.le@outlook.com)
-Version: 1.0.0
 """
 
 import torch.nn as nn

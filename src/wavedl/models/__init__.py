@@ -5,6 +5,12 @@ Model Registry and Factory Pattern for Deep Learning Architectures
 This module provides a centralized registry for neural network architectures,
 enabling dynamic model selection via command-line arguments.
 
+**Dimensionality Coverage**:
+    - 1D (waveforms): TCN, CNN, ResNet, ConvNeXt, DenseNet, ViT
+    - 2D (images): CNN, ResNet, ConvNeXt, DenseNet, ViT, UNet,
+                   EfficientNet, MobileNetV3, RegNet, Swin
+    - 3D (volumes): ResNet3D, CNN, ResNet, ConvNeXt, DenseNet
+
 Usage:
     from wavedl.models import get_model, list_models, MODEL_REGISTRY
 
@@ -31,7 +37,6 @@ Adding New Models:
                 ...
 
 Author: Ductho Le (ductho.le@outlook.com)
-Version: 1.0.0
 """
 
 # Import registry first (no dependencies)
@@ -43,6 +48,8 @@ from .cnn import CNN
 from .convnext import ConvNeXtBase_, ConvNeXtSmall, ConvNeXtTiny
 from .densenet import DenseNet121, DenseNet169
 from .efficientnet import EfficientNetB0, EfficientNetB1, EfficientNetB2
+from .efficientnetv2 import EfficientNetV2L, EfficientNetV2M, EfficientNetV2S
+from .mobilenetv3 import MobileNetV3Large, MobileNetV3Small
 from .registry import (
     MODEL_REGISTRY,
     build_model,
@@ -50,18 +57,22 @@ from .registry import (
     list_models,
     register_model,
 )
+from .regnet import RegNetY1_6GF, RegNetY3_2GF, RegNetY8GF, RegNetY400MF, RegNetY800MF
 from .resnet import ResNet18, ResNet34, ResNet50
-from .unet import UNet, UNetRegression
+from .resnet3d import MC3_18, ResNet3D18
+from .swin import SwinBase, SwinSmall, SwinTiny
+from .tcn import TCN, TCNLarge, TCNSmall
+from .unet import UNetRegression
 from .vit import ViTBase_, ViTSmall, ViTTiny
 
 
-# Export public API
+# Export public API (sorted alphabetically per RUF022)
+# See module docstring for dimensionality support details
 __all__ = [
-    # Models
     "CNN",
-    # Registry
+    "MC3_18",
     "MODEL_REGISTRY",
-    # Base class
+    "TCN",
     "BaseModel",
     "ConvNeXtBase_",
     "ConvNeXtSmall",
@@ -71,10 +82,25 @@ __all__ = [
     "EfficientNetB0",
     "EfficientNetB1",
     "EfficientNetB2",
+    "EfficientNetV2L",
+    "EfficientNetV2M",
+    "EfficientNetV2S",
+    "MobileNetV3Large",
+    "MobileNetV3Small",
+    "RegNetY1_6GF",
+    "RegNetY3_2GF",
+    "RegNetY8GF",
+    "RegNetY400MF",
+    "RegNetY800MF",
+    "ResNet3D18",
     "ResNet18",
     "ResNet34",
     "ResNet50",
-    "UNet",
+    "SwinBase",
+    "SwinSmall",
+    "SwinTiny",
+    "TCNLarge",
+    "TCNSmall",
     "UNetRegression",
     "ViTBase_",
     "ViTSmall",
@@ -84,3 +110,4 @@ __all__ = [
     "list_models",
     "register_model",
 ]
+

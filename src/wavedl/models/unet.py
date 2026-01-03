@@ -1,10 +1,10 @@
 """
-U-Net: Encoder-Decoder Architecture for Regression
-====================================================
+U-Net Regression: Encoder-Decoder Architecture for Vector Regression
+=====================================================================
 
-A dimension-agnostic U-Net implementation for tasks requiring either:
-- Spatial output (e.g., velocity field prediction)
-- Vector output (global pooling → regression head)
+A dimension-agnostic U-Net implementation adapted for vector regression output.
+Uses encoder-decoder architecture with skip connections, then applies global
+pooling to produce a regression vector.
 
 **Dimensionality Support**:
     - 1D: Waveforms, signals (N, 1, L) → Conv1d
@@ -12,11 +12,9 @@ A dimension-agnostic U-Net implementation for tasks requiring either:
     - 3D: Volumetric data (N, 1, D, H, W) → Conv3d
 
 **Variants**:
-    - unet: Full encoder-decoder with spatial output capability
     - unet_regression: U-Net with global pooling for vector regression
 
 Author: Ductho Le (ductho.le@outlook.com)
-Version: 1.0.0
 """
 
 from typing import Any
@@ -90,10 +88,6 @@ class Up(nn.Module):
         super().__init__()
         _, ConvTranspose, _, _ = _get_layers(dim)
 
-        # in_channels comes from previous layer
-        # After upconv: in_channels // 2
-        # After concat with skip (out_channels): in_channels // 2 + out_channels = in_channels
-        # Then DoubleConv: in_channels -> out_channels
         self.up = ConvTranspose(in_channels, in_channels // 2, kernel_size=2, stride=2)
         self.conv = DoubleConv(in_channels, out_channels, dim)
 
@@ -103,7 +97,6 @@ class Up(nn.Module):
         # Handle size mismatch (pad x1 to match x2)
         if x1.shape[2:] != x2.shape[2:]:
             diff = [x2.size(i + 2) - x1.size(i + 2) for i in range(len(x1.shape) - 2)]
-            # Pad x1 to match x2
             pad = []
             for d in reversed(diff):
                 pad.extend([d // 2, d - d // 2])
@@ -113,14 +106,33 @@ class Up(nn.Module):
         return self.conv(x)
 
 
-class UNetBase(BaseModel):
-    """
-    Base U-Net class for regression tasks.
+# =============================================================================
+# REGISTERED MODEL
+# =============================================================================
 
-    Standard U-Net architecture:
-    - Encoder path with downsampling
-    - Decoder path with upsampling and skip connections
-    - Optional spatial or vector output
+
+@register_model("unet_regression")
+class UNetRegression(BaseModel):
+    """
+    U-Net for vector regression output.
+
+    Uses U-Net encoder-decoder architecture with skip connections,
+    then applies global pooling for standard vector regression output.
+
+    ~31.1M parameters (2D). Good for leveraging multi-scale features
+    and skip connections for regression tasks.
+
+    Args:
+        in_shape: (L,), (H, W), or (D, H, W)
+        out_size: Number of regression targets
+        base_channels: Base channel count (default: 64)
+        depth: Number of encoder/decoder levels (default: 4)
+        dropout_rate: Dropout rate (default: 0.1)
+
+    Example:
+        >>> model = UNetRegression(in_shape=(224, 224), out_size=3)
+        >>> x = torch.randn(4, 1, 224, 224)
+        >>> out = model(x)  # (4, 3)
     """
 
     def __init__(
@@ -130,7 +142,6 @@ class UNetBase(BaseModel):
         base_channels: int = 64,
         depth: int = 4,
         dropout_rate: float = 0.1,
-        spatial_output: bool = False,
         **kwargs,
     ):
         super().__init__(in_shape, out_size)
@@ -139,12 +150,10 @@ class UNetBase(BaseModel):
         self.base_channels = base_channels
         self.depth = depth
         self.dropout_rate = dropout_rate
-        self.spatial_output = spatial_output
 
-        Conv, _, _, AdaptivePool = _get_layers(self.dim)
+        _, _, _, AdaptivePool = _get_layers(self.dim)
 
         # Channel progression: 64 -> 128 -> 256 -> 512 (for depth=4)
-        # features[i] = base_channels * 2^i
         features = [base_channels * (2**i) for i in range(depth + 1)]
 
         # Initial double conv (1 -> features[0])
@@ -158,22 +167,17 @@ class UNetBase(BaseModel):
         # Decoder (up path)
         self.ups = nn.ModuleList()
         for i in range(depth):
-            # Input: features[depth - i], Skip: features[depth - 1 - i], Output: features[depth - 1 - i]
             self.ups.append(Up(features[depth - i], features[depth - 1 - i], self.dim))
 
-        if spatial_output:
-            # Spatial output: 1x1 conv to out_size channels
-            self.outc = Conv(features[0], out_size, kernel_size=1)
-        else:
-            # Vector output: global pooling + regression head
-            self.global_pool = AdaptivePool(1)
-            self.head = nn.Sequential(
-                nn.Dropout(dropout_rate),
-                nn.Linear(features[0], 256),
-                nn.ReLU(inplace=True),
-                nn.Dropout(dropout_rate),
-                nn.Linear(256, out_size),
-            )
+        # Vector output: global pooling + regression head
+        self.global_pool = AdaptivePool(1)
+        self.head = nn.Sequential(
+            nn.Dropout(dropout_rate),
+            nn.Linear(features[0], 256),
+            nn.ReLU(inplace=True),
+            nn.Dropout(dropout_rate),
+            nn.Linear(256, out_size),
+        )
 
         self._init_weights()
 
@@ -220,85 +224,15 @@ class UNetBase(BaseModel):
         for up, skip in zip(self.ups, reversed(skips)):
             x = up(x, skip)
 
-        if self.spatial_output:
-            return self.outc(x)
-        else:
-            x = self.global_pool(x)
-            x = x.flatten(1)
-            return self.head(x)
+        # Global pooling + regression head
+        x = self.global_pool(x)
+        x = x.flatten(1)
+        return self.head(x)
 
     @classmethod
     def get_default_config(cls) -> dict[str, Any]:
         """Return default configuration."""
         return {"base_channels": 64, "depth": 4, "dropout_rate": 0.1}
-
-
-# =============================================================================
-# REGISTERED MODEL VARIANTS
-# =============================================================================
-
-
-@register_model("unet")
-class UNet(UNetBase):
-    """
-    U-Net with spatial output capability.
-
-    Good for: Pixel/voxel-wise regression (velocity fields, spatial maps).
-
-    Note: For spatial output, out_size is the number of output channels.
-    Output shape: (B, out_size, *spatial_dims) for spatial_output=True.
-
-    Args:
-        in_shape: (L,), (H, W), or (D, H, W)
-        out_size: Number of output channels for spatial output
-        base_channels: Base channel count (default: 64)
-        depth: Number of encoder/decoder levels (default: 4)
-        spatial_output: If True, output spatial map; if False, output vector
-        dropout_rate: Dropout rate (default: 0.1)
-    """
-
-    def __init__(
-        self,
-        in_shape: SpatialShape,
-        out_size: int,
-        spatial_output: bool = True,
-        **kwargs,
-    ):
-        super().__init__(
-            in_shape=in_shape,
-            out_size=out_size,
-            spatial_output=spatial_output,
-            **kwargs,
-        )
-
-    def __repr__(self) -> str:
-        mode = "spatial" if self.spatial_output else "vector"
-        return f"UNet({self.dim}D, {mode}, in_shape={self.in_shape}, out_size={self.out_size})"
-
-
-@register_model("unet_regression")
-class UNetRegression(UNetBase):
-    """
-    U-Net for vector regression output.
-
-    Uses U-Net encoder-decoder but applies global pooling at the end
-    for standard vector regression output.
-
-    Good for: Leveraging U-Net features (multi-scale, skip connections)
-    for standard regression tasks.
-
-    Args:
-        in_shape: (L,), (H, W), or (D, H, W)
-        out_size: Number of regression targets
-        base_channels: Base channel count (default: 64)
-        depth: Number of encoder/decoder levels (default: 4)
-        dropout_rate: Dropout rate (default: 0.1)
-    """
-
-    def __init__(self, in_shape: SpatialShape, out_size: int, **kwargs):
-        super().__init__(
-            in_shape=in_shape, out_size=out_size, spatial_output=False, **kwargs
-        )
 
     def __repr__(self) -> str:
         return f"UNet_Regression({self.dim}D, in_shape={self.in_shape}, out_size={self.out_size})"

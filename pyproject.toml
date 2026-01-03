@@ -49,6 +49,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Physics",
 ]
 dependencies = [
+    # Core ML stack
     "torch>=2.0.0",
     "torchvision>=0.15.0",
     "accelerate>=0.20.0",
@@ -58,22 +59,24 @@ dependencies = [
     "pandas>=2.0.0",
     "matplotlib>=3.7.0",
     "tqdm>=4.65.0",
-    "wandb>=0.15.0",
     "pyyaml>=6.0.0",
+    # Data formats
     "h5py>=3.8.0",
     "safetensors>=0.3.0",
-]
-
-[project.optional-dependencies]
-dev = ["pytest>=7.0.0", "pytest-xdist>=3.5.0", "ruff>=0.8.0", "pre-commit>=3.5.0"]
-onnx = ["onnx>=1.14.0", "onnxruntime>=1.15.0"]
-compile = ["triton; sys_platform == 'linux'"]  # Linux-only, enables torch.compile
-hpo = ["optuna>=3.0.0"]  # Hyperparameter optimization
-all = [
-    "pytest>=7.0.0", "pytest-xdist>=3.5.0", "ruff>=0.8.0", "pre-commit>=3.5.0",
-    "onnx>=1.14.0", "onnxruntime>=1.15.0",
-    "triton; sys_platform == 'linux'",
+    # Logging
+    "wandb>=0.15.0",
+    # HPO
     "optuna>=3.0.0",
+    # ONNX export
+    "onnx>=1.14.0",
+    "onnxruntime>=1.15.0",
+    # Development tools
+    "pytest>=7.0.0",
+    "pytest-xdist>=3.5.0",
+    "ruff>=0.8.0",
+    "pre-commit>=3.5.0",
+    # torch.compile backend (Linux only)
+    "triton>=2.0.0; sys_platform == 'linux'",
 ]
 
 [project.scripts]

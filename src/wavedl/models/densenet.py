@@ -14,8 +14,11 @@ Features: feature reuse, efficient gradient flow, compact model.
     - densenet121: Standard (121 layers, ~8M params for 2D)
     - densenet169: Deeper (169 layers, ~14M params for 2D)
 
+References:
+    Huang, G., et al. (2017). Densely Connected Convolutional Networks.
+    CVPR 2017 (Best Paper). https://arxiv.org/abs/1608.06993
+
 Author: Ductho Le (ductho.le@outlook.com)
-Version: 1.0.0
 """
 
 from typing import Any
