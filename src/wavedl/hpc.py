@@ -131,6 +131,18 @@ Environment Variables:
         help="Rank of this machine in multi-node setup (default: 0)",
     )
     parser.add_argument(
+        "--main_process_ip",
+        type=str,
+        default=None,
+        help="IP address of the main process for multi-node training",
+    )
+    parser.add_argument(
+        "--main_process_port",
+        type=int,
+        default=None,
+        help="Port for multi-node communication (default: accelerate auto-selects)",
+    )
+    parser.add_argument(
         "--mixed_precision",
         type=str,
         choices=["bf16", "fp16", "no"],
@@ -207,12 +219,18 @@ def main() -> int:
         "launch",
         f"--num_processes={num_gpus}",
         f"--num_machines={args.num_machines}",
-        "--machine_rank=0",
+        f"--machine_rank={args.machine_rank}",
         f"--mixed_precision={args.mixed_precision}",
         f"--dynamo_backend={args.dynamo_backend}",
-        "-m",
-        "wavedl.train",
-    ] + train_args
+    ]
+
+    # Add multi-node networking args if specified (required for some clusters)
+    if args.main_process_ip:
+        cmd.append(f"--main_process_ip={args.main_process_ip}")
+    if args.main_process_port:
+        cmd.append(f"--main_process_port={args.main_process_port}")
+
+    cmd += ["-m", "wavedl.train"] + train_args
 
     # Create output directory if specified
     for i, arg in enumerate(train_args):

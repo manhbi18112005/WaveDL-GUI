@@ -12,11 +12,11 @@ A modular training framework for wave-based inverse problems and regression:
   6. Deep Observability: WandB integration with scatter analysis
 
 Usage:
-    # Recommended: Using the HPC launcher
-    wavedl-hpc --model cnn --batch_size 128 --wandb
+    # Recommended: Using the HPC launcher (handles accelerate configuration)
+    wavedl-hpc --model cnn --batch_size 128 --mixed_precision bf16 --wandb
 
-    # Or with direct accelerate launch
-    accelerate launch -m wavedl.train --model cnn --batch_size 128 --wandb
+    # Or direct training module (use --precision, not --mixed_precision)
+    accelerate launch -m wavedl.train --model cnn --batch_size 128 --precision bf16
 
     # Multi-GPU with explicit config
     wavedl-hpc --num_gpus 4 --mixed_precision bf16 --model cnn --wandb
@@ -28,9 +28,9 @@ Usage:
     wavedl-train --list_models
 
 Note:
-    For HPC clusters (Compute Canada, etc.), use wavedl-hpc which handles
-    environment configuration automatically. Mixed precision is controlled via
-    --mixed_precision flag (default: bf16).
+    - wavedl-hpc: Uses --mixed_precision (passed to accelerate launch)
+    - wavedl.train: Uses --precision (internal module flag)
+    Both control the same behavior; use the appropriate flag for your entry point.
 
 Author: Ductho Le (ductho.le@outlook.com)
 """
@@ -96,6 +96,18 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", module="pydantic")
 warnings.filterwarnings("ignore", message=".*UnsupportedFieldAttributeWarning.*")
+
+# ==============================================================================
+# GPU PERFORMANCE OPTIMIZATIONS (Ampere/Hopper: A100, H100)
+# ==============================================================================
+# Enable TF32 for faster matmul (safe precision for training, ~2x speedup)
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
+torch.set_float32_matmul_precision("high")  # Use TF32 for float32 ops
+
+# Enable cuDNN autotuning for fixed-size inputs (CNN-like models benefit most)
+# Note: First few batches may be slower due to benchmarking
+torch.backends.cudnn.benchmark = True
 
 
 # ==============================================================================
@@ -298,10 +310,23 @@ def parse_args() -> argparse.Namespace:
         choices=["bf16", "fp16", "no"],
         help="Mixed precision mode",
     )
+    # Alias for consistency with wavedl-hpc (--mixed_precision)
+    parser.add_argument(
+        "--mixed_precision",
+        dest="precision",
+        type=str,
+        choices=["bf16", "fp16", "no"],
+        help=argparse.SUPPRESS,  # Hidden: use --precision instead
+    )
 
     # Logging
     parser.add_argument(
         "--wandb", action="store_true", help="Enable Weights & Biases logging"
+    )
+    parser.add_argument(
+        "--wandb_watch",
+        action="store_true",
+        help="Enable WandB gradient watching (adds overhead, useful for debugging)",
     )
     parser.add_argument(
         "--project_name", type=str, default="DL-Training", help="WandB project name"
@@ -467,8 +492,8 @@ def main():
             if _cv_handle is not None and hasattr(_cv_handle, "close"):
                 try:
                     _cv_handle.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logging.debug(f"Failed to close CV data handle: {e}")
         return
 
     # ==========================================================================
@@ -496,9 +521,9 @@ def main():
     if args.workers < 0:
         cpu_count = os.cpu_count() or 4
         num_gpus = accelerator.num_processes
-        # Heuristic: 4-8 workers per GPU, bounded by available CPU cores
-        # Leave some cores for main process and system overhead
-        args.workers = min(8, max(2, (cpu_count - 2) // num_gpus))
+        # Heuristic: 4-16 workers per GPU, bounded by available CPU cores
+        # Increased cap from 8 to 16 for high-throughput GPUs (H100, A100)
+        args.workers = min(16, max(2, (cpu_count - 2) // num_gpus))
         if accelerator.is_main_process:
             logger.info(
                 f"⚙️  Auto-detected workers: {args.workers} per GPU "
@@ -544,9 +569,15 @@ def main():
         )
         logger.info(f"   Model Size: {param_info['total_mb']:.2f} MB")
 
-    # Optional WandB model watching
-    if args.wandb and WANDB_AVAILABLE and accelerator.is_main_process:
+    # Optional WandB model watching (opt-in due to overhead on large models)
+    if (
+        args.wandb
+        and args.wandb_watch
+        and WANDB_AVAILABLE
+        and accelerator.is_main_process
+    ):
         wandb.watch(model, log="gradients", log_freq=100)
+        logger.info("   📊 WandB gradient watching enabled")
 
     # Torch 2.0 compilation (requires compatible Triton on GPU)
     if args.compile:

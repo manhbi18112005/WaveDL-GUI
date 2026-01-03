@@ -75,12 +75,60 @@ class BaseModel(nn.Module, ABC):
         Forward pass of the model.
 
         Args:
-            x: Input tensor of shape (B, C, H, W)
+            x: Input tensor of shape (B, C, *spatial_dims)
+               - 1D: (B, C, L)
+               - 2D: (B, C, H, W)
+               - 3D: (B, C, D, H, W)
 
         Returns:
             Output tensor of shape (B, out_size)
         """
         pass
+
+    def validate_input_shape(self, x: torch.Tensor) -> None:
+        """
+        Validate input tensor shape against model's expected shape.
+
+        Call this at the start of forward() for explicit shape contract enforcement.
+        Provides clear, actionable error messages instead of cryptic Conv layer errors.
+
+        Args:
+            x: Input tensor to validate
+
+        Raises:
+            ValueError: If shape doesn't match expected dimensions
+
+        Example:
+            def forward(self, x):
+                self.validate_input_shape(x)  # Optional but recommended
+                return self.model(x)
+        """
+        expected_ndim = len(self.in_shape) + 2  # +2 for (batch, channel)
+
+        if x.ndim != expected_ndim:
+            dim_names = {
+                3: "1D (B, C, L)",
+                4: "2D (B, C, H, W)",
+                5: "3D (B, C, D, H, W)",
+            }
+            expected_name = dim_names.get(expected_ndim, f"{expected_ndim}D")
+            actual_name = dim_names.get(x.ndim, f"{x.ndim}D")
+            raise ValueError(
+                f"Input shape mismatch: model expects {expected_name} input, "
+                f"got {actual_name} with shape {tuple(x.shape)}.\n"
+                f"Expected in_shape: {self.in_shape} -> input should be (B, C, {', '.join(map(str, self.in_shape))})\n"
+                f"Hint: Check your data preprocessing - you may need to add/remove dimensions."
+            )
+
+        # Validate spatial dimensions match
+        spatial_dims = tuple(x.shape[2:])  # Skip batch and channel
+        if spatial_dims != tuple(self.in_shape):
+            raise ValueError(
+                f"Spatial dimension mismatch: model expects {self.in_shape}, "
+                f"got {spatial_dims}.\n"
+                f"Full input shape: {tuple(x.shape)} (B={x.shape[0]}, C={x.shape[1]})\n"
+                f"Hint: Ensure your data dimensions match the model's in_shape."
+            )
 
     def count_parameters(self, trainable_only: bool = True) -> int:
         """

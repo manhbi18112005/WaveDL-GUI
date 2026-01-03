@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.1] - 2026-01-03
+
+### Added
+- `validate_input_shape()` method in `BaseModel` for explicit shape contract enforcement
+- `--wandb_watch` flag for opt-in gradient watching (reduces overhead by default)
+- `--main_process_ip` and `--main_process_port` args in `wavedl-hpc` for multi-node clusters
+- Unknown config key detection with helpful warnings for typos
+
+### Changed
+- **Performance**: Enabled TF32 precision by default (~2x speedup on Ampere/Hopper GPUs)
+- **Performance**: Enabled cuDNN benchmark for auto-tuned convolutions
+- **Performance**: Increased DataLoader worker cap from 8 to 16 per GPU
+- Improved config validation with type checking before numeric comparisons
+- Made `wandb.watch()` opt-in via `--wandb_watch` flag (was always-on)
+
+### Fixed
+- **Critical**: `--machine_rank` was hardcoded to 0 in `wavedl-hpc` (multi-node now works correctly)
+- `merge_config_with_args()` fragility when required args are added later
+- Silent exception swallowing in cross-validation cleanup
+- Documentation clarity for `--precision` vs `--mixed_precision` flags
+
 ## [1.4.0] - 2026-01-03
 
 ### Added
@@ -99,6 +120,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Example configurations and training scripts
 - MIT License and citation file
 
+[1.4.1]: https://github.com/ductho-le/WaveDL/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/ductho-le/WaveDL/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/ductho-le/WaveDL/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/ductho-le/WaveDL/compare/v1.2.0...v1.3.0

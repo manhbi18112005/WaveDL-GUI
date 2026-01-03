@@ -457,11 +457,31 @@ WaveDL/
 
 | Argument | Default | Description |
 |----------|---------|-------------|
-| `--compile` | `False` | Enable `torch.compile` |
+| `--compile` | `False` | Enable `torch.compile` (recommended for long runs) |
 | `--precision` | `bf16` | Mixed precision mode (`bf16`, `fp16`, `no`) |
+| `--workers` | `-1` | DataLoader workers per GPU (-1=auto, up to 16) |
 | `--wandb` | `False` | Enable W&B logging |
+| `--wandb_watch` | `False` | Enable W&B gradient watching (adds overhead) |
 | `--project_name` | `DL-Training` | W&B project name |
 | `--run_name` | `None` | W&B run name (auto-generated if not set) |
+
+**Automatic GPU Optimizations:**
+
+WaveDL automatically enables performance optimizations for modern GPUs:
+
+| Optimization | Effect | GPU Support |
+|--------------|--------|-------------|
+| **TF32 precision** | ~2x speedup for float32 matmul | A100, H100 (Ampere+) |
+| **cuDNN benchmark** | Auto-tuned convolutions | All NVIDIA GPUs |
+| **Worker scaling** | Up to 16 workers per GPU | All systems |
+
+> [!NOTE]
+> These optimizations are **backward compatible** — they have no effect on older GPUs (V100, T4, GTX) or CPU-only systems. No configuration needed.
+
+**HPC Best Practices:**
+- Stage data to `$SLURM_TMPDIR` (local NVMe) for maximum I/O throughput
+- Use `--compile` for training runs > 50 epochs
+- Increase `--workers` manually if auto-detection is suboptimal
 
 </details>
 

@@ -116,7 +116,13 @@ def merge_config_with_args(
     """
     # Get parser defaults to detect which args were explicitly set by user
     if parser is not None:
-        defaults = vars(parser.parse_args([]))
+        # Safe extraction: iterate actions instead of parse_args([])
+        # This avoids failures if required arguments are added later
+        defaults = {
+            action.dest: action.default
+            for action in parser._actions
+            if action.dest != "help"
+        }
     else:
         # Fallback: reconstruct defaults from known patterns
         # This works because argparse stores actual values, and we compare
@@ -141,6 +147,9 @@ def merge_config_with_args(
             setattr(args, key, value)
         elif not ignore_unknown:
             logging.warning(f"Unknown config key: {key}")
+        else:
+            # Even in ignore_unknown mode, log for discoverability
+            logging.debug(f"Config key '{key}' ignored: not a valid argument")
 
     return args
 
@@ -188,12 +197,15 @@ def save_config(
     return str(output_path)
 
 
-def validate_config(config: dict[str, Any]) -> list[str]:
+def validate_config(
+    config: dict[str, Any], known_keys: list[str] | None = None
+) -> list[str]:
     """
     Validate configuration values against known options.
 
     Args:
         config: Configuration dictionary
+        known_keys: Optional list of valid keys (if None, uses defaults from parser args)
 
     Returns:
         List of warning messages (empty if valid)
@@ -229,8 +241,82 @@ def validate_config(config: dict[str, Any]) -> list[str]:
     for key, (min_val, max_val, msg) in numeric_checks.items():
         if key in config:
             val = config[key]
+            # Type check: ensure value is numeric before comparison
+            if not isinstance(val, (int, float)):
+                warnings.append(
+                    f"Invalid type for '{key}': expected number, got {type(val).__name__} ({val!r})"
+                )
+                continue
             if not (min_val <= val <= max_val):
                 warnings.append(f"{msg}: got {val}")
+
+    # Check for unknown/unrecognized keys (helps catch typos)
+    # Default known keys based on common training arguments
+    default_known_keys = {
+        # Model
+        "model",
+        "import_modules",
+        # Hyperparameters
+        "batch_size",
+        "lr",
+        "epochs",
+        "patience",
+        "weight_decay",
+        "grad_clip",
+        # Loss
+        "loss",
+        "huber_delta",
+        "loss_weights",
+        # Optimizer
+        "optimizer",
+        "momentum",
+        "nesterov",
+        "betas",
+        # Scheduler
+        "scheduler",
+        "scheduler_patience",
+        "min_lr",
+        "scheduler_factor",
+        "warmup_epochs",
+        "step_size",
+        "milestones",
+        # Data
+        "data_path",
+        "workers",
+        "seed",
+        "single_channel",
+        # Cross-validation
+        "cv",
+        "cv_stratify",
+        "cv_bins",
+        # Checkpointing
+        "resume",
+        "save_every",
+        "output_dir",
+        "fresh",
+        # Performance
+        "compile",
+        "precision",
+        "mixed_precision",
+        # Logging
+        "wandb",
+        "wandb_watch",
+        "project_name",
+        "run_name",
+        # Config
+        "config",
+        "list_models",
+        # Metadata (internal)
+        "_metadata",
+    }
+
+    check_keys = set(known_keys) if known_keys else default_known_keys
+
+    for key in config:
+        if key not in check_keys:
+            warnings.append(
+                f"Unknown config key: '{key}' - check for typos or see wavedl-train --help"
+            )
 
     return warnings
 
