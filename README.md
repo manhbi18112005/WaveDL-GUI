@@ -4,17 +4,17 @@
 
 ### A Scalable Deep Learning Framework for Wave-Based Inverse Problems
 
-<a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11+-blue.svg?style=plastic&logo=python&logoColor=white" alt="Python 3.11+" height="21"></a>
-<a href="https://pytorch.org/"><img src="https://img.shields.io/badge/PyTorch-2.x-ee4c2c.svg?style=plastic&logo=pytorch&logoColor=white" alt="PyTorch 2.x" height="21"></a>
-<a href="https://huggingface.co/docs/accelerate/"><img src="https://img.shields.io/badge/Accelerate-Enabled-yellow.svg?style=plastic&logo=huggingface&logoColor=white" alt="Accelerate" height="21"></a>
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg?style=plastic&logo=python&logoColor=white)](https://www.python.org/downloads/)
+[![PyTorch 2.x](https://img.shields.io/badge/PyTorch-2.x-ee4c2c.svg?style=plastic&logo=pytorch&logoColor=white)](https://pytorch.org/)
+[![Accelerate](https://img.shields.io/badge/Accelerate-Enabled-yellow.svg?style=plastic&logo=huggingface&logoColor=white)](https://huggingface.co/docs/accelerate/)
 <br>
-<a href="https://github.com/ductho-le/WaveDL/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/ductho-le/WaveDL/test.yml?branch=main&style=plastic&logo=githubactions&logoColor=white&label=Tests" alt="Tests" height="21"></a>
-<a href="https://github.com/ductho-le/WaveDL/actions/workflows/lint.yml"><img src="https://img.shields.io/github/actions/workflow/status/ductho-le/WaveDL/lint.yml?branch=main&style=plastic&logo=ruff&logoColor=white&label=Lint" alt="Lint" height="21"></a>
-<a href="https://colab.research.google.com/github/ductho-le/WaveDL/blob/main/notebooks/demo.ipynb"><img src="https://img.shields.io/badge/Try_it_on_Colab-8E44AD?style=plastic&logo=googlecolab&logoColor=white" alt="Try it on Colab" height="21"></a>
+[![Tests](https://img.shields.io/github/actions/workflow/status/ductho-le/WaveDL/test.yml?branch=main&style=plastic&logo=githubactions&logoColor=white&label=Tests)](https://github.com/ductho-le/WaveDL/actions/workflows/test.yml)
+[![Lint](https://img.shields.io/github/actions/workflow/status/ductho-le/WaveDL/lint.yml?branch=main&style=plastic&logo=ruff&logoColor=white&label=Lint)](https://github.com/ductho-le/WaveDL/actions/workflows/lint.yml)
+[![Try it on Colab](https://img.shields.io/badge/Try_it_on_Colab-8E44AD?style=plastic&logo=googlecolab&logoColor=white)](https://colab.research.google.com/github/ductho-le/WaveDL/blob/main/notebooks/demo.ipynb)
 <br>
-<a href="https://pepy.tech/project/wavedl"><img src="https://img.shields.io/pepy/dt/wavedl?style=plastic&logo=pypi&logoColor=white&color=9ACD32" alt="Downloads" height="21"></a>
-<a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-orange.svg?style=plastic" alt="License: MIT" height="21"></a>
-<a href="https://doi.org/10.5281/zenodo.18012338"><img src="https://img.shields.io/badge/DOI-10.5281/zenodo.18012338-008080.svg?style=plastic" alt="DOI" height="21"></a>
+[![Downloads](https://img.shields.io/pepy/dt/wavedl?style=plastic&logo=pypi&logoColor=white&color=9ACD32)](https://pepy.tech/project/wavedl)
+[![License: MIT](https://img.shields.io/badge/License-MIT-orange.svg?style=plastic)](LICENSE)
+[![DOI](https://img.shields.io/badge/DOI-10.5281/zenodo.18012338-008080.svg?style=plastic)](https://doi.org/10.5281/zenodo.18012338)
 
 **Production-ready • Multi-GPU DDP • Memory-Efficient • Plug-and-Play**
 
