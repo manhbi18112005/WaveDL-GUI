@@ -1,22 +1,25 @@
 """
-Model Template for New Architectures
-=====================================
+Model Template for Custom Architectures
+========================================
 
-Copy this file and modify to add new model architectures to the framework.
+Copy this file and modify to add custom model architectures to WaveDL.
 The model will be automatically registered and available via --model flag.
 
-Steps to Add a New Model:
-    1. Copy this file to models/your_model.py
-    2. Rename the class and update @register_model("your_model")
-    3. Implement the __init__ and forward methods
-    4. Import your model in models/__init__.py:
-       from wavedl.models.your_model import YourModel
-    5. Run: accelerate launch -m wavedl.train --model your_model --wandb
+Quick Start:
+    1. Copy this file to your project: cp _template.py my_model.py
+    2. Rename the class and update @register_model("my_model")
+    3. Implement your architecture in __init__ and forward
+    4. Train: wavedl-train --import my_model --model my_model --data_path data.npz
+
+Requirements (your model MUST):
+    1. Inherit from BaseModel
+    2. Accept (in_shape, out_size, **kwargs) in __init__
+    3. Return tensor of shape (batch, out_size) from forward()
+
+See README.md "Adding Custom Models" section for more details.
 
 Author: Ductho Le (ductho.le@outlook.com)
 """
-
-from typing import Any
 
 import torch
 import torch.nn as nn
@@ -25,7 +28,7 @@ from wavedl.models.base import BaseModel
 
 
 # Uncomment the decorator to register this model
-# @register_model("template")
+# @register_model("my_model")
 class TemplateModel(BaseModel):
     """
     Template Model Architecture.
@@ -34,14 +37,16 @@ class TemplateModel(BaseModel):
     The first line will appear in --list_models output.
 
     Args:
-        in_shape: Input spatial dimensions (H, W)
-        out_size: Number of regression output targets
+        in_shape: Input spatial dimensions (auto-detected from data)
+                  - 1D: (L,) for signals
+                  - 2D: (H, W) for images
+                  - 3D: (D, H, W) for volumes
+        out_size: Number of regression targets (auto-detected from data)
         hidden_dim: Size of hidden layers (default: 256)
-        num_layers: Number of convolutional layers (default: 4)
         dropout: Dropout rate (default: 0.1)
 
     Input Shape:
-        (B, 1, H, W) - Single-channel images
+        (B, 1, *in_shape) - e.g., (B, 1, 64, 64) for 2D
 
     Output Shape:
         (B, out_size) - Regression predictions
@@ -49,10 +54,9 @@ class TemplateModel(BaseModel):
 
     def __init__(
         self,
-        in_shape: tuple[int, int],
+        in_shape: tuple,
         out_size: int,
         hidden_dim: int = 256,
-        num_layers: int = 4,
         dropout: float = 0.1,
         **kwargs,  # Accept extra kwargs for flexibility
     ):
@@ -61,14 +65,13 @@ class TemplateModel(BaseModel):
 
         # Store hyperparameters as attributes (optional but recommended)
         self.hidden_dim = hidden_dim
-        self.num_layers = num_layers
         self.dropout_rate = dropout
 
         # =================================================================
         # BUILD YOUR ARCHITECTURE HERE
         # =================================================================
 
-        # Example: Simple CNN encoder
+        # Example: Simple CNN encoder (assumes 2D input with 1 channel)
         self.encoder = nn.Sequential(
             # Layer 1
             nn.Conv2d(1, 32, kernel_size=3, padding=1),
@@ -106,10 +109,10 @@ class TemplateModel(BaseModel):
         """
         Forward pass of the model.
 
-        REQUIRED: Must accept (B, C, H, W) and return (B, out_size)
+        REQUIRED: Must accept (B, C, *spatial) and return (B, out_size)
 
         Args:
-            x: Input tensor of shape (B, 1, H, W)
+            x: Input tensor of shape (B, 1, *in_shape)
 
         Returns:
             Output tensor of shape (B, out_size)
@@ -122,35 +125,20 @@ class TemplateModel(BaseModel):
 
         return output
 
-    @classmethod
-    def get_default_config(cls) -> dict[str, Any]:
-        """
-        Return default hyperparameters for this model.
-
-        OPTIONAL: Override to provide model-specific defaults.
-        These can be used for documentation or config files.
-        """
-        return {
-            "hidden_dim": 256,
-            "num_layers": 4,
-            "dropout": 0.1,
-        }
-
 
 # =============================================================================
 # USAGE EXAMPLE
 # =============================================================================
 if __name__ == "__main__":
     # Quick test of the model
-    model = TemplateModel(in_shape=(500, 500), out_size=5)
+    model = TemplateModel(in_shape=(64, 64), out_size=5)
 
     # Print model summary
     print(f"Model: {model.__class__.__name__}")
     print(f"Parameters: {model.count_parameters():,}")
-    print(f"Default config: {model.get_default_config()}")
 
     # Test forward pass
-    dummy_input = torch.randn(2, 1, 500, 500)
+    dummy_input = torch.randn(2, 1, 64, 64)
     output = model(dummy_input)
     print(f"Input shape: {dummy_input.shape}")
     print(f"Output shape: {output.shape}")

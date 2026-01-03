@@ -10,14 +10,23 @@
 # =============================================================================
 # MODEL
 # =============================================================================
-model: cnn                    # Options: cnn, resnet18, resnet34, resnet50,
-                              #          resnet18_pretrained, resnet50_pretrained,
-                              #          efficientnet_b0, efficientnet_b1, efficientnet_b2,
-                              #          vit_tiny, vit_small, vit_base,
-                              #          convnext_tiny, convnext_small, convnext_base,
-                              #          convnext_tiny_pretrained,
-                              #          densenet121, densenet169, densenet121_pretrained,
-                              #          unet, unet_regression
+model: cnn                    # 38 architectures available:
+                              # CNN:       cnn
+                              # ResNet:    resnet18, resnet34, resnet50,
+                              #            resnet18_pretrained, resnet50_pretrained
+                              # ResNet3D:  resnet3d_18, mc3_18
+                              # TCN:       tcn_small, tcn, tcn_large
+                              # EfficientNet: efficientnet_b0, efficientnet_b1, efficientnet_b2
+                              # EfficientNetV2: efficientnet_v2_s, efficientnet_v2_m, efficientnet_v2_l
+                              # MobileNetV3: mobilenet_v3_small, mobilenet_v3_large
+                              # RegNet:    regnet_y_400mf, regnet_y_800mf, regnet_y_1_6gf,
+                              #            regnet_y_3_2gf, regnet_y_8gf
+                              # Swin:      swin_t, swin_s, swin_b
+                              # ViT:       vit_tiny, vit_small, vit_base
+                              # ConvNeXt:  convnext_tiny, convnext_small, convnext_base,
+                              #            convnext_tiny_pretrained
+                              # DenseNet:  densenet121, densenet169, densenet121_pretrained
+                              # U-Net:     unet_regression
 
 # =============================================================================
 # TRAINING HYPERPARAMETERS
@@ -71,8 +80,10 @@ cv_bins: 10                   # Number of bins for stratification
 # resume: null                # Path to checkpoint to resume from
 # save_every: 50               # Save checkpoint every N epochs (0 = disabled)
 # fresh: false                # Start fresh, ignore existing checkpoints
-workers: 0                    # DataLoader workers (0 = auto)
+workers: -1                   # DataLoader workers (-1 = auto-detect)
 seed: 2025                    # Random seed for reproducibility
+# single_channel: false       # Confirm data is single-channel (for shallow 3D volumes)
+# import: []                  # Python modules to import for custom models
 
 # =============================================================================
 # PERFORMANCE OPTIMIZATION

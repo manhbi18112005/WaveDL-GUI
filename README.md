@@ -645,7 +645,7 @@ python -m wavedl.hpo --data_path train.npz --models cnn --n_trials 50
 python -m wavedl.hpo --data_path train.npz --models cnn resnet18 resnet50 vit_small densenet121 --n_trials 200
 ```
 
-**Step 3: Train with best parameters**
+**Train with best parameters**
 
 After HPO completes, it prints the optimal command:
 ```bash
@@ -792,7 +792,7 @@ import numpy as np
 X = np.random.randn(1000, 256, 256).astype(np.float32)
 y = np.random.randn(1000, 5).astype(np.float32)
 
-np.savez('test_data.npz', input_train=X, output_train=y)
+np.savez('test_data.npz', input_test=X, output_test=y)
 ```
 
 </details>
@@ -804,7 +804,7 @@ np.savez('test_data.npz', input_train=X, output_train=y)
 import numpy as np
 
 data = np.load('train_data.npz')
-assert data['input_train'].ndim == 3, "Input must be 3D: (N, H, W)"
+assert data['input_train'].ndim >= 2, "Input must be at least 2D: (N, ...) "
 assert data['output_train'].ndim == 2, "Output must be 2D: (N, T)"
 assert len(data['input_train']) == len(data['output_train']), "Sample mismatch"
 
@@ -959,7 +959,7 @@ Beyond the material characterization example above, the WaveDL pipeline can be a
 | Resource | Description |
 |----------|-------------|
 | Technical Paper | In-depth framework description *(coming soon)* |
-| [`_template.py`](models/_template.py) | Template for new architectures |
+| [`_template.py`](src/wavedl/models/_template.py) | Template for custom architectures |
 
 ---
 
