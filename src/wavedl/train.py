@@ -35,25 +35,11 @@ Note:
 Author: Ductho Le (ductho.le@outlook.com)
 """
 
-# ==============================================================================
-# ENVIRONMENT CONFIGURATION FOR HPC SYSTEMS
-# ==============================================================================
-# IMPORTANT: These must be set BEFORE matplotlib is imported to be effective
-
-# Suppress pydantic warnings from dependencies (accelerate/wandb) before they're imported
-import warnings
-
-
-warnings.filterwarnings("ignore", module="pydantic")
-
-import os
-
-
-os.environ.setdefault("MPLCONFIGDIR", os.getenv("TMPDIR", "/tmp") + "/matplotlib")
-os.environ.setdefault("FONTCONFIG_PATH", "/etc/fonts")
+from __future__ import annotations
 
 import argparse
 import logging
+import os
 import pickle
 import shutil
 import sys
@@ -70,7 +56,6 @@ from accelerate.utils import set_seed
 from sklearn.metrics import r2_score
 from tqdm.auto import tqdm
 
-# Local imports
 from wavedl.models import build_model, get_model, list_models
 from wavedl.utils import (
     FIGURE_DPI,
@@ -78,7 +63,6 @@ from wavedl.utils import (
     broadcast_early_stop,
     calc_pearson,
     create_training_curves,
-    # New factory functions
     get_loss,
     get_lr,
     get_optimizer,
@@ -92,7 +76,6 @@ from wavedl.utils import (
 )
 
 
-# Optional WandB import
 try:
     import wandb
 
@@ -100,7 +83,14 @@ try:
 except ImportError:
     WANDB_AVAILABLE = False
 
-# Filter non-critical warnings for cleaner training logs
+# ==============================================================================
+# RUNTIME CONFIGURATION (post-import)
+# ==============================================================================
+# Configure matplotlib paths for HPC systems without writable home directories
+os.environ.setdefault("MPLCONFIGDIR", os.getenv("TMPDIR", "/tmp") + "/matplotlib")
+os.environ.setdefault("FONTCONFIG_PATH", "/etc/fonts")
+
+# Suppress non-critical warnings for cleaner training logs
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
