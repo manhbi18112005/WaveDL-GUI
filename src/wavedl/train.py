@@ -851,7 +851,7 @@ def main():
             val_mae_sum = torch.zeros(out_dim, device=accelerator.device)
             val_samples = 0
 
-            # Accumulate predictions locally, gather ONCE at end (reduces sync overhead)
+            # Accumulate predictions locally ON CPU to prevent GPU OOM
             local_preds = []
             local_targets = []
 
@@ -867,17 +867,19 @@ def main():
                     mae_batch = torch.abs((pred - y) * phys_scale).sum(dim=0)
                     val_mae_sum += mae_batch
 
-                    # Store locally (no GPU sync per batch)
-                    local_preds.append(pred)
-                    local_targets.append(y)
+                    # Store on CPU (critical for large val sets)
+                    local_preds.append(pred.detach().cpu())
+                    local_targets.append(y.detach().cpu())
 
-            # Single gather at end of validation (2 syncs instead of 2×num_batches)
-            all_local_preds = torch.cat(local_preds)
-            all_local_targets = torch.cat(local_targets)
-            all_preds = accelerator.gather_for_metrics(all_local_preds)
-            all_targets = accelerator.gather_for_metrics(all_local_targets)
+            # Concatenate locally on CPU (no GPU memory spike)
+            cpu_preds = torch.cat(local_preds)
+            cpu_targets = torch.cat(local_targets)
 
-            # Synchronize validation metrics
+            # Gather to rank 0 only via gather_object (avoids all-gather to every rank)
+            # gather_object returns list of objects from each rank: [(preds0, targs0), (preds1, targs1), ...]
+            gathered = accelerator.gather_object((cpu_preds, cpu_targets))
+
+            # Synchronize validation metrics (scalars only - efficient)
             val_loss_scalar = val_loss_sum.item()
             val_metrics = torch.cat(
                 [
@@ -900,9 +902,14 @@ def main():
 
             # ==================== LOGGING & CHECKPOINTING ====================
             if accelerator.is_main_process:
-                # Scientific metrics - cast to float32 before numpy (bf16 can't convert)
-                y_pred = all_preds.float().cpu().numpy()
-                y_true = all_targets.float().cpu().numpy()
+                # Concatenate gathered tensors from all ranks (only on rank 0)
+                # gathered is list of tuples: [(preds_rank0, targs_rank0), (preds_rank1, targs_rank1), ...]
+                all_preds = torch.cat([item[0] for item in gathered])
+                all_targets = torch.cat([item[1] for item in gathered])
+
+                # Scientific metrics - cast to float32 before numpy
+                y_pred = all_preds.float().numpy()
+                y_true = all_targets.float().numpy()
 
                 # Trim DDP padding
                 real_len = len(val_dl.dataset)

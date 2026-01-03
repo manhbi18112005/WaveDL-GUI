@@ -145,6 +145,7 @@ def create_objective(args):
         # Use temporary directory for trial output
         with tempfile.TemporaryDirectory() as tmpdir:
             cmd.extend(["--output_dir", tmpdir])
+            history_file = Path(tmpdir) / "training_history.csv"
 
             # Run training
             try:
@@ -156,29 +157,55 @@ def create_objective(args):
                     cwd=Path(__file__).parent,
                 )
 
-                # Parse validation loss from output
-                # Look for "Best val_loss: X.XXXX" in stdout
+                # Read best val_loss from training_history.csv (reliable machine-readable)
                 val_loss = None
-                for line in result.stdout.split("\n"):
-                    if "Best val_loss:" in line:
-                        try:
-                            val_loss = float(line.split(":")[-1].strip())
-                        except ValueError:
-                            pass
-                    # Also check for final validation loss
-                    if "val_loss=" in line.lower():
-                        try:
-                            # Extract number after val_loss=
-                            parts = line.lower().split("val_loss=")
-                            if len(parts) > 1:
-                                val_str = parts[1].split()[0].strip(",")
-                                val_loss = float(val_str)
-                        except (ValueError, IndexError):
-                            pass
+                if history_file.exists():
+                    try:
+                        import csv
+
+                        with open(history_file) as f:
+                            reader = csv.DictReader(f)
+                            val_losses = []
+                            for row in reader:
+                                if "val_loss" in row:
+                                    try:
+                                        val_losses.append(float(row["val_loss"]))
+                                    except (ValueError, TypeError):
+                                        pass
+                            if val_losses:
+                                val_loss = min(val_losses)  # Best (minimum) val_loss
+                    except Exception as e:
+                        print(f"Trial {trial.number}: Error reading history: {e}")
+
+                if val_loss is None:
+                    # Fallback: parse stdout for training log format
+                    # Pattern: "epoch | train_loss | val_loss | ..."
+                    # Use regex to avoid false positives from unrelated lines
+                    import re
+
+                    # Match lines like: "  42  | 0.0123   | 0.0156   | ..."
+                    log_pattern = re.compile(
+                        r"^\s*\d+\s*\|\s*[\d.]+\s*\|\s*([\d.]+)\s*\|"
+                    )
+                    val_losses_stdout = []
+                    for line in result.stdout.split("\n"):
+                        match = log_pattern.match(line)
+                        if match:
+                            try:
+                                val_losses_stdout.append(float(match.group(1)))
+                            except ValueError:
+                                continue
+                    if val_losses_stdout:
+                        val_loss = min(val_losses_stdout)
 
                 if val_loss is None:
                     # Training failed or no loss found
-                    print(f"Trial {trial.number}: Training failed")
+                    print(f"Trial {trial.number}: Training failed (no val_loss found)")
+                    if result.returncode != 0:
+                        # Show last few lines of stderr for debugging
+                        stderr_lines = result.stderr.strip().split("\n")[-3:]
+                        for line in stderr_lines:
+                            print(f"  stderr: {line}")
                     return float("inf")
 
                 print(f"Trial {trial.number}: val_loss={val_loss:.6f}")

@@ -735,7 +735,7 @@ def load_test_data(
     try:
         inp, outp = source.load(path)
     except KeyError:
-        # Try with just inputs if outputs not found
+        # Try with just inputs if outputs not found (inference-only mode)
         if format == "npz":
             data = np.load(path, allow_pickle=True)
             keys = list(data.keys())
@@ -751,6 +751,54 @@ def load_test_data(
                 )
             out_key = DataSource._find_key(keys, custom_output_keys)
             outp = data[out_key] if out_key else None
+        elif format == "hdf5":
+            # HDF5: input-only loading for inference
+            with h5py.File(path, "r") as f:
+                keys = list(f.keys())
+                inp_key = DataSource._find_key(keys, custom_input_keys)
+                if inp_key is None:
+                    raise KeyError(
+                        f"Input key not found. Tried: {custom_input_keys}. Found: {keys}"
+                    )
+                # Check size - load_test_data is eager, large files should use DataLoader
+                n_samples = f[inp_key].shape[0]
+                if n_samples > 100000:
+                    raise ValueError(
+                        f"Dataset has {n_samples:,} samples. load_test_data() loads "
+                        f"everything into RAM which may cause OOM. For large inference "
+                        f"sets, use a DataLoader with HDF5Source.load_mmap() instead."
+                    )
+                inp = f[inp_key][:]
+                out_key = DataSource._find_key(keys, custom_output_keys)
+                outp = f[out_key][:] if out_key else None
+        elif format == "mat":
+            # MAT v7.3: input-only loading with proper sparse handling
+            mat_source = MATSource()
+            with h5py.File(path, "r") as f:
+                keys = list(f.keys())
+                inp_key = DataSource._find_key(keys, custom_input_keys)
+                if inp_key is None:
+                    raise KeyError(
+                        f"Input key not found. Tried: {custom_input_keys}. Found: {keys}"
+                    )
+                # Check size - load_test_data is eager, large files should use DataLoader
+                n_samples = f[inp_key].shape[-1]  # MAT is transposed
+                if n_samples > 100000:
+                    raise ValueError(
+                        f"Dataset has {n_samples:,} samples. load_test_data() loads "
+                        f"everything into RAM which may cause OOM. For large inference "
+                        f"sets, use a DataLoader with MATSource.load_mmap() instead."
+                    )
+                # Use _load_dataset for sparse support and proper transpose
+                inp = mat_source._load_dataset(f, inp_key)
+                out_key = DataSource._find_key(keys, custom_output_keys)
+                if out_key:
+                    outp = mat_source._load_dataset(f, out_key)
+                    # Handle 1D outputs that become (1, N) after transpose
+                    if outp.ndim == 2 and outp.shape[0] == 1:
+                        outp = outp.T
+                else:
+                    outp = None
         else:
             raise
 
@@ -949,6 +997,15 @@ def prepare_data(
             with open(META_FILE, "rb") as f:
                 meta = pickle.load(f)
             cached_data_path = meta.get("data_path", None)
+            cached_file_size = meta.get("file_size", None)
+            cached_file_mtime = meta.get("file_mtime", None)
+
+            # Get current file stats
+            current_stats = os.stat(args.data_path)
+            current_size = current_stats.st_size
+            current_mtime = current_stats.st_mtime
+
+            # Check if data path changed
             if cached_data_path != os.path.abspath(args.data_path):
                 if accelerator.is_main_process:
                     logger.warning(
@@ -956,6 +1013,23 @@ def prepare_data(
                         f"   Cached: {cached_data_path}\n"
                         f"   Current: {os.path.abspath(args.data_path)}\n"
                         f"   Invalidating cache and regenerating..."
+                    )
+                cache_exists = False
+            # Check if file was modified (size or mtime changed)
+            elif cached_file_size is not None and cached_file_size != current_size:
+                if accelerator.is_main_process:
+                    logger.warning(
+                        f"⚠️  Data file size changed!\n"
+                        f"   Cached size: {cached_file_size:,} bytes\n"
+                        f"   Current size: {current_size:,} bytes\n"
+                        f"   Invalidating cache and regenerating..."
+                    )
+                cache_exists = False
+            elif cached_file_mtime is not None and cached_file_mtime != current_mtime:
+                if accelerator.is_main_process:
+                    logger.warning(
+                        "⚠️  Data file was modified!\n"
+                        "   Cache may be stale, regenerating..."
                     )
                 cache_exists = False
         except Exception:
@@ -1053,13 +1127,16 @@ def prepare_data(
                 f"   Shape Detected: {full_shape} [{dim_type}] | Output Dim: {out_dim}"
             )
 
-            # Save metadata (including data path for cache validation)
+            # Save metadata (including data path, size, mtime for cache validation)
+            file_stats = os.stat(args.data_path)
             with open(META_FILE, "wb") as f:
                 pickle.dump(
                     {
                         "shape": full_shape,
                         "out_dim": out_dim,
                         "data_path": os.path.abspath(args.data_path),
+                        "file_size": file_stats.st_size,
+                        "file_mtime": file_stats.st_mtime,
                     },
                     f,
                 )

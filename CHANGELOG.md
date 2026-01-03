@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [1.4.2] - 2026-01-03
+
+### Added
+- Input-only loading for HDF5/MAT files in `load_test_data()` (inference without ground truth)
+- Cache metadata now includes file size and modification time for stale detection
+
+### Changed
+- **DDP**: Validation now uses `gather_object` (memory-efficient, collects only on rank 0)
+- **HPO**: Reads `training_history.csv` instead of parsing stdout (reliable metric extraction)
+- HPO stdout fallback uses regex pattern matching to avoid false positives
+
+### Fixed
+- **Critical**: HPO trials always returned `inf` (stdout parsing never matched trainer output)
+- **Critical**: DDP validation gathered full tensors to all ranks, risking OOM on large val sets
+- HDF5/MAT `load_test_data()` raised KeyError when outputs missing (now optional)
+- MAT input-only fallback lacked sparse matrix handling (now uses `MATSource._load_dataset`)
+
 ## [1.4.1] - 2026-01-03
 
 ### Added
@@ -120,6 +139,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Example configurations and training scripts
 - MIT License and citation file
 
+[1.4.2]: https://github.com/ductho-le/WaveDL/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/ductho-le/WaveDL/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/ductho-le/WaveDL/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/ductho-le/WaveDL/compare/v1.3.0...v1.3.1
