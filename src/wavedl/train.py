@@ -39,6 +39,13 @@ Author: Ductho Le (ductho.le@outlook.com)
 # ENVIRONMENT CONFIGURATION FOR HPC SYSTEMS
 # ==============================================================================
 # IMPORTANT: These must be set BEFORE matplotlib is imported to be effective
+
+# Suppress pydantic warnings from dependencies (accelerate/wandb) before they're imported
+import warnings
+
+
+warnings.filterwarnings("ignore", module="pydantic")
+
 import os
 
 
