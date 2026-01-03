@@ -152,8 +152,9 @@ Deploy models anywhere:
 
 ### Installation
 
+#### From PyPI (recommended for all users)
+
 ```bash
-# Install from PyPI
 pip install wavedl
 ```
 

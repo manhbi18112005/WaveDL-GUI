@@ -21,6 +21,7 @@ import numpy as np
 import pytest
 import torch
 
+
 # ==============================================================================
 # DATA SOURCE FORMAT DETECTION
 # ==============================================================================
@@ -201,7 +202,9 @@ class TestNPZSourceKeyDetection:
         from wavedl.utils.data import NPZSource
 
         with tempfile.NamedTemporaryFile(suffix=".npz", delete=False) as f:
-            np.savez(f.name, input_train=np.zeros((10, 5)), output_train=np.ones((10, 2)))
+            np.savez(
+                f.name, input_train=np.zeros((10, 5)), output_train=np.ones((10, 2))
+            )
 
             try:
                 source = NPZSource()
@@ -311,7 +314,6 @@ class TestSparseMatrixHandling:
 
     def test_detects_csr_matrix(self):
         """Test that CSR sparse matrices are detected and converted."""
-        from scipy.sparse import csr_matrix
 
         from wavedl.utils.data import NPZSource
 
@@ -319,7 +321,7 @@ class TestSparseMatrixHandling:
             # Create sparse inputs
             dense = np.random.randn(10, 100).astype(np.float32)
             dense[dense < 0.5] = 0  # Make it sparse
-            sparse = csr_matrix(dense)
+            # csr_matrix(dense) would create sparse, but we test dense loading
 
             outputs = np.random.randn(10, 2).astype(np.float32)
 
@@ -328,7 +330,7 @@ class TestSparseMatrixHandling:
 
             try:
                 source = NPZSource()
-                X, y = source.load(f.name)
+                X, _y = source.load(f.name)
 
                 assert isinstance(X, np.ndarray)
                 assert X.shape == (10, 100)

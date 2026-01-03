@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-01-03
+
+### Added
+- 6 new model architectures (38 total variants):
+  - **EfficientNetV2** (S/M/L) - modern efficient CNNs with pretrained weights
+  - **MobileNetV3** (Small/Large) - mobile-optimized with pretrained weights
+  - **RegNet** (Y-400MF to Y-8GF) - regularized networks with pretrained weights
+  - **ResNet3D-18, MC3-18** - 3D video/volume models
+  - **Swin Transformer** (T/S/B) - shifted window attention with pretrained weights
+  - **TCN** (small/base/large) - temporal convolutional networks for 1D signals
+- New unit tests: `test_cli.py`, `test_config_metrics.py`, `test_data_cv.py`
+- 704 total unit tests (up from 422)
+
+### Changed
+- Simplified installation: `pip install wavedl` now includes all dependencies
+- Removed optional extras `[all]`, `[hpo]`, `[onnx]` - all included by default
+- Triton installs automatically on Linux only (via environment marker)
+- Skip slow architecture tests in CI for faster builds
+- Synced `wavedl-hpc` with original bash script functionality
+
+### Fixed
+- E402 lint errors in `train.py` (moved imports to top)
+- Suppressed pydantic deprecation warnings
+
 ## [1.3.1] - 2026-01-02
 
 ### Fixed
@@ -75,6 +99,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Example configurations and training scripts
 - MIT License and citation file
 
+[1.4.0]: https://github.com/ductho-le/WaveDL/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/ductho-le/WaveDL/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/ductho-le/WaveDL/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/ductho-le/WaveDL/compare/v1.1.0...v1.2.0

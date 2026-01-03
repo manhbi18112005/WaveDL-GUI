@@ -15,11 +15,11 @@ Author: Ductho Le (ductho.le@outlook.com)
 import argparse
 import os
 import tempfile
-from pathlib import Path
 
 import numpy as np
 import pytest
 import torch
+
 
 # ==============================================================================
 # CONFIG MODULE TESTS
@@ -76,9 +76,7 @@ class TestLoadConfig:
         """Test loading a valid YAML config file."""
         from wavedl.utils.config import load_config
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("model: cnn\nlr: 0.001\nepochs: 100\n")
             f.flush()
 
@@ -94,9 +92,7 @@ class TestLoadConfig:
         """Test loading an empty YAML file returns empty dict."""
         from wavedl.utils.config import load_config
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("")
             f.flush()
 
@@ -110,9 +106,7 @@ class TestLoadConfig:
         """Test that nested YAML is flattened."""
         from wavedl.utils.config import load_config
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("optimizer:\n  lr: 0.001\n  weight_decay: 0.01\n")
             f.flush()
 
@@ -201,7 +195,15 @@ class TestCreateDefaultConfig:
         from wavedl.utils.config import create_default_config
 
         config = create_default_config()
-        required = ["model", "batch_size", "lr", "epochs", "loss", "optimizer", "scheduler"]
+        required = [
+            "model",
+            "batch_size",
+            "lr",
+            "epochs",
+            "loss",
+            "optimizer",
+            "scheduler",
+        ]
         for key in required:
             assert key in config
 

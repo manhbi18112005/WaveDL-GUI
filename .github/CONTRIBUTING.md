@@ -22,7 +22,7 @@ source venv/bin/activate  # Linux/Mac
 # or: venv\Scripts\activate  # Windows
 
 # Install in editable mode with dev dependencies
-pip install -e ".[dev]"
+pip install -e .
 
 # Install pre-commit hooks (required for contributors)
 pre-commit install
@@ -72,10 +72,14 @@ pre-commit run --all-files
 
 ## Running Tests
 
-Run the unit test suite before submitting any changes:
+Run the full unit test suite before submitting any changes:
 
 ```bash
-pytest unit_tests -v
+# Run all tests (704 tests, ~3 minutes)
+pytest unit_tests/ -v
+
+# Run fast tests only (~300 tests, ~5 seconds)
+pytest unit_tests/ -v -m "not slow"
 ```
 
 All tests should pass with no warnings.

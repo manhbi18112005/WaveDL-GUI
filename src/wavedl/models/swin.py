@@ -211,26 +211,32 @@ class SwinTransformerBase(BaseModel):
         groups = []
 
         if head_params:
-            groups.append({
-                "params": head_params,
-                "lr": base_lr,
-                "weight_decay": weight_decay,
-            })
+            groups.append(
+                {
+                    "params": head_params,
+                    "lr": base_lr,
+                    "weight_decay": weight_decay,
+                }
+            )
 
         if backbone_params:
             # Apply 0.1x learning rate to backbone (common for fine-tuning)
-            groups.append({
-                "params": backbone_params,
-                "lr": base_lr * 0.1,
-                "weight_decay": weight_decay,
-            })
+            groups.append(
+                {
+                    "params": backbone_params,
+                    "lr": base_lr * 0.1,
+                    "weight_decay": weight_decay,
+                }
+            )
 
         if no_decay_params:
-            groups.append({
-                "params": no_decay_params,
-                "lr": base_lr,
-                "weight_decay": 0.0,
-            })
+            groups.append(
+                {
+                    "params": no_decay_params,
+                    "lr": base_lr,
+                    "weight_decay": 0.0,
+                }
+            )
 
         return groups if groups else [{"params": self.parameters(), "lr": base_lr}]
 

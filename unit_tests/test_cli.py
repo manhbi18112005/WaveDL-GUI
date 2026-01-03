@@ -186,7 +186,14 @@ class TestTrainParseArgs:
         with patch.object(
             sys,
             "argv",
-            ["wavedl-train", "--model", "cnn", "--data_path", "/fake/path.npz", "--compile"],
+            [
+                "wavedl-train",
+                "--model",
+                "cnn",
+                "--data_path",
+                "/fake/path.npz",
+                "--compile",
+            ],
         ):
             args, _ = parse_args()
             assert args.compile is True
@@ -480,7 +487,10 @@ class TestHPCDetectGPUs:
 
         with (
             patch("shutil.which", return_value="/usr/bin/nvidia-smi"),
-            patch("subprocess.run", side_effect=subprocess.CalledProcessError(1, "nvidia-smi")),
+            patch(
+                "subprocess.run",
+                side_effect=subprocess.CalledProcessError(1, "nvidia-smi"),
+            ),
         ):
             assert detect_gpus() == 1
 
