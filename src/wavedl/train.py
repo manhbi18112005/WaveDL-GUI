@@ -37,15 +37,64 @@ Author: Ductho Le (ductho.le@outlook.com)
 
 from __future__ import annotations
 
+# =============================================================================
+# HPC Environment Setup (MUST be before any library imports)
+# =============================================================================
+# Set writable cache directories for matplotlib and fontconfig ONLY when
+# the default paths are not writable (common on HPC clusters).
+import os
+import tempfile
+
+
+def _setup_cache_dir(env_var: str, default_subpath: str) -> None:
+    """Set cache directory only if default path is not writable."""
+    if env_var in os.environ:
+        return  # User already set, respect their choice
+
+    # Check if default home config path is writable
+    home = os.path.expanduser("~")
+    default_path = os.path.join(home, ".config", default_subpath)
+    default_parent = os.path.dirname(default_path)
+
+    # If default path or its parent is writable, let the library use defaults
+    if (
+        os.access(default_path, os.W_OK)
+        or (os.path.exists(default_parent) and os.access(default_parent, os.W_OK))
+        or os.access(os.path.join(home, ".config"), os.W_OK)
+    ):
+        return
+
+    # Default not writable - find alternative location
+    for cache_base in [
+        os.environ.get("SCRATCH"),
+        os.environ.get("SLURM_TMPDIR"),
+        tempfile.gettempdir(),
+    ]:
+        if cache_base and os.access(cache_base, os.W_OK):
+            cache_path = os.path.join(cache_base, f".{default_subpath}")
+            os.makedirs(cache_path, exist_ok=True)
+            os.environ[env_var] = cache_path
+            return
+
+
+_setup_cache_dir("MPLCONFIGDIR", "matplotlib")
+_setup_cache_dir("FONTCONFIG_CACHE", "fontconfig")
+
+# =============================================================================
+# Standard imports (after environment setup)
+# =============================================================================
 import argparse
 import logging
-import os
 import pickle
 import shutil
 import sys
 import time
 import warnings
 from typing import Any
+
+
+# Suppress Pydantic warnings from accelerate's internal Field() usage
+warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -582,9 +631,9 @@ def main():
     # Torch 2.0 compilation (requires compatible Triton on GPU)
     if args.compile:
         try:
-            # Test if Triton is available AND compatible with this PyTorch version
-            # PyTorch needs triton_key from triton.compiler.compiler
-            from triton.compiler.compiler import triton_key
+            # Test if Triton is available - just import the package
+            # Different Triton versions have different internal APIs, so just check base import
+            import triton
 
             model = torch.compile(model)
             if accelerator.is_main_process:
@@ -875,9 +924,13 @@ def main():
             cpu_preds = torch.cat(local_preds)
             cpu_targets = torch.cat(local_targets)
 
-            # Gather to rank 0 only via gather_object (avoids all-gather to every rank)
-            # gather_object returns list of objects from each rank: [(preds0, targs0), (preds1, targs1), ...]
-            gathered = accelerator.gather_object((cpu_preds, cpu_targets))
+            # Gather predictions and targets across all ranks
+            # Use accelerator.gather (works with all accelerate versions)
+            gpu_preds = cpu_preds.to(accelerator.device)
+            gpu_targets = cpu_targets.to(accelerator.device)
+            all_preds_gathered = accelerator.gather(gpu_preds).cpu()
+            all_targets_gathered = accelerator.gather(gpu_targets).cpu()
+            gathered = [(all_preds_gathered, all_targets_gathered)]
 
             # Synchronize validation metrics (scalars only - efficient)
             val_loss_scalar = val_loss_sum.item()

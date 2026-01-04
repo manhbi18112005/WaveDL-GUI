@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.3] - 2026-01-03
+
+### Added
+- Smart HPC cache directory setup (`_setup_cache_dir`) - auto-detects writable paths for matplotlib/fontconfig
+
+### Changed
+- **DDP**: Switched back to `accelerator.gather()` for broader accelerate version compatibility
+- Simplified Triton availability check (imports package instead of internal compiler API)
+
+### Fixed
+- E402 lint errors from intentional HPC environment setup imports in `train.py`
+- Configured per-file-ignores in `pyproject.toml` to allow early `os`/`tempfile` imports
+- Added pydantic warning suppression for accelerate's internal Field() usage
+
 ## [1.4.2] - 2026-01-03
 
 ### Added
@@ -139,6 +153,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Example configurations and training scripts
 - MIT License and citation file
 
+[1.4.3]: https://github.com/ductho-le/WaveDL/compare/v1.4.2...v1.4.3
 [1.4.2]: https://github.com/ductho-le/WaveDL/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/ductho-le/WaveDL/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/ductho-le/WaveDL/compare/v1.3.1...v1.4.0

@@ -175,7 +175,7 @@ lines-after-imports = 2
 # Allow assert statements in tests
 "unit_tests/*" = ["B011", "S101"]
 # Allow unused imports for availability checks
-"src/wavedl/train.py" = ["F401"]
+"src/wavedl/train.py" = ["F401", "E402"]
 "src/wavedl/test.py" = ["F401"]
 "src/wavedl/utils/data.py" = ["F401"]
 
