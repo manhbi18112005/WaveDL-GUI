@@ -174,7 +174,9 @@ Environment Variables:
     return args, remaining
 
 
-def print_summary(exit_code: int, wandb_mode: str, wandb_dir: str) -> None:
+def print_summary(
+    exit_code: int, wandb_enabled: bool, wandb_mode: str, wandb_dir: str
+) -> None:
     """Print post-training summary and instructions."""
     print()
     print("=" * 40)
@@ -183,7 +185,8 @@ def print_summary(exit_code: int, wandb_mode: str, wandb_dir: str) -> None:
         print("✅ Training completed successfully!")
         print("=" * 40)
 
-        if wandb_mode == "offline":
+        # Only show WandB sync instructions if user enabled wandb
+        if wandb_enabled and wandb_mode == "offline":
             print()
             print("📊 WandB Sync Instructions:")
             print("   From the login node, run:")
@@ -237,6 +240,10 @@ def main() -> int:
         f"--dynamo_backend={args.dynamo_backend}",
     ]
 
+    # Explicitly set multi_gpu to suppress accelerate auto-detection warning
+    if num_gpus > 1:
+        cmd.append("--multi_gpu")
+
     # Add multi-node networking args if specified (required for some clusters)
     if args.main_process_ip:
         cmd.append(f"--main_process_ip={args.main_process_ip}")
@@ -263,8 +270,10 @@ def main() -> int:
         exit_code = 130
 
     # Print summary
+    wandb_enabled = "--wandb" in train_args
     print_summary(
         exit_code,
+        wandb_enabled,
         os.environ.get("WANDB_MODE", "offline"),
         os.environ.get("WANDB_DIR", "/tmp/wandb"),
     )

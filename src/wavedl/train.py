@@ -149,6 +149,24 @@ torch.backends.cudnn.benchmark = True
 
 
 # ==============================================================================
+# LOGGING UTILITIES
+# ==============================================================================
+from contextlib import contextmanager
+
+
+@contextmanager
+def suppress_accelerate_logging():
+    """Temporarily suppress accelerate's verbose checkpoint save messages."""
+    accelerate_logger = logging.getLogger("accelerate.checkpointing")
+    original_level = accelerate_logger.level
+    accelerate_logger.setLevel(logging.WARNING)
+    try:
+        yield
+    finally:
+        accelerate_logger.setLevel(original_level)
+
+
+# ==============================================================================
 # ARGUMENT PARSING
 # ==============================================================================
 def parse_args() -> argparse.Namespace:
@@ -1033,7 +1051,8 @@ def main():
             # Step 3: Save checkpoint with all ranks participating
             if is_best_epoch:
                 ckpt_dir = os.path.join(args.output_dir, "best_checkpoint")
-                accelerator.save_state(ckpt_dir)  # All ranks must call this
+                with suppress_accelerate_logging():
+                    accelerator.save_state(ckpt_dir, safe_serialization=False)
 
                 # Step 4: Rank 0 handles metadata and updates tracking variables
                 if accelerator.is_main_process:
@@ -1096,7 +1115,8 @@ def main():
             if periodic_checkpoint_needed:
                 ckpt_name = f"epoch_{epoch + 1}_checkpoint"
                 ckpt_dir = os.path.join(args.output_dir, ckpt_name)
-                accelerator.save_state(ckpt_dir)  # All ranks participate
+                with suppress_accelerate_logging():
+                    accelerator.save_state(ckpt_dir, safe_serialization=False)
 
                 if accelerator.is_main_process:
                     with open(os.path.join(ckpt_dir, "training_meta.pkl"), "wb") as f:
@@ -1147,7 +1167,11 @@ def main():
 
     except KeyboardInterrupt:
         logger.warning("Training interrupted. Saving emergency checkpoint...")
-        accelerator.save_state(os.path.join(args.output_dir, "interrupted_checkpoint"))
+        with suppress_accelerate_logging():
+            accelerator.save_state(
+                os.path.join(args.output_dir, "interrupted_checkpoint"),
+                safe_serialization=False,
+            )
 
     except Exception as e:
         logger.error(f"Critical error: {e}", exc_info=True)

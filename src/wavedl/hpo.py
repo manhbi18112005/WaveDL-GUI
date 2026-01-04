@@ -31,7 +31,7 @@ try:
     import optuna
     from optuna.trial import TrialState
 except ImportError:
-    print("Error: Optuna not installed. Run: pip install -e '.[hpo]'")
+    print("Error: Optuna not installed. Run: pip install wavedl")
     sys.exit(1)
 
 
@@ -147,6 +147,32 @@ def create_objective(args):
             cmd.extend(["--output_dir", tmpdir])
             history_file = Path(tmpdir) / "training_history.csv"
 
+            # GPU isolation for parallel trials: assign each trial to a specific GPU
+            # This prevents multiple trials from competing for all GPUs
+            env = None
+            if args.n_jobs > 1:
+                import os
+
+                # Detect available GPUs
+                n_gpus = 1
+                try:
+                    import subprocess as sp
+
+                    result_gpu = sp.run(
+                        ["nvidia-smi", "--list-gpus"],
+                        capture_output=True,
+                        text=True,
+                    )
+                    if result_gpu.returncode == 0:
+                        n_gpus = len(result_gpu.stdout.strip().split("\n"))
+                except Exception:
+                    pass
+
+                # Assign trial to a specific GPU (round-robin)
+                gpu_id = trial.number % n_gpus
+                env = os.environ.copy()
+                env["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+
             # Run training
             try:
                 result = subprocess.run(
@@ -155,6 +181,7 @@ def create_objective(args):
                     text=True,
                     timeout=args.timeout,
                     cwd=Path(__file__).parent,
+                    env=env,
                 )
 
                 # Read best val_loss from training_history.csv (reliable machine-readable)
@@ -248,7 +275,10 @@ Examples:
         "--n_trials", type=int, default=50, help="Number of HPO trials (default: 50)"
     )
     parser.add_argument(
-        "--n_jobs", type=int, default=1, help="Parallel trials (default: 1)"
+        "--n_jobs",
+        type=int,
+        default=-1,
+        help="Parallel trials (-1 = auto-detect GPUs, default: -1)",
     )
     parser.add_argument(
         "--quick",
@@ -315,10 +345,29 @@ Examples:
 
     args = parser.parse_args()
 
+    # Convert to absolute path (child processes may run in different cwd)
+    args.data_path = str(Path(args.data_path).resolve())
+
     # Validate data path
     if not Path(args.data_path).exists():
         print(f"Error: Data file not found: {args.data_path}")
         sys.exit(1)
+
+    # Auto-detect GPUs for n_jobs if not specified
+    if args.n_jobs == -1:
+        try:
+            result_gpu = subprocess.run(
+                ["nvidia-smi", "--list-gpus"],
+                capture_output=True,
+                text=True,
+            )
+            if result_gpu.returncode == 0:
+                args.n_jobs = max(1, len(result_gpu.stdout.strip().split("\n")))
+            else:
+                args.n_jobs = 1
+        except Exception:
+            args.n_jobs = 1
+        print(f"Auto-detected {args.n_jobs} GPU(s) for parallel trials")
 
     # Create study
     print("=" * 60)

@@ -557,7 +557,12 @@ class TestHPCPrintSummary:
         """Test success summary output."""
         from wavedl.hpc import print_summary
 
-        print_summary(exit_code=0, wandb_mode="offline", wandb_dir="/tmp/wandb")
+        print_summary(
+            exit_code=0,
+            wandb_enabled=True,
+            wandb_mode="offline",
+            wandb_dir="/tmp/wandb",
+        )
 
         captured = capsys.readouterr()
         assert "Training completed successfully" in captured.out
@@ -567,7 +572,12 @@ class TestHPCPrintSummary:
         """Test failure summary output."""
         from wavedl.hpc import print_summary
 
-        print_summary(exit_code=1, wandb_mode="offline", wandb_dir="/tmp/wandb")
+        print_summary(
+            exit_code=1,
+            wandb_enabled=True,
+            wandb_mode="offline",
+            wandb_dir="/tmp/wandb",
+        )
 
         captured = capsys.readouterr()
         assert "Training failed" in captured.out

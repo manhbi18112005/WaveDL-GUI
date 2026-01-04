@@ -5,7 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.4.6] - 2026-01-04
+
+### Added
+- **HPO**: Auto-detect GPUs and default `--n_jobs` to GPU count (maximizes resource utilization)
+- **HPO**: GPU isolation for parallel trials (each trial runs on a dedicated GPU)
+
+### Changed
+- **HPC**: Launcher now passes `--multi_gpu` explicitly to suppress accelerate auto-detection warnings
+- **Training**: Checkpoints now use `.bin` format (`safe_serialization=False`) for faster saves
+- **Training**: Suppressed verbose accelerate checkpoint logging during saves (cleaner output)
+- **HPO**: Default `--n_jobs` changed from `1` to `-1` (auto-detect GPUs)
+
+### Fixed
+- **HPC**: WandB offline sync instructions only shown when `--wandb` flag is actually used
+- **Inference**: `test.py` now checks for `model.bin` in addition to `model.safetensors` and `pytorch_model.bin`
+- **HPO**: Relative data paths now converted to absolute (fixes "file not found" in child processes)
 
 ## [1.4.5] - 2026-01-04
 
@@ -170,6 +185,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Example configurations and training scripts
 - MIT License and citation file
 
+[1.4.6]: https://github.com/ductho-le/WaveDL/compare/v1.4.5...v1.4.6
 [1.4.5]: https://github.com/ductho-le/WaveDL/compare/v1.4.4...v1.4.5
 [1.4.4]: https://github.com/ductho-le/WaveDL/compare/v1.4.3...v1.4.4
 [1.4.3]: https://github.com/ductho-le/WaveDL/compare/v1.4.2...v1.4.3

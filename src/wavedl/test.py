@@ -366,13 +366,19 @@ def load_checkpoint(
     logging.info(f"   Building model: {model_name}")
     model = build_model(model_name, in_shape=in_shape, out_size=out_size)
 
-    # Load weights (prefer safetensors)
-    weight_path = checkpoint_dir / "model.safetensors"
-    if not weight_path.exists():
-        weight_path = checkpoint_dir / "pytorch_model.bin"
+    # Load weights (check multiple formats in order of preference)
+    weight_path = None
+    for fname in ["model.safetensors", "model.bin", "pytorch_model.bin"]:
+        candidate = checkpoint_dir / fname
+        if candidate.exists():
+            weight_path = candidate
+            break
 
-    if not weight_path.exists():
-        raise FileNotFoundError(f"No model weights found in {checkpoint_dir}")
+    if weight_path is None:
+        raise FileNotFoundError(
+            f"No model weights found in {checkpoint_dir}. "
+            f"Expected one of: model.safetensors, model.bin, pytorch_model.bin"
+        )
 
     if HAS_SAFETENSORS and weight_path.suffix == ".safetensors":
         state_dict = load_safetensors(str(weight_path))

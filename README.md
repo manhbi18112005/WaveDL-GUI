@@ -689,17 +689,19 @@ Automatically find the best training configuration using [Optuna](https://optuna
 
 **Run HPO:**
 
-You specify which models to search and how many trials to run:
 ```bash
-# Search 3 models with 100 trials
-python -m wavedl.hpo --data_path train.npz --models cnn resnet18 efficientnet_b0 --n_trials 100
+# Basic HPO (auto-detects GPUs for parallel trials)
+wavedl-hpo --data_path train.npz --models cnn --n_trials 100
 
-# Search 1 model (faster)
-python -m wavedl.hpo --data_path train.npz --models cnn --n_trials 50
+# Search multiple models
+wavedl-hpo --data_path train.npz --models cnn resnet18 efficientnet_b0 --n_trials 200
 
-# Search all your candidate models
-python -m wavedl.hpo --data_path train.npz --models cnn resnet18 resnet50 vit_small densenet121 --n_trials 200
+# Quick mode (fewer parameters, faster)
+wavedl-hpo --data_path train.npz --models cnn --n_trials 50 --quick
 ```
+
+> [!TIP]
+> **Auto GPU Detection**: HPO automatically detects available GPUs and runs one trial per GPU in parallel. On a 4-GPU system, 4 trials run simultaneously. Use `--n_jobs 1` to force serial execution.
 
 **Train with best parameters**
 
@@ -739,7 +741,7 @@ accelerate launch -m wavedl.train --data_path train.npz --model cnn --lr 3.2e-4 
 | `--optimizers` | all 6 | Optimizers to search |
 | `--schedulers` | all 8 | Schedulers to search |
 | `--losses` | all 6 | Losses to search |
-| `--n_jobs` | `1` | Parallel trials (multi-GPU) |
+| `--n_jobs` | `-1` | Parallel trials (-1 = auto-detect GPUs) |
 | `--max_epochs` | `50` | Max epochs per trial |
 | `--output` | `hpo_results.json` | Output file |
 
