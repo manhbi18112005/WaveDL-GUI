@@ -29,29 +29,52 @@ Author: Ductho Le (ductho.le@outlook.com)
 # ==============================================================================
 # ENVIRONMENT CONFIGURATION (must be before matplotlib import)
 # ==============================================================================
+# Auto-configure writable cache directories when home is not writable.
+# Uses current working directory as fallback - works on HPC and local machines.
 import os
 
 
-os.environ.setdefault("MPLCONFIGDIR", os.getenv("TMPDIR", "/tmp") + "/matplotlib")
-os.environ.setdefault("FONTCONFIG_PATH", "/etc/fonts")
+def _setup_cache_dir(env_var: str, subdir: str) -> None:
+    """Set cache directory to CWD if home is not writable."""
+    if env_var in os.environ:
+        return  # User already set, respect their choice
 
-import argparse
-import logging
-import pickle
-from pathlib import Path
+    # Check if home is writable
+    home = os.path.expanduser("~")
+    if os.access(home, os.W_OK):
+        return  # Home is writable, let library use defaults
 
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-import torch
-import torch.nn as nn
-from sklearn.metrics import mean_absolute_error, r2_score
-from torch.utils.data import DataLoader, TensorDataset
-from tqdm.auto import tqdm
+    # Home not writable - use current working directory
+    cache_path = os.path.join(os.getcwd(), f".{subdir}")
+    os.makedirs(cache_path, exist_ok=True)
+    os.environ[env_var] = cache_path
+
+
+# Configure cache directories (before any library imports)
+_setup_cache_dir("TORCH_HOME", "torch_cache")
+_setup_cache_dir("MPLCONFIGDIR", "matplotlib")
+_setup_cache_dir("FONTCONFIG_CACHE", "fontconfig")
+_setup_cache_dir("XDG_DATA_HOME", "local/share")
+_setup_cache_dir("XDG_STATE_HOME", "local/state")
+_setup_cache_dir("XDG_CACHE_HOME", "cache")
+
+import argparse  # noqa: E402
+import logging  # noqa: E402
+import pickle  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np  # noqa: E402
+import pandas as pd  # noqa: E402
+import torch  # noqa: E402
+import torch.nn as nn  # noqa: E402
+from sklearn.metrics import mean_absolute_error, r2_score  # noqa: E402
+from torch.utils.data import DataLoader, TensorDataset  # noqa: E402
+from tqdm.auto import tqdm  # noqa: E402
 
 # Local imports
-from wavedl.models import build_model, list_models
-from wavedl.utils import (
+from wavedl.models import build_model, list_models  # noqa: E402
+from wavedl.utils import (  # noqa: E402
     FIGURE_DPI,
     calc_pearson,
     load_test_data,

@@ -18,7 +18,7 @@ For inference:
     # or: python -m wavedl.test --checkpoint best_checkpoint --data_path test.npz
 """
 
-__version__ = "1.4.3"
+__version__ = "1.4.4"
 __author__ = "Ductho Le"
 __email__ = "ductho.le@outlook.com"
 

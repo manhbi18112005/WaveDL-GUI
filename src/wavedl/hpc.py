@@ -26,7 +26,6 @@ import os
 import shutil
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 
@@ -60,26 +59,40 @@ def setup_hpc_environment() -> None:
     Handles restricted home directories (e.g., Compute Canada) and
     offline logging configurations.
     """
-    # Use SLURM_TMPDIR if available, otherwise system temp
-    tmpdir = os.environ.get(
-        "SLURM_TMPDIR", os.environ.get("TMPDIR", tempfile.gettempdir())
-    )
+    # Check if home is writable
+    home = os.path.expanduser("~")
+    home_writable = os.access(home, os.W_OK)
 
-    # Configure directories for systems with restricted home directories
-    os.environ.setdefault("MPLCONFIGDIR", f"{tmpdir}/matplotlib")
-    os.environ.setdefault(
-        "FONTCONFIG_PATH", os.environ.get("FONTCONFIG_PATH", "/etc/fonts")
-    )
-    os.environ.setdefault("XDG_CACHE_HOME", f"{tmpdir}/.cache")
+    # Use SLURM_TMPDIR if available, otherwise CWD for HPC, or system temp
+    if home_writable:
+        # Local machine - let libraries use defaults
+        cache_base = None
+    else:
+        # HPC with restricted home - use CWD for persistent caches
+        cache_base = os.getcwd()
 
-    # Ensure matplotlib config dir exists
-    Path(os.environ["MPLCONFIGDIR"]).mkdir(parents=True, exist_ok=True)
+    # Only set environment variables if home is not writable
+    if cache_base:
+        os.environ.setdefault("TORCH_HOME", f"{cache_base}/.torch_cache")
+        os.environ.setdefault("MPLCONFIGDIR", f"{cache_base}/.matplotlib")
+        os.environ.setdefault("FONTCONFIG_CACHE", f"{cache_base}/.fontconfig")
+        os.environ.setdefault("XDG_CACHE_HOME", f"{cache_base}/.cache")
+
+        # Ensure directories exist
+        for env_var in [
+            "TORCH_HOME",
+            "MPLCONFIGDIR",
+            "FONTCONFIG_CACHE",
+            "XDG_CACHE_HOME",
+        ]:
+            Path(os.environ[env_var]).mkdir(parents=True, exist_ok=True)
 
     # WandB configuration (offline by default for HPC)
     os.environ.setdefault("WANDB_MODE", "offline")
-    os.environ.setdefault("WANDB_DIR", f"{tmpdir}/wandb")
-    os.environ.setdefault("WANDB_CACHE_DIR", f"{tmpdir}/wandb_cache")
-    os.environ.setdefault("WANDB_CONFIG_DIR", f"{tmpdir}/wandb_config")
+    if cache_base:
+        os.environ.setdefault("WANDB_DIR", f"{cache_base}/.wandb")
+        os.environ.setdefault("WANDB_CACHE_DIR", f"{cache_base}/.wandb_cache")
+        os.environ.setdefault("WANDB_CONFIG_DIR", f"{cache_base}/.wandb_config")
 
     # Suppress non-critical warnings
     os.environ.setdefault(

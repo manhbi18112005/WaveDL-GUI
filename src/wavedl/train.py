@@ -40,45 +40,34 @@ from __future__ import annotations
 # =============================================================================
 # HPC Environment Setup (MUST be before any library imports)
 # =============================================================================
-# Set writable cache directories for matplotlib and fontconfig ONLY when
-# the default paths are not writable (common on HPC clusters).
+# Auto-configure writable cache directories when home is not writable.
+# Uses current working directory as fallback - works on HPC and local machines.
 import os
-import tempfile
 
 
-def _setup_cache_dir(env_var: str, default_subpath: str) -> None:
-    """Set cache directory only if default path is not writable."""
+def _setup_cache_dir(env_var: str, subdir: str) -> None:
+    """Set cache directory to CWD if home is not writable."""
     if env_var in os.environ:
         return  # User already set, respect their choice
 
-    # Check if default home config path is writable
+    # Check if home is writable
     home = os.path.expanduser("~")
-    default_path = os.path.join(home, ".config", default_subpath)
-    default_parent = os.path.dirname(default_path)
+    if os.access(home, os.W_OK):
+        return  # Home is writable, let library use defaults
 
-    # If default path or its parent is writable, let the library use defaults
-    if (
-        os.access(default_path, os.W_OK)
-        or (os.path.exists(default_parent) and os.access(default_parent, os.W_OK))
-        or os.access(os.path.join(home, ".config"), os.W_OK)
-    ):
-        return
-
-    # Default not writable - find alternative location
-    for cache_base in [
-        os.environ.get("SCRATCH"),
-        os.environ.get("SLURM_TMPDIR"),
-        tempfile.gettempdir(),
-    ]:
-        if cache_base and os.access(cache_base, os.W_OK):
-            cache_path = os.path.join(cache_base, f".{default_subpath}")
-            os.makedirs(cache_path, exist_ok=True)
-            os.environ[env_var] = cache_path
-            return
+    # Home not writable - use current working directory
+    cache_path = os.path.join(os.getcwd(), f".{subdir}")
+    os.makedirs(cache_path, exist_ok=True)
+    os.environ[env_var] = cache_path
 
 
+# Configure cache directories (before any library imports)
+_setup_cache_dir("TORCH_HOME", "torch_cache")
 _setup_cache_dir("MPLCONFIGDIR", "matplotlib")
 _setup_cache_dir("FONTCONFIG_CACHE", "fontconfig")
+_setup_cache_dir("XDG_DATA_HOME", "local/share")
+_setup_cache_dir("XDG_STATE_HOME", "local/state")
+_setup_cache_dir("XDG_CACHE_HOME", "cache")
 
 # =============================================================================
 # Standard imports (after environment setup)
@@ -1065,7 +1054,17 @@ def main():
                             f,
                         )
 
-                    unwrapped = accelerator.unwrap_model(model)
+                    # Unwrap model for saving (handle torch.compile compatibility)
+                    try:
+                        unwrapped = accelerator.unwrap_model(model)
+                    except KeyError:
+                        # torch.compile model may not have _orig_mod in expected location
+                        # Fall back to getting the module directly
+                        unwrapped = model.module if hasattr(model, "module") else model
+                        # If still compiled, try to get the underlying model
+                        if hasattr(unwrapped, "_orig_mod"):
+                            unwrapped = unwrapped._orig_mod
+
                     torch.save(
                         unwrapped.state_dict(),
                         os.path.join(args.output_dir, "best_model_weights.pth"),

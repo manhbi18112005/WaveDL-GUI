@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.4] - 2026-01-04
+
+### Changed
+- Unified HPC cache directory setup across all entry points (`train.py`, `test.py`, `hpc.py`)
+- Simplified cache logic: uses CWD fallback only when home is not writable (cleaner for local development)
+- Removed `tempfile` dependency from `train.py` and `hpc.py` (uses CWD-based caching instead)
+
+### Fixed
+- `torch.compile` model unwrapping during checkpoint save (handles missing `_orig_mod` gracefully)
+- E402 lint errors in `test.py` from intentional HPC environment setup imports
+- Unit test for HPC environment setup now properly mocks non-writable home directory
+
 ## [1.4.3] - 2026-01-03
 
 ### Added
@@ -153,6 +165,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Example configurations and training scripts
 - MIT License and citation file
 
+[1.4.4]: https://github.com/ductho-le/WaveDL/compare/v1.4.3...v1.4.4
 [1.4.3]: https://github.com/ductho-le/WaveDL/compare/v1.4.2...v1.4.3
 [1.4.2]: https://github.com/ductho-le/WaveDL/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/ductho-le/WaveDL/compare/v1.4.0...v1.4.1

@@ -499,16 +499,18 @@ class TestHPCEnvironment:
     """Tests for HPC environment configuration."""
 
     def test_sets_default_env_vars(self):
-        """Test that default environment variables are set."""
+        """Test that default environment variables are set when home is not writable."""
         from wavedl.hpc import setup_hpc_environment
 
         env_vars = ["MPLCONFIGDIR", "WANDB_MODE", "WANDB_DIR"]
         original = {v: os.environ.pop(v, None) for v in env_vars}
 
         try:
-            setup_hpc_environment()
-            assert "MPLCONFIGDIR" in os.environ
-            assert os.environ["WANDB_MODE"] == "offline"
+            # Mock home directory as non-writable (simulates HPC environment)
+            with patch("os.access", return_value=False):
+                setup_hpc_environment()
+                assert "MPLCONFIGDIR" in os.environ
+                assert os.environ["WANDB_MODE"] == "offline"
         finally:
             for var, val in original.items():
                 if val is not None:
