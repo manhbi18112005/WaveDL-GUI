@@ -379,10 +379,18 @@ def load_checkpoint(
     else:
         state_dict = torch.load(weight_path, map_location="cpu", weights_only=True)
 
-    # Remove 'module.' prefix from DDP checkpoints (leading only, not all occurrences)
-    state_dict = {
-        (k[7:] if k.startswith("module.") else k): v for k, v in state_dict.items()
-    }
+    # Remove wrapper prefixes from checkpoints:
+    # - 'module.' from DDP (DistributedDataParallel)
+    # - '_orig_mod.' from torch.compile()
+    cleaned_dict = {}
+    for k, v in state_dict.items():
+        key = k
+        if key.startswith("module."):
+            key = key[7:]  # Remove 'module.' (7 chars)
+        if key.startswith("_orig_mod."):
+            key = key[10:]  # Remove '_orig_mod.' (10 chars)
+        cleaned_dict[key] = v
+    state_dict = cleaned_dict
 
     model.load_state_dict(state_dict)
     model.eval()

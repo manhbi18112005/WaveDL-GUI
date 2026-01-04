@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.5] - 2026-01-04
+
+### Fixed
+- **Critical**: `test.py` failed to load checkpoints from `--compile` models (`_orig_mod.` prefix not stripped)
+
 ## [1.4.4] - 2026-01-04
 
 ### Changed
@@ -165,6 +170,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Example configurations and training scripts
 - MIT License and citation file
 
+[1.4.5]: https://github.com/ductho-le/WaveDL/compare/v1.4.4...v1.4.5
 [1.4.4]: https://github.com/ductho-le/WaveDL/compare/v1.4.3...v1.4.4
 [1.4.3]: https://github.com/ductho-le/WaveDL/compare/v1.4.2...v1.4.3
 [1.4.2]: https://github.com/ductho-le/WaveDL/compare/v1.4.1...v1.4.2
