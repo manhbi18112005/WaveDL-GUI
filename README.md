@@ -417,7 +417,43 @@ WaveDL/
 | **U-Net** — U-shaped Network |||
 | `unet_regression` | 31.1M | 1D/2D/3D |
 
-> ⭐ = Pretrained on ImageNet. Recommended for smaller datasets.
+⭐ = **Pretrained on ImageNet** (recommended for smaller datasets). Weights are downloaded automatically on first use.
+- **Cache location**: `~/.cache/torch/hub/checkpoints/` (or `./.torch_cache/` on HPC if home is not writable)
+- **Size**: ~20–350 MB per model depending on architecture
+
+**💡 HPC Users**: If compute nodes block internet, pre-download weights on the login node:
+
+```bash
+# Run once on login node (with internet) — downloads ALL pretrained weights (~1.5 GB total)
+python -c "
+import os
+os.environ['TORCH_HOME'] = '.torch_cache'  # Match WaveDL's HPC cache location
+
+from torchvision import models as m
+from torchvision.models import video as v
+
+# Model name -> Weights class mapping
+weights = {
+    'resnet18': m.ResNet18_Weights, 'resnet50': m.ResNet50_Weights,
+    'efficientnet_b0': m.EfficientNet_B0_Weights, 'efficientnet_b1': m.EfficientNet_B1_Weights,
+    'efficientnet_b2': m.EfficientNet_B2_Weights, 'efficientnet_v2_s': m.EfficientNet_V2_S_Weights,
+    'efficientnet_v2_m': m.EfficientNet_V2_M_Weights, 'efficientnet_v2_l': m.EfficientNet_V2_L_Weights,
+    'mobilenet_v3_small': m.MobileNet_V3_Small_Weights, 'mobilenet_v3_large': m.MobileNet_V3_Large_Weights,
+    'regnet_y_400mf': m.RegNet_Y_400MF_Weights, 'regnet_y_800mf': m.RegNet_Y_800MF_Weights,
+    'regnet_y_1_6gf': m.RegNet_Y_1_6GF_Weights, 'regnet_y_3_2gf': m.RegNet_Y_3_2GF_Weights,
+    'regnet_y_8gf': m.RegNet_Y_8GF_Weights, 'swin_t': m.Swin_T_Weights, 'swin_s': m.Swin_S_Weights,
+    'swin_b': m.Swin_B_Weights, 'convnext_tiny': m.ConvNeXt_Tiny_Weights, 'densenet121': m.DenseNet121_Weights,
+}
+for name, w in weights.items():
+    getattr(m, name)(weights=w.DEFAULT); print(f'✓ {name}')
+
+# 3D video models
+v.r3d_18(weights=v.R3D_18_Weights.DEFAULT); print('✓ r3d_18')
+v.mc3_18(weights=v.MC3_18_Weights.DEFAULT); print('✓ mc3_18')
+print('\\n✓ All pretrained weights cached!')
+"
+```
+
 
 </details>
 
@@ -642,7 +678,6 @@ compile: false
 seed: 2025
 ```
 
-> [!TIP]
 > See [`configs/config.yaml`](configs/config.yaml) for the complete template with all available options documented.
 
 </details>
@@ -708,7 +743,7 @@ accelerate launch -m wavedl.train --data_path train.npz --model cnn --lr 3.2e-4 
 | `--max_epochs` | `50` | Max epochs per trial |
 | `--output` | `hpo_results.json` | Output file |
 
-> [!TIP]
+
 > See [Available Models](#available-models) for all 38 architectures you can search.
 
 </details>
