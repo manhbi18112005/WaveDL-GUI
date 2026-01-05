@@ -68,14 +68,12 @@ Train on datasets larger than RAM:
 </td>
 <td width="50%" valign="top">
 
-**🧠 One-Line Model Registration**
+**🧠 Models? We've Got Options**
 
-Plug in any architecture:
-```python
-@register_model("my_net")
-class MyNet(BaseModel): ...
-```
-Design your model. Register with one line.
+38 production-ready + easy extension:
+- [CNNs, ResNets, EfficientNets, Transformers...](#️-configuration)
+- All adapted for regression out-of-the-box
+- [Add custom models](#adding-custom-models) with one-line registration
 
 </td>
 </tr>
