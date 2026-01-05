@@ -721,7 +721,7 @@ accelerate launch -m wavedl.train --data_path train.npz --model cnn --lr 3.2e-4 
 | Schedulers | [all 8](#learning-rate-schedulers) | `--schedulers X Y` |
 | Losses | [all 6](#loss-functions) | `--losses X Y` |
 | Learning rate | 1e-5 → 1e-2 | (always searched) |
-| Batch size | 64, 128, 256, 512 | (always searched) |
+| Batch size | 16, 32, 64, 128 | (always searched) |
 
 **Quick Mode** (`--quick`):
 - Uses minimal defaults: cnn + adamw + plateau + mse
@@ -893,12 +893,12 @@ The `examples/` folder contains a **complete, ready-to-run example** for **mater
 ```bash
 # Run inference on the example data
 python -m wavedl.test --checkpoint ./examples/elastic_cnn_example/best_checkpoint \
-  --data_path ./examples/elastic_cnn_example/Test_data_100.mat \
+  --data_path ./examples/elastic_cnn_example/Test_data_500.mat \
   --plot --save_predictions --output_dir ./examples/elastic_cnn_example/test_results
 
 # Export to ONNX (already included as model.onnx)
 python -m wavedl.test --checkpoint ./examples/elastic_cnn_example/best_checkpoint \
-  --data_path ./examples/elastic_cnn_example/Test_data_100.mat \
+  --data_path ./examples/elastic_cnn_example/Test_data_500.mat \
   --export onnx --export_path ./examples/elastic_cnn_example/model.onnx
 ```
 
@@ -907,7 +907,7 @@ python -m wavedl.test --checkpoint ./examples/elastic_cnn_example/best_checkpoin
 | File | Description |
 |------|-------------|
 | `best_checkpoint/` | Pre-trained CNN checkpoint |
-| `Test_data_100.mat` | 100 sample test set (500×500 dispersion curves → *h*, √(*E*/ρ), *ν*) |
+| `Test_data_500.mat` | 500 sample test set (500×500 dispersion curves → *h*, √(*E*/ρ), *ν*) |
 | `model.onnx` | ONNX export with embedded de-normalization |
 | `training_history.csv` | Epoch-by-epoch training metrics (loss, R², LR, etc.) |
 | `training_curves.png` | Training/validation loss and learning rate plot |

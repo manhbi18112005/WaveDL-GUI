@@ -89,7 +89,8 @@ def create_objective(args):
         # Suggest hyperparameters
         model = trial.suggest_categorical("model", models)
         lr = trial.suggest_float("lr", 1e-5, 1e-2, log=True)
-        batch_size = trial.suggest_categorical("batch_size", [64, 128, 256, 512])
+        batch_sizes = args.batch_sizes or [16, 32, 64, 128]
+        batch_size = trial.suggest_categorical("batch_size", batch_sizes)
         optimizer = trial.suggest_categorical("optimizer", optimizers)
         scheduler = trial.suggest_categorical("scheduler", schedulers)
         loss = trial.suggest_categorical("loss", losses)
@@ -316,6 +317,13 @@ Examples:
         nargs="+",
         default=None,
         help=f"Losses to search (default: {DEFAULT_LOSSES})",
+    )
+    parser.add_argument(
+        "--batch_sizes",
+        type=int,
+        nargs="+",
+        default=None,
+        help="Batch sizes to search (default: 16 32 64 128)",
     )
 
     # Training settings for each trial
