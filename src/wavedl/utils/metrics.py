@@ -560,10 +560,55 @@ def create_training_curves(
         )
         lines.append(line)
 
+    def set_lr_ticks(ax: plt.Axes, data: list[float], n_ticks: int = 4) -> None:
+        """Set n uniformly spaced ticks on LR axis with 10^n format labels."""
+        valid_data = [v for v in data if v is not None and not np.isnan(v) and v > 0]
+        if not valid_data:
+            return
+        vmin, vmax = min(valid_data), max(valid_data)
+        # Snap to clean decade boundaries
+        log_min = np.floor(np.log10(vmin))
+        log_max = np.ceil(np.log10(vmax))
+        # Generate n uniformly spaced ticks as powers of 10
+        log_ticks = np.linspace(log_min, log_max, n_ticks)
+        # Round to nearest integer power of 10 for clean numbers
+        log_ticks = np.round(log_ticks)
+        ticks = 10.0**log_ticks
+        # Remove duplicates while preserving order
+        ticks = list(dict.fromkeys(ticks))
+        ax.set_yticks(ticks)
+        # Format all tick labels as 10^n
+        labels = [f"$10^{{{int(np.log10(t))}}}$" for t in ticks]
+        ax.set_yticklabels(labels)
+        ax.minorticks_off()
+
+    def set_loss_ticks(ax: plt.Axes, data: list[float]) -> None:
+        """Set ticks at powers of 10 that cover the data range."""
+        valid_data = [v for v in data if v is not None and not np.isnan(v) and v > 0]
+        if not valid_data:
+            return
+        vmin, vmax = min(valid_data), max(valid_data)
+        # Get decade range that covers data (ceil for min to avoid going too low)
+        log_min = int(np.ceil(np.log10(vmin)))
+        log_max = int(np.ceil(np.log10(vmax)))
+        # Generate ticks at each power of 10
+        ticks = [10.0**i for i in range(log_min, log_max + 1)]
+        ax.set_yticks(ticks)
+        # Format labels as 10^n
+        labels = [f"$10^{{{i}}}$" for i in range(log_min, log_max + 1)]
+        ax.set_yticklabels(labels)
+        ax.minorticks_off()
+
     ax1.set_xlabel("Epoch")
     ax1.set_ylabel("Loss")
     ax1.set_yscale("log")  # Log scale for loss
     ax1.grid(True, alpha=0.3)
+
+    # Collect all loss values and set clean power of 10 ticks
+    all_loss_values = []
+    for metric in metrics:
+        all_loss_values.extend([h.get(metric, np.nan) for h in history])
+    set_loss_ticks(ax1, all_loss_values)
 
     # Check if learning rate data exists
     has_lr = show_lr and any("lr" in h for h in history)
@@ -581,9 +626,11 @@ def create_training_curves(
             alpha=0.7,
             label="Learning Rate",
         )
-        ax2.set_ylabel("Learning Rate", color=COLORS["neutral"])
-        ax2.tick_params(axis="y", labelcolor=COLORS["neutral"])
+        ax2.set_ylabel("Learning Rate")
         ax2.set_yscale("log")  # Log scale for LR
+        set_lr_ticks(ax2, lr_values, n_ticks=4)
+        # Ensure right spine (axis line) is visible
+        ax2.spines["right"].set_visible(True)
         lines.append(line_lr)
 
     # Combined legend
