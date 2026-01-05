@@ -918,7 +918,7 @@ python -m wavedl.test --checkpoint ./examples/elastic_cnn_example/best_checkpoin
 
 <p align="center">
   <img src="examples/elastic_cnn_example/training_curves.png" alt="Training curves" width="600"><br>
-  <em>Training and validation loss over 162 epochs with learning rate schedule</em>
+  <em>Training and validation loss over 227 epochs with <code>onecycle</code> learning rate schedule</em>
 </p>
 
 **Inference Results:**

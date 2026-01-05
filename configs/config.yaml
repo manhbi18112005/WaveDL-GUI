@@ -83,7 +83,8 @@ cv_bins: 10                   # Number of bins for stratification
 workers: -1                   # DataLoader workers (-1 = auto-detect)
 seed: 2025                    # Random seed for reproducibility
 # single_channel: false       # Confirm data is single-channel (for shallow 3D volumes)
-# import: []                  # Python modules to import for custom models
+# import_modules: []           # Python modules/files to import for custom models
+                              # Supports: module names (my_model) or file paths (./my_model.py)
 
 # =============================================================================
 # PERFORMANCE OPTIMIZATION
@@ -95,5 +96,6 @@ compile: false                # torch.compile() for faster training (PyTorch 2.0
 # LOGGING & MONITORING
 # =============================================================================
 # wandb: false                # Enable Weights & Biases logging
+# wandb_watch: false           # Enable W&B gradient watching (adds overhead, useful for debugging)
 # project_name: DL-Training   # W&B project name
 # run_name: null              # W&B run name (auto-generated if null)

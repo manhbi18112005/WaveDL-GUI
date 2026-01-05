@@ -8,12 +8,12 @@
 %   - Deep Learning Toolbox
 %   - Deep Learning Toolbox Converter for ONNX Model Format
 %
-% Ductho Le (ductho.le@outlook.com)
+% Author: Ductho Le (ductho.le@outlook.com)
 % =============================================
 
 %% Configuration
 ONNX_MODEL_PATH = 'model.onnx';           % Path to your exported ONNX model
-TEST_DATA_PATH = 'Test_data_100.mat';    % Path to your test data
+TEST_DATA_PATH = 'Test_data_500.mat';     % Path to your test data
 
 %% 1. Load the ONNX Model (Updated Function)
 fprintf('Loading ONNX model: %s\n', ONNX_MODEL_PATH);
@@ -114,7 +114,7 @@ for p = 1:size(ground_truth, 2)
     hold on;
 
     lims = [min([ground_truth(:, p); all_predictions(:, p)]), ...
-            max([ground_truth(:, p); all_predictions(:, p)])];
+        max([ground_truth(:, p); all_predictions(:, p)])];
     plot(lims, lims, 'r--', 'LineWidth', 1.5);
 
     xlabel(sprintf('True P%d', p));
