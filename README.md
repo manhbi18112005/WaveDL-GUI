@@ -327,6 +327,7 @@ WaveDL/
 │       └── utils/                # Utilities
 │           ├── data.py           # Memory-mapped data pipeline
 │           ├── metrics.py        # R², Pearson, visualization
+│           ├── constraints.py    # Physical constraints for training
 │           ├── distributed.py    # DDP synchronization
 │           ├── losses.py         # Loss function factory
 │           ├── optimizers.py     # Optimizer factory
