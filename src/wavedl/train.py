@@ -375,6 +375,36 @@ def parse_args() -> argparse.Namespace:
         help=argparse.SUPPRESS,  # Hidden: use --precision instead
     )
 
+    # Physical Constraints
+    parser.add_argument(
+        "--constraint",
+        type=str,
+        nargs="+",
+        default=[],
+        help="Soft constraint expressions: 'y0 - y1*y2' (penalize violations)",
+    )
+
+    parser.add_argument(
+        "--constraint_file",
+        type=str,
+        default=None,
+        help="Python file with constraint(pred, inputs) function",
+    )
+    parser.add_argument(
+        "--constraint_weight",
+        type=float,
+        nargs="+",
+        default=[0.1],
+        help="Weight(s) for soft constraints (one per constraint, or single shared weight)",
+    )
+    parser.add_argument(
+        "--constraint_reduction",
+        type=str,
+        default="mse",
+        choices=["mse", "mae"],
+        help="Reduction mode for constraint penalties",
+    )
+
     # Logging
     parser.add_argument(
         "--wandb", action="store_true", help="Enable Weights & Biases logging"
@@ -553,7 +583,7 @@ def main():
         return
 
     # ==========================================================================
-    # 1. SYSTEM INITIALIZATION
+    # SYSTEM INITIALIZATION
     # ==========================================================================
     # Initialize Accelerator for DDP and mixed precision
     accelerator = Accelerator(
@@ -609,7 +639,7 @@ def main():
             )
 
     # ==========================================================================
-    # 2. DATA & MODEL LOADING
+    # DATA & MODEL LOADING
     # ==========================================================================
     train_dl, val_dl, scaler, in_shape, out_dim = prepare_data(
         args, logger, accelerator, cache_dir=args.output_dir
@@ -663,7 +693,7 @@ def main():
                 )
 
     # ==========================================================================
-    # 2.5. OPTIMIZER, SCHEDULER & LOSS CONFIGURATION
+    # OPTIMIZER, SCHEDULER & LOSS CONFIGURATION
     # ==========================================================================
     # Parse comma-separated arguments with validation
     try:
@@ -706,6 +736,43 @@ def main():
     )
     # Move criterion to device (important for WeightedMSELoss buffer)
     criterion = criterion.to(accelerator.device)
+
+    # ==========================================================================
+    # PHYSICAL CONSTRAINTS INTEGRATION
+    # ==========================================================================
+    from wavedl.utils.constraints import (
+        PhysicsConstrainedLoss,
+        build_constraints,
+    )
+
+    # Build soft constraints
+    soft_constraints = build_constraints(
+        expressions=args.constraint,
+        file_path=args.constraint_file,
+        reduction=args.constraint_reduction,
+    )
+
+    # Wrap criterion with PhysicsConstrainedLoss if we have soft constraints
+    if soft_constraints:
+        # Pass output scaler so constraints can be evaluated in physical space
+        output_mean = scaler.mean_ if hasattr(scaler, "mean_") else None
+        output_std = scaler.scale_ if hasattr(scaler, "scale_") else None
+        criterion = PhysicsConstrainedLoss(
+            criterion,
+            soft_constraints,
+            weights=args.constraint_weight,
+            output_mean=output_mean,
+            output_std=output_std,
+        )
+        if accelerator.is_main_process:
+            logger.info(
+                f"   🔬 Physical constraints: {len(soft_constraints)} constraint(s) "
+                f"with weight(s) {args.constraint_weight}"
+            )
+            if output_mean is not None:
+                logger.info(
+                    "   📐 Constraints evaluated in physical space (denormalized)"
+                )
 
     # Track if scheduler should step per batch (OneCycleLR) or per epoch
     scheduler_step_per_batch = not is_epoch_based(args.scheduler)
@@ -762,7 +829,7 @@ def main():
         )
 
     # ==========================================================================
-    # 3. AUTO-RESUME / RESUME FROM CHECKPOINT
+    # AUTO-RESUME / RESUME FROM CHECKPOINT
     # ==========================================================================
     start_epoch = 0
     best_val_loss = float("inf")
@@ -818,7 +885,7 @@ def main():
             raise FileNotFoundError(f"Checkpoint not found: {args.resume}")
 
     # ==========================================================================
-    # 4. PHYSICAL METRIC SETUP
+    # PHYSICAL METRIC SETUP
     # ==========================================================================
     # Physical MAE = normalized MAE * scaler.scale_
     phys_scale = torch.tensor(
@@ -826,7 +893,7 @@ def main():
     )
 
     # ==========================================================================
-    # 5. TRAINING LOOP
+    # TRAINING LOOP
     # ==========================================================================
     # Dynamic console header
     if accelerator.is_main_process:

@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-01-06
+
+### Added
+- **Physics-Constrained Training**: Enforce physical laws during training via penalty terms
+  - `--constraint`: Expression constraints (`"y0 > 0"`, `"y0 - y1*y2"`)
+  - `--constraint_file`: Custom Python constraint functions
+  - `--constraint_weight`: Penalty weights (default: 0.1)
+  - `--constraint_reduction`: Reduction mode (`mse` or `mae`)
+- Expression syntax with math functions (`sin`, `cos`, `exp`, `log`, `sqrt`, etc.)
+- Comparison operators (`>`, `<`, `>=`, `<=`, `==`)
+- Input indexing (`x[0]`, `x[i,j]`, `x[i,j,k]`)
+- Input aggregates (`x_mean`, `x_sum`, `x_max`, `x_min`, `x_std`)
+- Automatic denormalization for constraints in physical space
+- 21 new unit tests for constraints (704 → 725 total)
+
+### Removed
+- `--output_transform` and `--output_bounds` (hard constraints) — redundant with soft constraints
+
 ## [1.4.6] - 2026-01-04
 
 ### Added
@@ -185,6 +203,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Example configurations and training scripts
 - MIT License and citation file
 
+[1.5.0]: https://github.com/ductho-le/WaveDL/compare/v1.4.6...v1.5.0
 [1.4.6]: https://github.com/ductho-le/WaveDL/compare/v1.4.5...v1.4.6
 [1.4.5]: https://github.com/ductho-le/WaveDL/compare/v1.4.4...v1.4.5
 [1.4.4]: https://github.com/ductho-le/WaveDL/compare/v1.4.3...v1.4.4

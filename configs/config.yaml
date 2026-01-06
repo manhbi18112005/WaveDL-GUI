@@ -99,3 +99,19 @@ compile: false                # torch.compile() for faster training (PyTorch 2.0
 # wandb_watch: false           # Enable W&B gradient watching (adds overhead, useful for debugging)
 # project_name: DL-Training   # W&B project name
 # run_name: null              # W&B run name (auto-generated if null)
+
+# =============================================================================
+# PHYSICAL CONSTRAINTS (Optional)
+# =============================================================================
+# Enforce physical laws during training via penalty terms:
+#   Total Loss = Data Loss + weight × penalty(violation)
+#
+# constraint: []              # Expression(s): ["y0 > 0", "y0 - y1*y2"]
+# constraint_file: null       # Python file with constraint(pred, inputs) function
+# constraint_weight: [0.1]    # Penalty weight(s) per constraint
+# constraint_reduction: mse   # Reduction: mse (squared) or mae (linear)
+#
+# Expression syntax:
+#   Variables: y0, y1, ... (outputs), x[0], x[1], ... (inputs)
+#   Operators: +, -, *, /, **, >, <, >=, <=, ==
+#   Functions: sin, cos, exp, log, sqrt, sigmoid, softplus, tanh, relu, abs

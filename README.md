@@ -70,10 +70,10 @@ Train on datasets larger than RAM:
 
 **🧠 Models? We've Got Options**
 
-38 production-ready + easy extension:
-- [CNNs, ResNets, EfficientNets, Transformers...](#️-configuration)
-- All adapted for regression out-of-the-box
-- [Add custom models](#adding-custom-models) with one-line registration
+38 architectures, ready to go:
+- CNNs, ResNets, ViTs, EfficientNets...
+- All adapted for regression
+- [Add your own](#adding-custom-models) in one line
 
 </td>
 </tr>
@@ -90,12 +90,12 @@ Multi-GPU training without the pain:
 </td>
 <td width="50%" valign="top">
 
-**📊 Publish-Ready Output**
+**🔬 Physics-Constrained Training**
 
-Results go straight to your paper:
-- 11 diagnostic plots with LaTeX styling
-- Multi-format export (PNG, PDF, SVG, ...)
-- MAE in physical units per parameter
+Make your model respect the laws:
+- Enforce bounds, positivity, equations
+- Simple expression syntax or Python
+- [Custom constraints](#physical-constraints) for various laws
 
 </td>
 </tr>
@@ -336,7 +336,7 @@ WaveDL/
 ├── configs/                      # YAML config templates
 ├── examples/                     # Ready-to-run examples
 ├── notebooks/                    # Jupyter notebooks
-├── unit_tests/                   # Pytest test suite (704 tests)
+├── unit_tests/                   # Pytest test suite (725 tests)
 │
 ├── pyproject.toml                # Package config, dependencies
 ├── CHANGELOG.md                  # Version history
@@ -679,6 +679,104 @@ seed: 2025
 > See [`configs/config.yaml`](configs/config.yaml) for the complete template with all available options documented.
 
 </details>
+
+<details>
+<summary><b>Physical Constraints</b> — Enforce Physics During Training</summary>
+
+Add penalty terms to the loss function to enforce physical laws:
+
+```
+Total Loss = Data Loss + weight × penalty(violation)
+```
+
+### Expression Constraints
+
+```bash
+# Positivity
+--constraint "y0 > 0"
+
+# Bounds
+--constraint "y0 >= 0" "y0 <= 1"
+
+# Equations (penalize deviations from zero)
+--constraint "y2 - y0 * y1"
+
+# Input-dependent constraints
+--constraint "y0 - 2*x[0]"
+
+# Multiple constraints with different weights
+--constraint "y0 > 0" "y1 - y2" --constraint_weight 0.1 1.0
+```
+
+### Custom Python Constraints
+
+For complex physics (matrix operations, implicit equations):
+
+```python
+# my_constraint.py
+import torch
+
+def constraint(pred, inputs=None):
+    """
+    Args:
+        pred:   (batch, num_outputs)
+        inputs: (batch, features) or (batch, C, H, W) or (batch, C, D, H, W)
+    Returns:
+        (batch,) — violation per sample (0 = satisfied)
+    """
+    # Outputs (same for all data types)
+    y0, y1, y2 = pred[:, 0], pred[:, 1], pred[:, 2]
+
+    # Inputs — Tabular: (batch, features)
+    # x0 = inputs[:, 0]                    # Feature 0
+    # x_sum = inputs.sum(dim=1)            # Sum all features
+
+    # Inputs — Images: (batch, C, H, W)
+    # pixel = inputs[:, 0, 3, 5]           # Pixel at (3,5), channel 0
+    # img_mean = inputs.mean(dim=(1,2,3))  # Mean over C,H,W
+
+    # Inputs — 3D Volumes: (batch, C, D, H, W)
+    # voxel = inputs[:, 0, 2, 3, 5]        # Voxel at (2,3,5), channel 0
+
+    # Example constraints:
+    # return y2 - y0 * y1                                    # Wave equation
+    # return y0 - 2 * inputs[:, 0]                           # Output = 2×input
+    # return inputs[:, 0, 3, 5] * y0 + inputs[:, 0, 6, 7] * y1  # Mixed
+
+    return y0 - y1 * y2
+```
+
+```bash
+--constraint_file my_constraint.py --constraint_weight 1.0
+```
+
+---
+
+### Reference
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--constraint` | — | Expression(s): `"y0 > 0"`, `"y0 - y1*y2"` |
+| `--constraint_file` | — | Python file with `constraint(pred, inputs)` |
+| `--constraint_weight` | `0.1` | Penalty weight(s) |
+| `--constraint_reduction` | `mse` | `mse` (squared) or `mae` (linear) |
+
+#### Expression Syntax
+
+| Variable | Meaning |
+|----------|---------|
+| `y0`, `y1`, ... | Model outputs |
+| `x[0]`, `x[1]`, ... | Input values (1D tabular) |
+| `x[i,j]`, `x[i,j,k]` | Input values (2D/3D: images, volumes) |
+| `x_mean`, `x_sum`, `x_max`, `x_min`, `x_std` | Input aggregates |
+
+**Operators:** `+`, `-`, `*`, `/`, `**`, `>`, `<`, `>=`, `<=`, `==`
+
+**Functions:** `sin`, `cos`, `exp`, `log`, `sqrt`, `sigmoid`, `softplus`, `tanh`, `relu`, `abs`
+
+</details>
+
+
 
 <details>
 <summary><b>Hyperparameter Search (HPO)</b></summary>

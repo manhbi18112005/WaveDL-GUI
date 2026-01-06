@@ -15,6 +15,12 @@ from .config import (
     save_config,
     validate_config,
 )
+from .constraints import (
+    ExpressionConstraint,
+    FileConstraint,
+    PhysicsConstrainedLoss,
+    build_constraints,
+)
 from .cross_validation import (
     CVDataset,
     run_cross_validation,
@@ -91,8 +97,11 @@ __all__ = [
     "FIGURE_WIDTH_INCH",
     "FONT_SIZE_TEXT",
     "FONT_SIZE_TICKS",
+    # Constraints
     "CVDataset",
     "DataSource",
+    "ExpressionConstraint",
+    "FileConstraint",
     "HDF5Source",
     "LogCoshLoss",
     "MATSource",
@@ -101,10 +110,12 @@ __all__ = [
     # Metrics
     "MetricTracker",
     "NPZSource",
+    "PhysicsConstrainedLoss",
     "WeightedMSELoss",
     # Distributed
     "broadcast_early_stop",
     "broadcast_value",
+    "build_constraints",
     "calc_pearson",
     "calc_per_target_r2",
     "configure_matplotlib_style",

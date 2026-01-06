@@ -306,6 +306,16 @@ def validate_config(
         # Config
         "config",
         "list_models",
+        # Physical Constraints
+        "constraint",
+        "bounds",
+        "constraint_file",
+        "constraint_weight",
+        "constraint_reduction",
+        "positive",
+        "output_bounds",
+        "output_transform",
+        "output_formula",
         # Metadata (internal)
         "_metadata",
     }
