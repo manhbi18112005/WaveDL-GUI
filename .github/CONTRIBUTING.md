@@ -130,15 +130,20 @@ We use automated releases via GitHub Actions. When you push a version tag, a Git
 
    > Note: `pyproject.toml` reads the version dynamically from `__init__.py`, so you only need to update it in one place.
 
-3. **Commit and tag**:
+3. **Update `CITATION.cff`** version to match:
+   ```yaml
+   version: 1.2.0
+   ```
+
+4. **Commit and tag**:
    ```bash
-   git add CHANGELOG.md pyproject.toml
+   git add CHANGELOG.md src/wavedl/__init__.py CITATION.cff
    git commit -m "Release v1.2.0"
    git tag v1.2.0
    git push origin main --tags
    ```
 
-4. **GitHub Actions** will automatically:
+5. **GitHub Actions** will automatically:
    - Run the test suite
    - Extract changelog notes for the version
    - Create a GitHub Release

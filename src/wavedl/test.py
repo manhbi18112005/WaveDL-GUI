@@ -166,6 +166,13 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Parameter names for output (e.g., 'h' 'v11' 'v12')",
     )
+    parser.add_argument(
+        "--input_channels",
+        type=int,
+        default=None,
+        help="Explicit number of input channels. Bypasses auto-detection heuristics "
+        "for ambiguous 4D shapes (e.g., 3D volumes with small depth).",
+    )
 
     # Inference options
     parser.add_argument(
@@ -235,6 +242,7 @@ def load_data_for_inference(
     format: str = "auto",
     input_key: str | None = None,
     output_key: str | None = None,
+    input_channels: int | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor | None]:
     """
     Load test data for inference using the unified data loading pipeline.
@@ -278,7 +286,11 @@ def load_data_for_inference(
 
     # Use the unified loader from utils.data
     X, y = load_test_data(
-        file_path, format=format, input_key=input_key, output_key=output_key
+        file_path,
+        format=format,
+        input_key=input_key,
+        output_key=output_key,
+        input_channels=input_channels,
     )
 
     # Log results
@@ -452,7 +464,12 @@ def run_inference(
         predictions: Numpy array (N, out_size) - still in normalized space
     """
     if device is None:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if torch.cuda.is_available():
+            device = torch.device("cuda")
+        elif torch.backends.mps.is_available():
+            device = torch.device("mps")
+        else:
+            device = torch.device("cpu")
 
     model = model.to(device)
     model.eval()
@@ -463,7 +480,7 @@ def run_inference(
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
-        pin_memory=device.type == "cuda",
+        pin_memory=device.type in ("cuda", "mps"),
     )
 
     predictions = []
@@ -919,8 +936,13 @@ def main():
     )
     logger = logging.getLogger("Tester")
 
-    # Device
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # Device (CUDA > MPS > CPU)
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
     logger.info(f"Using device: {device}")
 
     # Load test data
@@ -929,6 +951,7 @@ def main():
         format=args.format,
         input_key=args.input_key,
         output_key=args.output_key,
+        input_channels=args.input_channels,
     )
     in_shape = tuple(X_test.shape[2:])
 

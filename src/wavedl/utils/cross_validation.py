@@ -128,6 +128,12 @@ def train_fold(
     best_state = None
     history = []
 
+    # Determine if scheduler steps per batch (OneCycleLR) or per epoch
+    # Use isinstance check since class name 'OneCycleLR' != 'onecycle' string in is_epoch_based
+    from torch.optim.lr_scheduler import OneCycleLR
+
+    step_per_batch = isinstance(scheduler, OneCycleLR)
+
     for epoch in range(epochs):
         # Training
         model.train()
@@ -143,6 +149,10 @@ def train_fold(
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
+
+            # Per-batch LR scheduling (OneCycleLR)
+            if step_per_batch:
+                scheduler.step()
 
             train_loss += loss.item() * x.size(0)
             train_samples += x.size(0)
@@ -186,8 +196,8 @@ def train_fold(
             }
         )
 
-        # LR scheduling
-        if hasattr(scheduler, "step"):
+        # LR scheduling (epoch-based only, not for per-batch schedulers)
+        if not step_per_batch and hasattr(scheduler, "step"):
             if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
                 scheduler.step(avg_val_loss)
             else:

@@ -54,6 +54,7 @@ The framework handles the engineering challenges of large-scale deep learning �
 
 ## ✨ Features
 
+<div align="center">
 <table width="100%">
 <tr>
 <td width="50%" valign="top">
@@ -144,6 +145,7 @@ Deploy models anywhere:
 </td>
 </tr>
 </table>
+</div>
 
 ---
 
@@ -232,6 +234,10 @@ python -m wavedl.test --checkpoint <checkpoint_folder> --data_path <test_data> \
 # Export model to ONNX for deployment (LabVIEW, MATLAB, C++, etc.)
 python -m wavedl.test --checkpoint <checkpoint_folder> --data_path <test_data> \
   --export onnx --export_path <output_file.onnx>
+
+# For 3D volumes with small depth (e.g., 8×128×128), override auto-detection
+python -m wavedl.test --checkpoint <checkpoint_folder> --data_path <test_data> \
+  --input_channels 1
 ```
 
 **Output:**

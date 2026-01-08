@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.1] - 2026-01-07
+
+### Added
+- **MPS Inference**: Apple Silicon GPU support for inference (`test.py` auto-detects MPS)
+- `--input_channels` flag for explicit channel override in `load_test_data()` (bypasses heuristics)
+
+### Changed
+- **NPZ Security**: Pickle now disabled by default, only enabled as fallback for sparse matrices
+
+### Fixed
+- **Input-dependent constraints**: Now properly pass inputs to loss function for `x_mean`, `x[...]` expressions
+- **DDP validation memory**: Gather validation data only on rank 0 (prevents OOM on multi-GPU setups)
+- **Cross-validation**: OneCycleLR now correctly steps per-batch instead of per-epoch
+- **ViT patch embedding**: Added warning for non-divisible input shapes (prevents silent data loss)
+
 ## [1.5.0] - 2026-01-06
 
 ### Added
@@ -15,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `--constraint_reduction`: Reduction mode (`mse` or `mae`)
 - Expression syntax with math functions (`sin`, `cos`, `exp`, `log`, `sqrt`, etc.)
 - Comparison operators (`>`, `<`, `>=`, `<=`, `==`)
-- Input indexing (`x[0]`, `x[i,j]`, `x[i,j,k]`)
+- Input indexing with literal integers (`x[0]`, `x[0,5]`, `x[0,5,10]`)
 - Input aggregates (`x_mean`, `x_sum`, `x_max`, `x_min`, `x_std`)
 - Automatic denormalization for constraints in physical space
 - 21 new unit tests for constraints (704 → 725 total)
@@ -203,6 +218,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Example configurations and training scripts
 - MIT License and citation file
 
+[1.5.1]: https://github.com/ductho-le/WaveDL/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/ductho-le/WaveDL/compare/v1.4.6...v1.5.0
 [1.4.6]: https://github.com/ductho-le/WaveDL/compare/v1.4.5...v1.4.6
 [1.4.5]: https://github.com/ductho-le/WaveDL/compare/v1.4.4...v1.4.5

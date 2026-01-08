@@ -931,7 +931,11 @@ def main():
             for x, y in pbar:
                 with accelerator.accumulate(model):
                     pred = model(x)
-                    loss = criterion(pred, y)
+                    # Pass inputs for input-dependent constraints (x_mean, x[...], etc.)
+                    if isinstance(criterion, PhysicsConstrainedLoss):
+                        loss = criterion(pred, y, x)
+                    else:
+                        loss = criterion(pred, y)
 
                     accelerator.backward(loss)
 
@@ -981,7 +985,11 @@ def main():
             with torch.inference_mode():
                 for x, y in val_dl:
                     pred = model(x)
-                    loss = criterion(pred, y)
+                    # Pass inputs for input-dependent constraints
+                    if isinstance(criterion, PhysicsConstrainedLoss):
+                        loss = criterion(pred, y, x)
+                    else:
+                        loss = criterion(pred, y)
 
                     val_loss_sum += loss.detach() * x.size(0)
                     val_samples += x.size(0)
@@ -998,13 +1006,45 @@ def main():
             cpu_preds = torch.cat(local_preds)
             cpu_targets = torch.cat(local_targets)
 
-            # Gather predictions and targets across all ranks
-            # Use accelerator.gather (works with all accelerate versions)
-            gpu_preds = cpu_preds.to(accelerator.device)
-            gpu_targets = cpu_targets.to(accelerator.device)
-            all_preds_gathered = accelerator.gather(gpu_preds).cpu()
-            all_targets_gathered = accelerator.gather(gpu_targets).cpu()
-            gathered = [(all_preds_gathered, all_targets_gathered)]
+            # Gather predictions and targets to rank 0 only (memory-efficient)
+            # Avoids duplicating full validation set on every GPU
+            if torch.distributed.is_initialized():
+                # DDP mode: gather only to rank 0
+                # NCCL backend requires CUDA tensors for collective ops
+                gpu_preds = cpu_preds.to(accelerator.device)
+                gpu_targets = cpu_targets.to(accelerator.device)
+
+                if accelerator.is_main_process:
+                    # Rank 0: allocate gather buffers on GPU
+                    all_preds_list = [
+                        torch.zeros_like(gpu_preds)
+                        for _ in range(accelerator.num_processes)
+                    ]
+                    all_targets_list = [
+                        torch.zeros_like(gpu_targets)
+                        for _ in range(accelerator.num_processes)
+                    ]
+                    torch.distributed.gather(
+                        gpu_preds, gather_list=all_preds_list, dst=0
+                    )
+                    torch.distributed.gather(
+                        gpu_targets, gather_list=all_targets_list, dst=0
+                    )
+                    # Move back to CPU for metric computation
+                    gathered = [
+                        (
+                            torch.cat(all_preds_list).cpu(),
+                            torch.cat(all_targets_list).cpu(),
+                        )
+                    ]
+                else:
+                    # Other ranks: send to rank 0, don't allocate gather buffers
+                    torch.distributed.gather(gpu_preds, gather_list=None, dst=0)
+                    torch.distributed.gather(gpu_targets, gather_list=None, dst=0)
+                    gathered = [(cpu_preds, cpu_targets)]  # Placeholder, not used
+            else:
+                # Single-GPU mode: no gathering needed
+                gathered = [(cpu_preds, cpu_targets)]
 
             # Synchronize validation metrics (scalars only - efficient)
             val_loss_scalar = val_loss_sum.item()

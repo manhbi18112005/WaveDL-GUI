@@ -54,6 +54,16 @@ class PatchEmbed(nn.Module):
         if self.dim == 1:
             # 1D: segment patches
             L = in_shape[0]
+            if L % patch_size != 0:
+                import warnings
+
+                warnings.warn(
+                    f"Input length {L} not divisible by patch_size {patch_size}. "
+                    f"Last {L % patch_size} elements will be dropped. "
+                    f"Consider padding input to {((L // patch_size) + 1) * patch_size}.",
+                    UserWarning,
+                    stacklevel=2,
+                )
             self.num_patches = L // patch_size
             self.proj = nn.Conv1d(
                 1, embed_dim, kernel_size=patch_size, stride=patch_size
@@ -61,6 +71,17 @@ class PatchEmbed(nn.Module):
         elif self.dim == 2:
             # 2D: grid patches
             H, W = in_shape
+            if H % patch_size != 0 or W % patch_size != 0:
+                import warnings
+
+                warnings.warn(
+                    f"Input shape ({H}, {W}) not divisible by patch_size {patch_size}. "
+                    f"Border pixels will be dropped (H: {H % patch_size}, W: {W % patch_size}). "
+                    f"Consider padding to ({((H // patch_size) + 1) * patch_size}, "
+                    f"{((W // patch_size) + 1) * patch_size}).",
+                    UserWarning,
+                    stacklevel=2,
+                )
             self.num_patches = (H // patch_size) * (W // patch_size)
             self.proj = nn.Conv2d(
                 1, embed_dim, kernel_size=patch_size, stride=patch_size

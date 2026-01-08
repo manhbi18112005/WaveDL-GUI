@@ -201,8 +201,18 @@ class DataSource(ABC):
 class NPZSource(DataSource):
     """Load data from NumPy .npz archives."""
 
+    @staticmethod
+    def _safe_load(path: str, mmap_mode: str | None = None):
+        """Load NPZ with pickle only if needed (sparse matrix support)."""
+        try:
+            return np.load(path, allow_pickle=False, mmap_mode=mmap_mode)
+        except ValueError:
+            # Fallback for sparse matrices stored as object arrays
+            return np.load(path, allow_pickle=True, mmap_mode=mmap_mode)
+
     def load(self, path: str) -> tuple[np.ndarray, np.ndarray]:
-        data = np.load(path, allow_pickle=True)
+        """Load NPZ file (pickle enabled only for sparse matrices)."""
+        data = self._safe_load(path)
         keys = list(data.keys())
 
         input_key = self._find_key(keys, INPUT_KEYS)
@@ -233,7 +243,7 @@ class NPZSource(DataSource):
 
         Note: Returns memory-mapped arrays - do NOT modify them.
         """
-        data = np.load(path, allow_pickle=True, mmap_mode="r")
+        data = self._safe_load(path, mmap_mode="r")
         keys = list(data.keys())
 
         input_key = self._find_key(keys, INPUT_KEYS)
@@ -253,7 +263,7 @@ class NPZSource(DataSource):
 
     def load_outputs_only(self, path: str) -> np.ndarray:
         """Load only targets from NPZ (avoids loading large input arrays)."""
-        data = np.load(path, allow_pickle=True)
+        data = self._safe_load(path)
         keys = list(data.keys())
 
         output_key = self._find_key(keys, OUTPUT_KEYS)
@@ -677,6 +687,7 @@ def load_test_data(
     format: str = "auto",
     input_key: str | None = None,
     output_key: str | None = None,
+    input_channels: int | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor | None]:
     """
     Load test/inference data and return PyTorch tensors ready for model input.
@@ -698,6 +709,9 @@ def load_test_data(
         format: Format hint ('npz', 'hdf5', 'mat', or 'auto' for detection)
         input_key: Custom key for input data (overrides auto-detection)
         output_key: Custom key for output data (overrides auto-detection)
+        input_channels: Explicit number of input channels. If provided, bypasses
+            the heuristic for 4D data. Use input_channels=1 for 3D volumes that
+            look like multi-channel 2D (e.g., depth ≤16).
 
     Returns:
         Tuple of:
@@ -737,7 +751,7 @@ def load_test_data(
     except KeyError:
         # Try with just inputs if outputs not found (inference-only mode)
         if format == "npz":
-            data = np.load(path, allow_pickle=True)
+            data = NPZSource._safe_load(path)
             keys = list(data.keys())
             inp_key = DataSource._find_key(keys, custom_input_keys)
             if inp_key is None:
@@ -822,15 +836,20 @@ def load_test_data(
     # Add channel dimension if needed (dimension-agnostic)
     # X.ndim == 2: 1D data (N, L) → (N, 1, L)
     # X.ndim == 3: 2D data (N, H, W) → (N, 1, H, W)
-    # X.ndim == 4: Check if already has channel dim (C <= 16 heuristic)
+    # X.ndim == 4: Check if already has channel dim
     if X.ndim == 2:
         X = X.unsqueeze(1)  # 1D signal: (N, L) → (N, 1, L)
     elif X.ndim == 3:
         X = X.unsqueeze(1)  # 2D image: (N, H, W) → (N, 1, H, W)
     elif X.ndim == 4:
         # Could be 3D volume (N, D, H, W) or 2D with channel (N, C, H, W)
-        # Heuristic: if dim 1 is small (<=16), assume it's already a channel dim
-        if X.shape[1] > 16:
+        if input_channels is not None:
+            # Explicit override: user specifies channel count
+            if input_channels == 1:
+                X = X.unsqueeze(1)  # Add channel: (N, D, H, W) → (N, 1, D, H, W)
+            # else: already has channels, leave as-is
+        elif X.shape[1] > 16:
+            # Heuristic fallback: large dim 1 suggests 3D volume needing channel
             X = X.unsqueeze(1)  # 3D volume: (N, D, H, W) → (N, 1, D, H, W)
     # X.ndim >= 5: assume channel dimension already exists
 
