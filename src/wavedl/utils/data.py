@@ -202,18 +202,31 @@ class NPZSource(DataSource):
     """Load data from NumPy .npz archives."""
 
     @staticmethod
-    def _safe_load(path: str, mmap_mode: str | None = None):
-        """Load NPZ with pickle only if needed (sparse matrix support)."""
+    def _safe_load(path: str, keys_to_probe: list[str], mmap_mode: str | None = None):
+        """Load NPZ with pickle only if needed (sparse matrix support).
+
+        The error for object arrays happens at ACCESS time, not load time.
+        So we need to probe the keys to detect if pickle is required.
+        """
+        data = np.load(path, allow_pickle=False, mmap_mode=mmap_mode)
         try:
-            return np.load(path, allow_pickle=False, mmap_mode=mmap_mode)
-        except ValueError:
-            # Fallback for sparse matrices stored as object arrays
-            return np.load(path, allow_pickle=True, mmap_mode=mmap_mode)
+            # Probe keys to trigger error if object arrays exist
+            for key in keys_to_probe:
+                if key in data:
+                    _ = data[key]  # This raises ValueError for object arrays
+            return data
+        except ValueError as e:
+            if "allow_pickle=False" in str(e):
+                # Fallback for sparse matrices stored as object arrays
+                data.close() if hasattr(data, "close") else None
+                return np.load(path, allow_pickle=True, mmap_mode=mmap_mode)
+            raise
 
     def load(self, path: str) -> tuple[np.ndarray, np.ndarray]:
         """Load NPZ file (pickle enabled only for sparse matrices)."""
-        data = self._safe_load(path)
-        keys = list(data.keys())
+        # First pass to find keys without loading data
+        with np.load(path, allow_pickle=False) as probe:
+            keys = list(probe.keys())
 
         input_key = self._find_key(keys, INPUT_KEYS)
         output_key = self._find_key(keys, OUTPUT_KEYS)
@@ -225,6 +238,7 @@ class NPZSource(DataSource):
                 f"Found: {keys}"
             )
 
+        data = self._safe_load(path, [input_key, output_key])
         inp = data[input_key]
         outp = data[output_key]
 
@@ -243,8 +257,9 @@ class NPZSource(DataSource):
 
         Note: Returns memory-mapped arrays - do NOT modify them.
         """
-        data = self._safe_load(path, mmap_mode="r")
-        keys = list(data.keys())
+        # First pass to find keys without loading data
+        with np.load(path, allow_pickle=False) as probe:
+            keys = list(probe.keys())
 
         input_key = self._find_key(keys, INPUT_KEYS)
         output_key = self._find_key(keys, OUTPUT_KEYS)
@@ -256,6 +271,7 @@ class NPZSource(DataSource):
                 f"Found: {keys}"
             )
 
+        data = self._safe_load(path, [input_key, output_key], mmap_mode="r")
         inp = data[input_key]
         outp = data[output_key]
 
@@ -263,8 +279,9 @@ class NPZSource(DataSource):
 
     def load_outputs_only(self, path: str) -> np.ndarray:
         """Load only targets from NPZ (avoids loading large input arrays)."""
-        data = self._safe_load(path)
-        keys = list(data.keys())
+        # First pass to find keys without loading data
+        with np.load(path, allow_pickle=False) as probe:
+            keys = list(probe.keys())
 
         output_key = self._find_key(keys, OUTPUT_KEYS)
         if output_key is None:
@@ -273,6 +290,7 @@ class NPZSource(DataSource):
                 f"Supported keys: {OUTPUT_KEYS}. Found: {keys}"
             )
 
+        data = self._safe_load(path, [output_key])
         return data[output_key]
 
 
@@ -751,19 +769,22 @@ def load_test_data(
     except KeyError:
         # Try with just inputs if outputs not found (inference-only mode)
         if format == "npz":
-            data = NPZSource._safe_load(path)
-            keys = list(data.keys())
+            # First pass to find keys
+            with np.load(path, allow_pickle=False) as probe:
+                keys = list(probe.keys())
             inp_key = DataSource._find_key(keys, custom_input_keys)
             if inp_key is None:
                 raise KeyError(
                     f"Input key not found. Tried: {custom_input_keys}. Found: {keys}"
                 )
+            out_key = DataSource._find_key(keys, custom_output_keys)
+            keys_to_probe = [inp_key] + ([out_key] if out_key else [])
+            data = NPZSource._safe_load(path, keys_to_probe)
             inp = data[inp_key]
             if inp.dtype == object:
                 inp = np.array(
                     [x.toarray() if hasattr(x, "toarray") else x for x in inp]
                 )
-            out_key = DataSource._find_key(keys, custom_output_keys)
             outp = data[out_key] if out_key else None
         elif format == "hdf5":
             # HDF5: input-only loading for inference
