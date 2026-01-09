@@ -57,30 +57,35 @@ def setup_hpc_environment() -> None:
     """Configure environment variables for HPC systems.
 
     Handles restricted home directories (e.g., Compute Canada) and
-    offline logging configurations.
+    offline logging configurations. Always uses CWD-based TORCH_HOME
+    since compute nodes typically lack internet access.
     """
-    # Check if home is writable
+    # Use CWD for cache base since HPC compute nodes typically lack internet
+    cache_base = os.getcwd()
+
+    # TORCH_HOME always set to CWD - compute nodes need pre-cached weights
+    os.environ.setdefault("TORCH_HOME", f"{cache_base}/.torch_cache")
+    Path(os.environ["TORCH_HOME"]).mkdir(parents=True, exist_ok=True)
+
+    # Triton/Inductor caches - prevents permission errors with --compile
+    # These MUST be set before any torch.compile calls
+    os.environ.setdefault("TRITON_CACHE_DIR", f"{cache_base}/.triton_cache")
+    os.environ.setdefault("TORCHINDUCTOR_CACHE_DIR", f"{cache_base}/.inductor_cache")
+    Path(os.environ["TRITON_CACHE_DIR"]).mkdir(parents=True, exist_ok=True)
+    Path(os.environ["TORCHINDUCTOR_CACHE_DIR"]).mkdir(parents=True, exist_ok=True)
+
+    # Check if home is writable for other caches
     home = os.path.expanduser("~")
     home_writable = os.access(home, os.W_OK)
 
-    # Use SLURM_TMPDIR if available, otherwise CWD for HPC, or system temp
-    if home_writable:
-        # Local machine - let libraries use defaults
-        cache_base = None
-    else:
-        # HPC with restricted home - use CWD for persistent caches
-        cache_base = os.getcwd()
-
-    # Only set environment variables if home is not writable
-    if cache_base:
-        os.environ.setdefault("TORCH_HOME", f"{cache_base}/.torch_cache")
+    # Other caches only if home is not writable
+    if not home_writable:
         os.environ.setdefault("MPLCONFIGDIR", f"{cache_base}/.matplotlib")
         os.environ.setdefault("FONTCONFIG_CACHE", f"{cache_base}/.fontconfig")
         os.environ.setdefault("XDG_CACHE_HOME", f"{cache_base}/.cache")
 
         # Ensure directories exist
         for env_var in [
-            "TORCH_HOME",
             "MPLCONFIGDIR",
             "FONTCONFIG_CACHE",
             "XDG_CACHE_HOME",
@@ -89,10 +94,9 @@ def setup_hpc_environment() -> None:
 
     # WandB configuration (offline by default for HPC)
     os.environ.setdefault("WANDB_MODE", "offline")
-    if cache_base:
-        os.environ.setdefault("WANDB_DIR", f"{cache_base}/.wandb")
-        os.environ.setdefault("WANDB_CACHE_DIR", f"{cache_base}/.wandb_cache")
-        os.environ.setdefault("WANDB_CONFIG_DIR", f"{cache_base}/.wandb_config")
+    os.environ.setdefault("WANDB_DIR", f"{cache_base}/.wandb")
+    os.environ.setdefault("WANDB_CACHE_DIR", f"{cache_base}/.wandb_cache")
+    os.environ.setdefault("WANDB_CONFIG_DIR", f"{cache_base}/.wandb_config")
 
     # Suppress non-critical warnings
     os.environ.setdefault(

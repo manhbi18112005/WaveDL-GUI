@@ -69,6 +69,39 @@ _setup_cache_dir("XDG_DATA_HOME", "local/share")
 _setup_cache_dir("XDG_STATE_HOME", "local/state")
 _setup_cache_dir("XDG_CACHE_HOME", "cache")
 
+
+def _setup_per_rank_compile_cache() -> None:
+    """Set per-GPU Triton/Inductor cache to prevent multi-process race warnings.
+
+    When using torch.compile with multiple GPUs, all processes try to write to
+    the same cache directory, causing 'Directory is not empty - skipping!' warnings.
+    This gives each GPU rank its own isolated cache subdirectory.
+    """
+    # Get local rank from environment (set by accelerate/torchrun)
+    local_rank = os.environ.get("LOCAL_RANK", "0")
+
+    # Get cache base from environment or use CWD
+    cache_base = os.environ.get(
+        "TRITON_CACHE_DIR", os.path.join(os.getcwd(), ".triton_cache")
+    )
+
+    # Set per-rank cache directories
+    os.environ["TRITON_CACHE_DIR"] = os.path.join(cache_base, f"rank_{local_rank}")
+    os.environ["TORCHINDUCTOR_CACHE_DIR"] = os.path.join(
+        os.environ.get(
+            "TORCHINDUCTOR_CACHE_DIR", os.path.join(os.getcwd(), ".inductor_cache")
+        ),
+        f"rank_{local_rank}",
+    )
+
+    # Create directories
+    os.makedirs(os.environ["TRITON_CACHE_DIR"], exist_ok=True)
+    os.makedirs(os.environ["TORCHINDUCTOR_CACHE_DIR"], exist_ok=True)
+
+
+# Setup per-rank compile caches (before torch imports)
+_setup_per_rank_compile_cache()
+
 # =============================================================================
 # Standard imports (after environment setup)
 # =============================================================================
