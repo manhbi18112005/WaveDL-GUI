@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.4] - 2026-01-11
+
+### Changed
+- **Packaging**: Moved dev tools (pytest, ruff, pre-commit) from core deps to `[project.optional-dependencies]`
+
+### Fixed
+- **Critical**: Cache invalidation now deletes stale `.dat`/`.pkl` files (prevents silent reuse of old data)
+- **Critical**: ReduceLROnPlateau patience was divided by GPU count (scheduler stepped by all processes)
+- **Data**: OOM guard in `load_test_data()` now applies to main HDF5/MAT paths (was only in fallback)
+- **Swin**: Backbone bias/norm params now get 0.1× LR decay (matches intended fine-tuning behavior)
+- **CLI**: Multiple `--import` files now use unique module names (prevents silent overwrites)
+
 ## [1.5.3] - 2026-01-10
 
 ### Changed
@@ -240,6 +252,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Example configurations and training scripts
 - MIT License and citation file
 
+[1.5.4]: https://github.com/ductho-le/WaveDL/compare/v1.5.3...v1.5.4
 [1.5.3]: https://github.com/ductho-le/WaveDL/compare/v1.5.2...v1.5.3
 [1.5.2]: https://github.com/ductho-le/WaveDL/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/ductho-le/WaveDL/compare/v1.5.0...v1.5.1

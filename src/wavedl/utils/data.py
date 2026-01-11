@@ -793,6 +793,14 @@ def load_test_data(
                     raise KeyError(
                         f"Input key not found. Tried: {custom_input_keys}. Found: {keys}"
                     )
+                # OOM guard: warn if dataset is very large
+                n_samples = f[inp_key].shape[0]
+                if n_samples > 100000:
+                    raise ValueError(
+                        f"Dataset has {n_samples:,} samples. load_test_data() loads "
+                        f"everything into RAM which may cause OOM. For large inference "
+                        f"sets, use a DataLoader with HDF5Source.load_mmap() instead."
+                    )
                 inp = f[inp_key][:]
                 outp = f[out_key][:] if out_key else None
         elif format == "mat":
@@ -804,6 +812,14 @@ def load_test_data(
                 if inp_key is None:
                     raise KeyError(
                         f"Input key not found. Tried: {custom_input_keys}. Found: {keys}"
+                    )
+                # OOM guard: warn if dataset is very large (MAT is transposed)
+                n_samples = f[inp_key].shape[-1]
+                if n_samples > 100000:
+                    raise ValueError(
+                        f"Dataset has {n_samples:,} samples. load_test_data() loads "
+                        f"everything into RAM which may cause OOM. For large inference "
+                        f"sets, use a DataLoader with MATSource.load_mmap() instead."
                     )
                 inp = mat_source._load_dataset(f, inp_key)
                 if out_key:
@@ -1126,6 +1142,17 @@ def prepare_data(
 
     if not cache_exists:
         if accelerator.is_main_process:
+            # Delete stale cache files to force regeneration
+            # This prevents silent reuse of old data when metadata invalidates cache
+            for stale_file in [CACHE_FILE, SCALER_FILE]:
+                if os.path.exists(stale_file):
+                    try:
+                        os.remove(stale_file)
+                        logger.debug(f"   Removed stale cache: {stale_file}")
+                    except OSError as e:
+                        logger.warning(
+                            f"   Failed to remove stale cache {stale_file}: {e}"
+                        )
             # RANK 0: Create cache (can take a long time for large datasets)
             # Other ranks will wait at the barrier below
 

@@ -70,13 +70,16 @@ dependencies = [
     # ONNX export
     "onnx>=1.14.0",
     "onnxruntime>=1.15.0",
-    # Development tools
+    # torch.compile backend (Linux only)
+    "triton>=2.0.0; sys_platform == 'linux'",
+]
+
+[project.optional-dependencies]
+dev = [
     "pytest>=7.0.0",
     "pytest-xdist>=3.5.0",
     "ruff>=0.8.0",
     "pre-commit>=3.5.0",
-    # torch.compile backend (Linux only)
-    "triton>=2.0.0; sys_platform == 'linux'",
 ]
 
 [project.scripts]

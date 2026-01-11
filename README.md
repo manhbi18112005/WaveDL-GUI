@@ -159,7 +159,7 @@ Deploy models anywhere:
 pip install wavedl
 ```
 
-This installs everything you need: training, inference, HPO, ONNX export, and dev tools.
+This installs everything you need: training, inference, HPO, ONNX export.
 
 #### From Source (for development)
 
@@ -291,7 +291,7 @@ class MyModel(BaseModel):
 **Step 2: Train**
 
 ```bash
-wavedl-hpc --import my_model --model my_model --data_path train.npz
+wavedl-hpc --import my_model.py --model my_model --data_path train.npz
 ```
 
 WaveDL handles everything else: training loop, logging, checkpoints, multi-GPU, early stopping, etc.
@@ -467,7 +467,7 @@ print('\\n✓ All pretrained weights cached!')
 | Argument | Default | Description |
 |----------|---------|-------------|
 | `--model` | `cnn` | Model architecture |
-| `--import` | - | Python modules to import (for custom models) |
+| `--import` | - | Python file(s) to import for custom models (supports multiple) |
 | `--batch_size` | `128` | Per-GPU batch size |
 | `--lr` | `1e-3` | Learning rate |
 | `--epochs` | `1000` | Maximum epochs |
@@ -1178,6 +1178,6 @@ This research was enabled in part by support provided by [Compute Ontario](https
 [![Google Scholar](https://img.shields.io/badge/Google_Scholar-4285F4?style=plastic&logo=google-scholar&logoColor=white)](https://scholar.google.ca/citations?user=OlwMr9AAAAAJ)
 [![ResearchGate](https://img.shields.io/badge/ResearchGate-00CCBB?style=plastic&logo=researchgate&logoColor=white)](https://www.researchgate.net/profile/Ductho-Le)
 
-<sub>Released under the MIT License</sub>
+<sub>May your signals be strong and your attenuation low 👋</sub>
 
 </div>

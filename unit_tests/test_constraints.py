@@ -145,7 +145,10 @@ class TestFileConstraint:
                 result = constraint(pred)
                 assert result.item() == pytest.approx(0.0, abs=1e-6)
             finally:
-                os.unlink(f.name)
+                try:
+                    os.unlink(f.name)
+                except PermissionError:
+                    pass  # Windows file locking - cleanup later
 
     def test_missing_function_raises(self):
         """File without constraint function should raise."""
@@ -158,7 +161,10 @@ class TestFileConstraint:
                 with pytest.raises(ValueError, match="must define"):
                     FileConstraint(f.name)
             finally:
-                os.unlink(f.name)
+                try:
+                    os.unlink(f.name)
+                except PermissionError:
+                    pass  # Windows file locking - cleanup later
 
 
 # ==============================================================================

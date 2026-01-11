@@ -86,7 +86,10 @@ class TestLoadConfig:
                 assert config["lr"] == 0.001
                 assert config["epochs"] == 100
             finally:
-                os.unlink(f.name)
+                try:
+                    os.unlink(f.name)
+                except PermissionError:
+                    pass  # Windows file locking - cleanup later
 
     def test_load_empty_yaml(self):
         """Test loading an empty YAML file returns empty dict."""
@@ -100,7 +103,10 @@ class TestLoadConfig:
                 config = load_config(f.name)
                 assert config == {}
             finally:
-                os.unlink(f.name)
+                try:
+                    os.unlink(f.name)
+                except PermissionError:
+                    pass  # Windows file locking - cleanup later
 
     def test_load_nested_yaml(self):
         """Test that nested YAML is flattened."""
@@ -115,7 +121,10 @@ class TestLoadConfig:
                 assert config["optimizer_lr"] == 0.001
                 assert config["optimizer_weight_decay"] == 0.01
             finally:
-                os.unlink(f.name)
+                try:
+                    os.unlink(f.name)
+                except PermissionError:
+                    pass  # Windows file locking - cleanup later
 
     def test_load_missing_file_raises(self):
         """Test that loading missing file raises FileNotFoundError."""

@@ -54,3 +54,15 @@ repos:
       - id: detect-private-key
       # Validate Python AST
       - id: check-ast
+
+  # ---------------------------------------------------------------------------
+  # Clean Cache Directories
+  # ---------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: clean-cache
+        name: clean cache directories
+        entry: bash -c 'find . -type d \( -name "__pycache__" -o -name ".pytest_cache" -o -name ".ruff_cache" -o -name "*.egg-info" -o -name ".cache" -o -name ".torch_cache" -o -name ".triton_cache" -o -name ".inductor_cache" -o -name ".matplotlib" -o -name ".fontconfig" -o -name ".local" \) -exec rm -rf {} + 2>/dev/null || true'
+        language: system
+        pass_filenames: false
+        always_run: true

@@ -156,7 +156,10 @@ class TestNPZSourceLoad:
                 assert X.shape == (100, 64, 64)
                 assert y.shape == (100, 3)
             finally:
-                os.unlink(f.name)
+                try:
+                    os.unlink(f.name)
+                except PermissionError:
+                    pass  # Windows file locking - cleanup later
 
     def test_load_mmap_basic(self):
         """Test memory-mapped loading."""
@@ -174,7 +177,10 @@ class TestNPZSourceLoad:
                 assert X.shape == (50, 32)
                 assert y.shape == (50, 2)
             finally:
-                os.unlink(f.name)
+                try:
+                    os.unlink(f.name)
+                except PermissionError:
+                    pass  # Windows file locking - cleanup later
 
     def test_load_outputs_only(self):
         """Test loading only outputs."""
@@ -191,7 +197,10 @@ class TestNPZSourceLoad:
 
                 assert y.shape == (100, 5)
             finally:
-                os.unlink(f.name)
+                try:
+                    os.unlink(f.name)
+                except PermissionError:
+                    pass  # Windows file locking - cleanup later
 
 
 class TestNPZSourceKeyDetection:
@@ -212,7 +221,10 @@ class TestNPZSourceKeyDetection:
                 assert X.shape == (10, 5)
                 assert y.shape == (10, 2)
             finally:
-                os.unlink(f.name)
+                try:
+                    os.unlink(f.name)
+                except PermissionError:
+                    pass  # Windows file locking - cleanup later
 
     def test_detects_alternative_keys(self):
         """Test detection of alternative key names."""
@@ -227,7 +239,10 @@ class TestNPZSourceKeyDetection:
                 assert X.shape == (10, 5)
                 assert y.shape == (10, 2)
             finally:
-                os.unlink(f.name)
+                try:
+                    os.unlink(f.name)
+                except PermissionError:
+                    pass  # Windows file locking - cleanup later
 
 
 # ==============================================================================
@@ -335,4 +350,7 @@ class TestSparseMatrixHandling:
                 assert isinstance(X, np.ndarray)
                 assert X.shape == (10, 100)
             finally:
-                os.unlink(f.name)
+                try:
+                    os.unlink(f.name)
+                except PermissionError:
+                    pass  # Windows file locking - cleanup later

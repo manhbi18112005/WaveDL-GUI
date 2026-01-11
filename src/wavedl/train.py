@@ -122,6 +122,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
+import torch.distributed as dist
 from accelerate import Accelerator
 from accelerate.utils import set_seed
 from sklearn.metrics import r2_score
@@ -470,15 +471,19 @@ def main():
             try:
                 # Handle both module names (my_model) and file paths (./my_model.py)
                 if module_name.endswith(".py"):
-                    # Import from file path
+                    # Import from file path with unique module name
                     import importlib.util
 
+                    # Derive unique module name from filename to avoid collisions
+                    base_name = os.path.splitext(os.path.basename(module_name))[0]
+                    unique_name = f"wavedl_custom_{base_name}"
+
                     spec = importlib.util.spec_from_file_location(
-                        "custom_module", module_name
+                        unique_name, module_name
                     )
                     if spec and spec.loader:
                         module = importlib.util.module_from_spec(spec)
-                        sys.modules["custom_module"] = module
+                        sys.modules[unique_name] = module
                         spec.loader.exec_module(module)
                         print(f"✓ Imported custom module from: {module_name}")
                 else:
@@ -1250,9 +1255,32 @@ def main():
                     )
 
             # Learning rate scheduling (epoch-based schedulers only)
+            # NOTE: For ReduceLROnPlateau with DDP, we must step only on main process
+            # to avoid patience counter being incremented by all GPU processes.
+            # Then we sync the new LR to all processes to keep them consistent.
             if not scheduler_step_per_batch:
                 if args.scheduler == "plateau":
-                    scheduler.step(avg_val_loss)
+                    # Step only on main process to avoid multi-GPU patience bug
+                    if accelerator.is_main_process:
+                        scheduler.step(avg_val_loss)
+
+                    # Sync LR across all processes after main process updates it
+                    accelerator.wait_for_everyone()
+
+                    # Broadcast new LR from rank 0 to all processes
+                    if dist.is_initialized():
+                        if accelerator.is_main_process:
+                            new_lr = optimizer.param_groups[0]["lr"]
+                        else:
+                            new_lr = 0.0
+                        new_lr_tensor = torch.tensor(
+                            new_lr, device=accelerator.device, dtype=torch.float32
+                        )
+                        dist.broadcast(new_lr_tensor, src=0)
+                        # Update LR on non-main processes
+                        if not accelerator.is_main_process:
+                            for param_group in optimizer.param_groups:
+                                param_group["lr"] = new_lr_tensor.item()
                 else:
                     scheduler.step()
 

@@ -97,6 +97,13 @@ wandb/
 # Cache
 *.cache
 .accelerate/
+.torch_cache/
+.triton_cache/
+.inductor_cache/
+.matplotlib/
+.fontconfig/
+.cache/
+.local/
 
 # OS
 .DS_Store

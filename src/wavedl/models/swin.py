@@ -191,22 +191,33 @@ class SwinTransformerBase(BaseModel):
         Returns:
             List of parameter group dictionaries
         """
-        # Separate parameters: head (full LR) vs backbone (decayed LR)
+        # Separate parameters into 4 groups for proper LR decay:
+        # 1. Head params with decay (full LR)
+        # 2. Backbone params with decay (0.1× LR)
+        # 3. Head bias/norm without decay (full LR)
+        # 4. Backbone bias/norm without decay (0.1× LR)
         head_params = []
         backbone_params = []
-        no_decay_params = []
+        head_no_decay = []
+        backbone_no_decay = []
 
         for name, param in self.backbone.named_parameters():
             if not param.requires_grad:
                 continue
 
-            # No weight decay for bias and normalization
-            if "bias" in name or "norm" in name:
-                no_decay_params.append(param)
-            elif "head" in name:
-                head_params.append(param)
+            is_head = "head" in name
+            is_no_decay = "bias" in name or "norm" in name
+
+            if is_head:
+                if is_no_decay:
+                    head_no_decay.append(param)
+                else:
+                    head_params.append(param)
             else:
-                backbone_params.append(param)
+                if is_no_decay:
+                    backbone_no_decay.append(param)
+                else:
+                    backbone_params.append(param)
 
         groups = []
 
@@ -229,11 +240,21 @@ class SwinTransformerBase(BaseModel):
                 }
             )
 
-        if no_decay_params:
+        if head_no_decay:
             groups.append(
                 {
-                    "params": no_decay_params,
+                    "params": head_no_decay,
                     "lr": base_lr,
+                    "weight_decay": 0.0,
+                }
+            )
+
+        if backbone_no_decay:
+            # Backbone bias/norm also gets 0.1× LR to match intended decay
+            groups.append(
+                {
+                    "params": backbone_no_decay,
+                    "lr": base_lr * 0.1,
                     "weight_decay": 0.0,
                 }
             )
