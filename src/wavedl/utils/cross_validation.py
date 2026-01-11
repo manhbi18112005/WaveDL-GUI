@@ -337,6 +337,17 @@ def run_cross_validation(
         torch.cuda.manual_seed_all(seed)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Auto-detect optimal DataLoader workers if not specified (matches train.py behavior)
+    if workers < 0:
+        cpu_count = os.cpu_count() or 4
+        num_gpus = torch.cuda.device_count() if torch.cuda.is_available() else 1
+        # Heuristic: 4-16 workers per GPU, bounded by available CPU cores
+        workers = min(16, max(2, (cpu_count - 2) // max(1, num_gpus)))
+        logger.info(
+            f"⚙️  Auto-detected workers: {workers} (CPUs: {cpu_count}, GPUs: {num_gpus})"
+        )
+
     logger.info(f"🚀 K-Fold Cross-Validation ({folds} folds)")
     logger.info(f"   Model: {model_name} | Device: {device}")
     logger.info(

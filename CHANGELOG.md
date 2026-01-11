@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.3] - 2026-01-10
+
+### Changed
+- **HPC**: TORCH_HOME and WandB caches now always use CWD (compute nodes lack internet access)
+- **HPC**: Triton/Inductor caches set unconditionally before torch imports (prevents `--compile` permission errors)
+- **Training**: Per-GPU Triton/Inductor cache directories prevent multi-process race warnings with `--compile`
+- **Validation**: Replaced manual `torch.distributed.gather` with `accelerator.gather_for_metrics` (eliminates GPU memory spike)
+- **Config**: `wavedl_version` metadata now dynamically reads from `__version__` instead of hardcoded `"1.0.0"`
+
+### Fixed
+- **Cross-validation**: Auto-detect optimal DataLoader workers when `--workers=-1` (matches `train.py` behavior)
+- **Test data loading**: Prioritize `input_test`/`output_test` keys over training keys in `load_test_data()`
+- **ResNet**: Added GroupNorm divisibility validation (prevents cryptic runtime errors)
+- **Tests**: Force `pretrained=False` in architecture tests for offline CI compatibility
+- **Documentation**: Updated README custom model signature and HPC environment variable notes
+- **Metadata**: Synced CITATION.cff version
+
 ## [1.5.2] - 2026-01-08
 
 ### Fixed
@@ -223,6 +240,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Example configurations and training scripts
 - MIT License and citation file
 
+[1.5.3]: https://github.com/ductho-le/WaveDL/compare/v1.5.2...v1.5.3
 [1.5.2]: https://github.com/ductho-le/WaveDL/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/ductho-le/WaveDL/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/ductho-le/WaveDL/compare/v1.4.6...v1.5.0

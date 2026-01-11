@@ -941,7 +941,6 @@ def main():
         logger.info("=" * len(header))
 
     try:
-        time.time()
         total_training_time = 0.0
 
         for epoch in range(start_epoch, args.epochs):
@@ -1035,49 +1034,29 @@ def main():
                     local_preds.append(pred.detach().cpu())
                     local_targets.append(y.detach().cpu())
 
-            # Concatenate locally on CPU (no GPU memory spike)
-            cpu_preds = torch.cat(local_preds)
-            cpu_targets = torch.cat(local_targets)
+            # Concatenate locally (keep on GPU for gather_for_metrics compatibility)
+            local_preds_cat = torch.cat(local_preds)
+            local_targets_cat = torch.cat(local_targets)
 
-            # Gather predictions and targets to rank 0 only (memory-efficient)
-            # Avoids duplicating full validation set on every GPU
-            if torch.distributed.is_initialized():
-                # DDP mode: gather only to rank 0
-                # NCCL backend requires CUDA tensors for collective ops
-                gpu_preds = cpu_preds.to(accelerator.device)
-                gpu_targets = cpu_targets.to(accelerator.device)
-
-                if accelerator.is_main_process:
-                    # Rank 0: allocate gather buffers on GPU
-                    all_preds_list = [
-                        torch.zeros_like(gpu_preds)
-                        for _ in range(accelerator.num_processes)
-                    ]
-                    all_targets_list = [
-                        torch.zeros_like(gpu_targets)
-                        for _ in range(accelerator.num_processes)
-                    ]
-                    torch.distributed.gather(
-                        gpu_preds, gather_list=all_preds_list, dst=0
-                    )
-                    torch.distributed.gather(
-                        gpu_targets, gather_list=all_targets_list, dst=0
-                    )
-                    # Move back to CPU for metric computation
-                    gathered = [
-                        (
-                            torch.cat(all_preds_list).cpu(),
-                            torch.cat(all_targets_list).cpu(),
-                        )
-                    ]
-                else:
-                    # Other ranks: send to rank 0, don't allocate gather buffers
-                    torch.distributed.gather(gpu_preds, gather_list=None, dst=0)
-                    torch.distributed.gather(gpu_targets, gather_list=None, dst=0)
-                    gathered = [(cpu_preds, cpu_targets)]  # Placeholder, not used
+            # Gather predictions and targets using Accelerate's CPU-efficient utility
+            # gather_for_metrics handles:
+            # - DDP padding removal (no need to trim manually)
+            # - Efficient cross-rank gathering without GPU memory spike
+            # - Returns concatenated tensors on CPU for metric computation
+            if accelerator.num_processes > 1:
+                # Move to GPU for gather (required by NCCL), then back to CPU
+                # gather_for_metrics is more memory-efficient than manual gather
+                # as it processes in chunks internally
+                gathered_preds = accelerator.gather_for_metrics(
+                    local_preds_cat.to(accelerator.device)
+                ).cpu()
+                gathered_targets = accelerator.gather_for_metrics(
+                    local_targets_cat.to(accelerator.device)
+                ).cpu()
             else:
                 # Single-GPU mode: no gathering needed
-                gathered = [(cpu_preds, cpu_targets)]
+                gathered_preds = local_preds_cat
+                gathered_targets = local_targets_cat
 
             # Synchronize validation metrics (scalars only - efficient)
             val_loss_scalar = val_loss_sum.item()
@@ -1102,20 +1081,10 @@ def main():
 
             # ==================== LOGGING & CHECKPOINTING ====================
             if accelerator.is_main_process:
-                # Concatenate gathered tensors from all ranks (only on rank 0)
-                # gathered is list of tuples: [(preds_rank0, targs_rank0), (preds_rank1, targs_rank1), ...]
-                all_preds = torch.cat([item[0] for item in gathered])
-                all_targets = torch.cat([item[1] for item in gathered])
-
                 # Scientific metrics - cast to float32 before numpy
-                y_pred = all_preds.float().numpy()
-                y_true = all_targets.float().numpy()
-
-                # Trim DDP padding
-                real_len = len(val_dl.dataset)
-                if len(y_pred) > real_len:
-                    y_pred = y_pred[:real_len]
-                    y_true = y_true[:real_len]
+                # gather_for_metrics already handles DDP padding removal
+                y_pred = gathered_preds.float().numpy()
+                y_true = gathered_targets.float().numpy()
 
                 # Guard against tiny validation sets (R² undefined for <2 samples)
                 if len(y_true) >= 2:

@@ -183,9 +183,11 @@ def save_config(
             config[key] = value
 
     # Add metadata
+    from wavedl import __version__
+
     config["_metadata"] = {
         "saved_at": datetime.now().isoformat(),
-        "wavedl_version": "1.0.0",
+        "wavedl_version": __version__,
     }
 
     output_path = Path(output_path)

@@ -763,9 +763,58 @@ def load_test_data(
             k for k in OUTPUT_KEYS if k != "output_test"
         ]
 
-    # Load data using appropriate source
+    # Load data using appropriate source with test-key priority
+    # We detect keys first to ensure input_test/output_test are used when present
     try:
-        inp, outp = source.load(path)
+        if format == "npz":
+            with np.load(path, allow_pickle=False) as probe:
+                keys = list(probe.keys())
+            inp_key = DataSource._find_key(keys, custom_input_keys)
+            out_key = DataSource._find_key(keys, custom_output_keys)
+            if inp_key is None:
+                raise KeyError(
+                    f"Input key not found. Tried: {custom_input_keys}. Found: {keys}"
+                )
+            data = NPZSource._safe_load(
+                path, [inp_key] + ([out_key] if out_key else [])
+            )
+            inp = data[inp_key]
+            if inp.dtype == object:
+                inp = np.array(
+                    [x.toarray() if hasattr(x, "toarray") else x for x in inp]
+                )
+            outp = data[out_key] if out_key else None
+        elif format == "hdf5":
+            with h5py.File(path, "r") as f:
+                keys = list(f.keys())
+                inp_key = DataSource._find_key(keys, custom_input_keys)
+                out_key = DataSource._find_key(keys, custom_output_keys)
+                if inp_key is None:
+                    raise KeyError(
+                        f"Input key not found. Tried: {custom_input_keys}. Found: {keys}"
+                    )
+                inp = f[inp_key][:]
+                outp = f[out_key][:] if out_key else None
+        elif format == "mat":
+            mat_source = MATSource()
+            with h5py.File(path, "r") as f:
+                keys = list(f.keys())
+                inp_key = DataSource._find_key(keys, custom_input_keys)
+                out_key = DataSource._find_key(keys, custom_output_keys)
+                if inp_key is None:
+                    raise KeyError(
+                        f"Input key not found. Tried: {custom_input_keys}. Found: {keys}"
+                    )
+                inp = mat_source._load_dataset(f, inp_key)
+                if out_key:
+                    outp = mat_source._load_dataset(f, out_key)
+                    if outp.ndim == 2 and outp.shape[0] == 1:
+                        outp = outp.T
+                else:
+                    outp = None
+        else:
+            # Fallback to default source.load() for unknown formats
+            inp, outp = source.load(path)
     except KeyError:
         # Try with just inputs if outputs not found (inference-only mode)
         if format == "npz":

@@ -256,8 +256,8 @@ python -m wavedl.test --checkpoint <checkpoint_folder> --data_path <test_data> \
 
 **Requirements** (your model must):
 1. Inherit from `BaseModel`
-2. Accept `in_channels`, `num_outputs`, `input_shape` in `__init__`
-3. Return a tensor of shape `(batch, num_outputs)` from `forward()`
+2. Accept `in_shape`, `out_size` in `__init__`
+3. Return a tensor of shape `(batch, out_size)` from `forward()`
 
 ---
 
@@ -270,23 +270,22 @@ from wavedl.models import BaseModel, register_model
 
 @register_model("my_model")  # This name is used with --model flag
 class MyModel(BaseModel):
-    def __init__(self, in_channels, num_outputs, input_shape):
-        # in_channels: number of input channels (auto-detected from data)
-        # num_outputs: number of parameters to predict (auto-detected from data)
-        # input_shape: spatial dimensions, e.g., (128,) or (64, 64) or (32, 32, 32)
-        super().__init__(in_channels, num_outputs, input_shape)
+    def __init__(self, in_shape, out_size, **kwargs):
+        # in_shape: spatial dimensions, e.g., (128,) or (64, 64) or (32, 32, 32)
+        # out_size: number of parameters to predict (auto-detected from data)
+        super().__init__(in_shape, out_size)
 
-        # Define your layers (this is just an example)
-        self.conv1 = nn.Conv2d(in_channels, 64, 3, padding=1)
+        # Define your layers (this is just an example for 2D)
+        self.conv1 = nn.Conv2d(1, 64, 3, padding=1)  # Input always has 1 channel
         self.conv2 = nn.Conv2d(64, 128, 3, padding=1)
-        self.fc = nn.Linear(128, num_outputs)
+        self.fc = nn.Linear(128, out_size)
 
     def forward(self, x):
-        # Input x has shape: (batch, in_channels, *input_shape)
+        # Input x has shape: (batch, 1, *in_shape)
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
         x = x.mean(dim=[-2, -1])  # Global average pooling
-        return self.fc(x)  # Output shape: (batch, num_outputs)
+        return self.fc(x)  # Output shape: (batch, out_size)
 ```
 
 **Step 2: Train**
@@ -528,14 +527,19 @@ WaveDL automatically enables performance optimizations for modern GPUs:
 </details>
 
 <details>
-<summary><b>Environment Variables (wavedl-hpc)</b></summary>
+<summary><b>HPC CLI Arguments (wavedl-hpc)</b></summary>
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--num_gpus` | **Auto-detected** | Number of GPUs to use. By default, automatically detected via `nvidia-smi`. Set explicitly to override |
+| `--num_machines` | `1` | Number of machines in distributed setup |
+| `--mixed_precision` | `bf16` | Precision mode: `bf16`, `fp16`, or `no` |
+| `--dynamo_backend` | `no` | PyTorch Dynamo backend |
+
+**Environment Variables (for logging):**
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `NUM_GPUS` | **Auto-detected** | Number of GPUs to use. By default, automatically detected via `nvidia-smi`. Set explicitly to override (e.g., `NUM_GPUS=2`) |
-| `NUM_MACHINES` | `1` | Number of machines in distributed setup |
-| `MIXED_PRECISION` | `bf16` | Precision mode: `bf16`, `fp16`, or `no` |
-| `DYNAMO_BACKEND` | `no` | PyTorch Dynamo backend |
 | `WANDB_MODE` | `offline` | WandB mode: `offline` or `online` |
 
 </details>

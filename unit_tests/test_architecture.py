@@ -142,6 +142,11 @@ def get_test_config(model_name: str, dim: int | None = None) -> tuple:
     # Model-specific adjustments for valid configurations
     model_lower = model_name.lower()
 
+    # Force pretrained=False for all pretrained models to enable offline CI
+    # This prevents network downloads during tests for faster, reliable execution
+    if model_lower.endswith("_pretrained"):
+        kwargs["pretrained"] = False
+
     if model_lower.startswith("vit"):
         # Smaller patches for test input size
         kwargs["patch_size"] = 8 if dim == 2 else 16
