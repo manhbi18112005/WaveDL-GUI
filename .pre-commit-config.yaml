@@ -56,13 +56,13 @@ repos:
       - id: check-ast
 
   # ---------------------------------------------------------------------------
-  # Clean Cache Directories
+  # Clean Cache Directories (Cross-platform Python)
   # ---------------------------------------------------------------------------
   - repo: local
     hooks:
       - id: clean-cache
         name: clean cache directories
-        entry: bash -c 'find . -type d \( -name "__pycache__" -o -name ".pytest_cache" -o -name ".ruff_cache" -o -name "*.egg-info" -o -name ".cache" -o -name ".torch_cache" -o -name ".triton_cache" -o -name ".inductor_cache" -o -name ".matplotlib" -o -name ".fontconfig" -o -name ".local" \) -exec rm -rf {} + 2>/dev/null || true'
-        language: system
+        entry: python -c "import shutil, pathlib; dirs = ['__pycache__', '.pytest_cache', '.ruff_cache', '.cache', '.torch_cache', '.triton_cache', '.inductor_cache', '.matplotlib', '.fontconfig', '.local']; exts = ['.egg-info']; [shutil.rmtree(p, ignore_errors=True) for p in pathlib.Path('.').rglob('*') if p.is_dir() and (p.name in dirs or any(p.name.endswith(e) for e in exts))]"
+        language: python
         pass_filenames: false
         always_run: true

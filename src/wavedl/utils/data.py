@@ -207,6 +207,10 @@ class NPZSource(DataSource):
 
         The error for object arrays happens at ACCESS time, not load time.
         So we need to probe the keys to detect if pickle is required.
+
+        WARNING: When mmap_mode is not None, the returned NpzFile must be kept
+        open for arrays to remain valid. Caller is responsible for closing.
+        For non-mmap loading, use _load_and_copy() instead to avoid leaks.
         """
         data = np.load(path, allow_pickle=False, mmap_mode=mmap_mode)
         try:
@@ -221,6 +225,26 @@ class NPZSource(DataSource):
                 data.close() if hasattr(data, "close") else None
                 return np.load(path, allow_pickle=True, mmap_mode=mmap_mode)
             raise
+
+    @staticmethod
+    def _load_and_copy(path: str, keys: list[str]) -> dict[str, np.ndarray]:
+        """Load NPZ and copy arrays, ensuring file is properly closed.
+
+        This prevents file descriptor leaks by copying arrays before closing.
+        Use this for eager loading; use _safe_load for memory-mapped access.
+        """
+        data = NPZSource._safe_load(path, keys, mmap_mode=None)
+        try:
+            result = {}
+            for key in keys:
+                if key in data:
+                    arr = data[key]
+                    # Copy ensures we don't hold reference to mmap
+                    result[key] = arr.copy() if hasattr(arr, "copy") else arr
+            return result
+        finally:
+            if hasattr(data, "close"):
+                data.close()
 
     def load(self, path: str) -> tuple[np.ndarray, np.ndarray]:
         """Load NPZ file (pickle enabled only for sparse matrices)."""
@@ -238,7 +262,7 @@ class NPZSource(DataSource):
                 f"Found: {keys}"
             )
 
-        data = self._safe_load(path, [input_key, output_key])
+        data = self._load_and_copy(path, [input_key, output_key])
         inp = data[input_key]
         outp = data[output_key]
 
@@ -290,7 +314,7 @@ class NPZSource(DataSource):
                 f"Supported keys: {OUTPUT_KEYS}. Found: {keys}"
             )
 
-        data = self._safe_load(path, [output_key])
+        data = self._load_and_copy(path, [output_key])
         return data[output_key]
 
 
@@ -527,9 +551,17 @@ class MATSource(DataSource):
                 inp = self._load_dataset(f, input_key)
                 outp = self._load_dataset(f, output_key)
 
-                # Handle 1D outputs that become (1, N) after transpose
-                if outp.ndim == 2 and outp.shape[0] == 1:
-                    outp = outp.T
+                # Handle transposed outputs from MATLAB.
+                # Case 1: (1, N) - N samples with 1 target → transpose to (N, 1)
+                # Case 2: (T, 1) - 1 sample with T targets → transpose to (1, T)
+                num_samples = inp.shape[0]  # inp is already transposed
+                if outp.ndim == 2:
+                    if outp.shape[0] == 1 and outp.shape[1] == num_samples:
+                        # 1D vector: (1, N) → (N, 1)
+                        outp = outp.T
+                    elif outp.shape[1] == 1 and outp.shape[0] != num_samples:
+                        # Single sample with multiple targets: (T, 1) → (1, T)
+                        outp = outp.T
 
         except OSError as e:
             raise ValueError(
@@ -614,7 +646,10 @@ class MATSource(DataSource):
                 # Load with sparse matrix support
                 outp = self._load_dataset(f, output_key)
 
-                # Handle 1D outputs
+                # Handle 1D outputs that become (1, N) after transpose.
+                # Note: This method has no input to compare against, so we can't
+                # distinguish single-sample outputs. This is acceptable for training
+                # data where single-sample is unlikely. For inference, use load_test_data.
                 if outp.ndim == 2 and outp.shape[0] == 1:
                     outp = outp.T
 
@@ -775,7 +810,7 @@ def load_test_data(
                 raise KeyError(
                     f"Input key not found. Tried: {custom_input_keys}. Found: {keys}"
                 )
-            data = NPZSource._safe_load(
+            data = NPZSource._load_and_copy(
                 path, [inp_key] + ([out_key] if out_key else [])
             )
             inp = data[inp_key]
@@ -824,8 +859,17 @@ def load_test_data(
                 inp = mat_source._load_dataset(f, inp_key)
                 if out_key:
                     outp = mat_source._load_dataset(f, out_key)
-                    if outp.ndim == 2 and outp.shape[0] == 1:
-                        outp = outp.T
+                    # Handle transposed outputs from MATLAB
+                    # Case 1: (1, N) - N samples with 1 target → transpose to (N, 1)
+                    # Case 2: (T, 1) - 1 sample with T targets → transpose to (1, T)
+                    num_samples = inp.shape[0]
+                    if outp.ndim == 2:
+                        if outp.shape[0] == 1 and outp.shape[1] == num_samples:
+                            # 1D vector: (1, N) → (N, 1)
+                            outp = outp.T
+                        elif outp.shape[1] == 1 and outp.shape[0] != num_samples:
+                            # Single sample with multiple targets: (T, 1) → (1, T)
+                            outp = outp.T
                 else:
                     outp = None
         else:
@@ -844,7 +888,7 @@ def load_test_data(
                 )
             out_key = DataSource._find_key(keys, custom_output_keys)
             keys_to_probe = [inp_key] + ([out_key] if out_key else [])
-            data = NPZSource._safe_load(path, keys_to_probe)
+            data = NPZSource._load_and_copy(path, keys_to_probe)
             inp = data[inp_key]
             if inp.dtype == object:
                 inp = np.array(
@@ -894,9 +938,17 @@ def load_test_data(
                 out_key = DataSource._find_key(keys, custom_output_keys)
                 if out_key:
                     outp = mat_source._load_dataset(f, out_key)
-                    # Handle 1D outputs that become (1, N) after transpose
-                    if outp.ndim == 2 and outp.shape[0] == 1:
-                        outp = outp.T
+                    # Handle transposed outputs from MATLAB
+                    # Case 1: (1, N) - N samples with 1 target → transpose to (N, 1)
+                    # Case 2: (T, 1) - 1 sample with T targets → transpose to (1, T)
+                    num_samples = inp.shape[0]
+                    if outp.ndim == 2:
+                        if outp.shape[0] == 1 and outp.shape[1] == num_samples:
+                            # 1D vector: (1, N) → (N, 1)
+                            outp = outp.T
+                        elif outp.shape[1] == 1 and outp.shape[0] != num_samples:
+                            # Single sample with multiple targets: (T, 1) → (1, T)
+                            outp = outp.T
                 else:
                     outp = None
         else:
@@ -1153,6 +1205,18 @@ def prepare_data(
                         logger.warning(
                             f"   Failed to remove stale cache {stale_file}: {e}"
                         )
+
+            # Fail explicitly if stale cache files couldn't be removed
+            # This prevents silent reuse of outdated data
+            remaining_stale = [
+                f for f in [CACHE_FILE, SCALER_FILE] if os.path.exists(f)
+            ]
+            if remaining_stale:
+                raise RuntimeError(
+                    f"Cannot regenerate cache: stale files could not be removed. "
+                    f"Please manually delete: {remaining_stale}"
+                )
+
             # RANK 0: Create cache (can take a long time for large datasets)
             # Other ranks will wait at the barrier below
 

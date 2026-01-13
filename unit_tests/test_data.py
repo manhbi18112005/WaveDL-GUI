@@ -30,6 +30,7 @@ from wavedl.utils.data import (
     MemmapDataset,
     NPZSource,
     get_data_source,
+    load_test_data,
     load_training_data,
     memmap_worker_init_fn,
 )
@@ -732,3 +733,106 @@ class TestLazyDataHandle:
 
         # Should be closed now but safe to access
         assert handle._closed is True
+
+
+# ==============================================================================
+# SINGLE-SAMPLE LOAD_TEST_DATA TESTS
+# ==============================================================================
+class TestLoadTestDataSingleSample:
+    """Tests for single-sample edge cases in load_test_data.
+
+    These tests verify that single-sample outputs are NOT incorrectly transposed.
+    The bug manifested when (1, T) output was transposed to (T, 1).
+    """
+
+    def test_single_sample_npz_2d_input(self, temp_dir):
+        """Single sample with 2D input and multiple targets."""
+        X = np.random.randn(1, 64, 64).astype(np.float32)  # 1 sample
+        y = np.random.randn(1, 5).astype(np.float32)  # 1 sample, 5 targets
+
+        path = os.path.join(temp_dir, "single.npz")
+        np.savez(path, input_test=X, output_test=y)
+
+        X_loaded, y_loaded = load_test_data(path)
+
+        # Input: (1, 64, 64) → (1, 1, 64, 64) with channel added
+        assert X_loaded.shape == (1, 1, 64, 64)
+        # Output: (1, 5) should remain (1, 5), NOT become (5, 1)
+        assert y_loaded.shape == (1, 5)
+
+    def test_single_sample_npz_1d_input(self, temp_dir):
+        """Single sample with 1D input and multiple targets."""
+        X = np.random.randn(1, 256).astype(np.float32)  # 1 sample, 256 points
+        y = np.random.randn(1, 3).astype(np.float32)  # 1 sample, 3 targets
+
+        path = os.path.join(temp_dir, "single_1d.npz")
+        np.savez(path, input_test=X, output_test=y)
+
+        X_loaded, y_loaded = load_test_data(path)
+
+        # Input: (1, 256) → (1, 1, 256) with channel added
+        assert X_loaded.shape == (1, 1, 256)
+        # Output: (1, 3) should remain (1, 3)
+        assert y_loaded.shape == (1, 3)
+
+    def test_single_sample_hdf5(self, temp_dir):
+        """Single sample HDF5 file preserves output shape."""
+        X = np.random.randn(1, 32, 32).astype(np.float32)
+        y = np.random.randn(1, 4).astype(np.float32)
+
+        path = os.path.join(temp_dir, "single.h5")
+        with h5py.File(path, "w") as f:
+            f.create_dataset("input_test", data=X)
+            f.create_dataset("output_test", data=y)
+
+        X_loaded, y_loaded = load_test_data(path)
+
+        assert X_loaded.shape == (1, 1, 32, 32)
+        assert y_loaded.shape == (1, 4)
+
+    def test_single_sample_mat(self, temp_dir):
+        """Single sample MAT v7.3 file preserves output shape (critical test)."""
+        # Create MAT v7.3 file with 1 sample, 2D input
+        # MATLAB stores column-major: (N, H, W) becomes (W, H, N) in HDF5
+        # For single sample (1, 32, 32): stored as (32, 32, 1), transposed back to (1, 32, 32)
+        X = np.random.randn(1, 32, 32).astype(np.float32)  # (N=1, H=32, W=32)
+        y = np.random.randn(1, 5).astype(np.float32)  # (N=1, T=5)
+
+        path = os.path.join(temp_dir, "single.mat")
+        with h5py.File(path, "w") as f:
+            # MATLAB column-major: transpose all axes
+            f.create_dataset("input_test", data=X.T)  # (W=32, H=32, N=1)
+            f.create_dataset("output_test", data=y.T)  # (T=5, N=1)
+
+        X_loaded, y_loaded = load_test_data(path)
+
+        # After MATSource transpose and channel addition: (1, 1, 32, 32)
+        assert X_loaded.shape[0] == 1  # 1 sample
+        # Critical: output should be (1, 5), NOT (5, 1)
+        assert y_loaded.shape == (1, 5)
+
+    def test_multi_sample_still_works(self, temp_dir):
+        """Verify fix doesn't break normal multi-sample case."""
+        X = np.random.randn(50, 64, 64).astype(np.float32)
+        y = np.random.randn(50, 3).astype(np.float32)
+
+        path = os.path.join(temp_dir, "multi.npz")
+        np.savez(path, input_test=X, output_test=y)
+
+        X_loaded, y_loaded = load_test_data(path)
+
+        assert X_loaded.shape == (50, 1, 64, 64)
+        assert y_loaded.shape == (50, 3)
+
+    def test_single_sample_single_target(self, temp_dir):
+        """Single sample with single target value."""
+        X = np.random.randn(1, 64, 64).astype(np.float32)
+        y = np.array([[3.14]], dtype=np.float32)  # (1, 1)
+
+        path = os.path.join(temp_dir, "single_single.npz")
+        np.savez(path, input_test=X, output_test=y)
+
+        X_loaded, y_loaded = load_test_data(path)
+
+        assert X_loaded.shape == (1, 1, 64, 64)
+        assert y_loaded.shape == (1, 1)

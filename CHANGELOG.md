@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [1.5.5] - 2026-01-13
+
+### Fixed
+- **Inference**: Single-sample MAT files with multiple targets now correctly load as `(1, T)` instead of `(T, 1)`
+- **HPO**: Removed read-only site-packages cwd (prevents permission errors when pip-installed)
+- **Data**: Cache invalidation now raises RuntimeError if stale files cannot be removed (prevents silent stale data reuse)
+- **Data**: NPZ file descriptors now properly closed after loading (prevents leaks in long-running workflows)
+- **Metrics**: `plot_qq` handles zero-variance errors gracefully (no more NaN/division-by-zero)
+- **Tests**: Integration test for multi-epoch training no longer flaky (removed random-data loss decrease assertion)
+
 ## [1.5.4] - 2026-01-11
 
 ### Changed
@@ -252,6 +264,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Example configurations and training scripts
 - MIT License and citation file
 
+[1.5.5]: https://github.com/ductho-le/WaveDL/compare/v1.5.4...v1.5.5
 [1.5.4]: https://github.com/ductho-le/WaveDL/compare/v1.5.3...v1.5.4
 [1.5.3]: https://github.com/ductho-le/WaveDL/compare/v1.5.2...v1.5.3
 [1.5.2]: https://github.com/ductho-le/WaveDL/compare/v1.5.1...v1.5.2

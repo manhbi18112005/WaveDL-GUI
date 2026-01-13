@@ -815,7 +815,28 @@ def plot_qq(
 
         # Standardize errors for QQ plot
         err = errors[:, i]
-        standardized = (err - np.mean(err)) / np.std(err)
+        std_err = np.std(err)
+
+        # Guard against zero variance (constant errors)
+        if std_err < 1e-10:
+            title = (
+                param_names[i] if param_names and i < len(param_names) else f"Param {i}"
+            )
+            ax.text(
+                0.5,
+                0.5,
+                "Zero variance\n(constant errors)",
+                ha="center",
+                va="center",
+                fontsize=10,
+                transform=ax.transAxes,
+            )
+            ax.set_title(f"{title}\n(zero variance)")
+            ax.set_xlabel("Theoretical Quantiles")
+            ax.set_ylabel("Sample Quantiles")
+            continue
+
+        standardized = (err - np.mean(err)) / std_err
 
         # Calculate theoretical quantiles and sample quantiles
         (osm, osr), (slope, intercept, r) = stats.probplot(standardized, dist="norm")

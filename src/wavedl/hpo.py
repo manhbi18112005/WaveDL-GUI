@@ -175,13 +175,14 @@ def create_objective(args):
                 env["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
 
             # Run training
+            # Note: We inherit the user's cwd instead of setting cwd=Path(__file__).parent
+            # because site-packages may be read-only and train.py creates cache directories
             try:
                 result = subprocess.run(
                     cmd,
                     capture_output=True,
                     text=True,
                     timeout=args.timeout,
-                    cwd=Path(__file__).parent,
                     env=env,
                 )
 
