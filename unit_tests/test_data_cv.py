@@ -162,7 +162,7 @@ class TestNPZSourceLoad:
                     pass  # Windows file locking - cleanup later
 
     def test_load_mmap_basic(self):
-        """Test memory-mapped loading."""
+        """Test memory-mapped loading returns LazyDataHandle (consistent with HDF5/MAT)."""
         from wavedl.utils.data import NPZSource
 
         with tempfile.NamedTemporaryFile(suffix=".npz", delete=False) as f:
@@ -172,10 +172,10 @@ class TestNPZSourceLoad:
 
             try:
                 source = NPZSource()
-                X, y = source.load_mmap(f.name)
-
-                assert X.shape == (50, 32)
-                assert y.shape == (50, 2)
+                # load_mmap now returns LazyDataHandle for consistent API
+                with source.load_mmap(f.name) as (X, y):
+                    assert X.shape == (50, 32)
+                    assert y.shape == (50, 2)
             finally:
                 try:
                     os.unlink(f.name)

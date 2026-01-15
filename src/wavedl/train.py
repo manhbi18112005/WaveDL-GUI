@@ -162,12 +162,22 @@ except ImportError:
 os.environ.setdefault("MPLCONFIGDIR", os.getenv("TMPDIR", "/tmp") + "/matplotlib")
 os.environ.setdefault("FONTCONFIG_PATH", "/etc/fonts")
 
-# Suppress non-critical warnings for cleaner training logs
-warnings.filterwarnings("ignore", category=UserWarning)
+# Suppress warnings from known-noisy libraries, but preserve legitimate warnings
+# from torch/numpy about NaN, dtype, and numerical issues.
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
+# Pydantic v1/v2 compatibility warnings
 warnings.filterwarnings("ignore", module="pydantic")
 warnings.filterwarnings("ignore", message=".*UnsupportedFieldAttributeWarning.*")
+# Transformer library warnings (loading configs, etc.)
+warnings.filterwarnings("ignore", module="transformers")
+# Accelerate verbose messages
+warnings.filterwarnings("ignore", module="accelerate")
+# torch.compile backend selection warnings
+warnings.filterwarnings("ignore", message=".*TorchDynamo.*")
+warnings.filterwarnings("ignore", message=".*Dynamo is not supported.*")
+# Note: UserWarning from torch/numpy core is NOT suppressed to preserve
+# legitimate warnings about NaN values, dtype mismatches, etc.
 
 # ==============================================================================
 # GPU PERFORMANCE OPTIMIZATIONS (Ampere/Hopper: A100, H100)
@@ -543,15 +553,11 @@ def main():
         data_format = DataSource.detect_format(args.data_path)
         source = get_data_source(data_format)
 
-        # Use memory-mapped loading when available
+        # Use memory-mapped loading when available (now returns LazyDataHandle for all formats)
         _cv_handle = None
         if hasattr(source, "load_mmap"):
-            result = source.load_mmap(args.data_path)
-            if hasattr(result, "inputs"):
-                _cv_handle = result
-                X, y = result.inputs, result.outputs
-            else:
-                X, y = result  # NPZ returns tuple directly
+            _cv_handle = source.load_mmap(args.data_path)
+            X, y = _cv_handle.inputs, _cv_handle.outputs
         else:
             X, y = source.load(args.data_path)
 

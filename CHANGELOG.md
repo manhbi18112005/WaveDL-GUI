@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **ViT**: `pad_if_needed` parameter in `PatchEmbed` and `ViTBase` for NDE/QUS applications where edge effects matter (pads input to patch-aligned size instead of dropping edge pixels)
+
+### Changed
+- **API**: `NPZSource.load_mmap()` now returns `LazyDataHandle` (consistent with `HDF5Source` and `MATSource`)
+- **Warnings**: Narrowed warning suppression in `train.py` to preserve legitimate torch/numpy warnings about NaN and dtype issues
+
+### Fixed
+- **API**: Removed special-case handling in train.py and data.py for inconsistent `load_mmap()` return types
+
 ## [1.5.5] - 2026-01-13
 
 ### Fixed

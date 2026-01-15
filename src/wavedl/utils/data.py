@@ -272,12 +272,20 @@ class NPZSource(DataSource):
 
         return inp, outp
 
-    def load_mmap(self, path: str) -> tuple[np.ndarray, np.ndarray]:
+    def load_mmap(self, path: str) -> LazyDataHandle:
         """
         Load data using memory-mapped mode for zero-copy access.
 
         This allows processing large datasets without loading them entirely
         into RAM. Critical for HPC environments with memory constraints.
+
+        Returns a LazyDataHandle for consistent API across all data sources.
+        The NpzFile is kept open for lazy access.
+
+        Usage:
+            with source.load_mmap(path) as (inputs, outputs):
+                # Use inputs and outputs
+                pass  # File automatically closed
 
         Note: Returns memory-mapped arrays - do NOT modify them.
         """
@@ -295,11 +303,13 @@ class NPZSource(DataSource):
                 f"Found: {keys}"
             )
 
+        # Keep NpzFile open for lazy access (like HDF5/MATSource)
         data = self._safe_load(path, [input_key, output_key], mmap_mode="r")
         inp = data[input_key]
         outp = data[output_key]
 
-        return inp, outp
+        # Return LazyDataHandle for consistent API with HDF5Source/MATSource
+        return LazyDataHandle(inp, outp, file_handle=data)
 
     def load_outputs_only(self, path: str) -> np.ndarray:
         """Load only targets from NPZ (avoids loading large input arrays)."""
@@ -1234,16 +1244,11 @@ def prepare_data(
 
             # Load raw data using memory-mapped mode for all formats
             # This avoids loading the entire dataset into RAM at once
+            # All load_mmap() methods now return LazyDataHandle consistently
+            _lazy_handle = None
             try:
-                if data_format == "npz":
-                    source = NPZSource()
-                    inp, outp = source.load_mmap(args.data_path)
-                elif data_format == "hdf5":
-                    source = HDF5Source()
-                    _lazy_handle = source.load_mmap(args.data_path)
-                    inp, outp = _lazy_handle.inputs, _lazy_handle.outputs
-                elif data_format == "mat":
-                    source = MATSource()
+                source = get_data_source(data_format)
+                if hasattr(source, "load_mmap"):
                     _lazy_handle = source.load_mmap(args.data_path)
                     inp, outp = _lazy_handle.inputs, _lazy_handle.outputs
                 else:

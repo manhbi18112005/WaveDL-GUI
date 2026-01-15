@@ -42,47 +42,89 @@ class PatchEmbed(nn.Module):
     Supports 1D and 2D inputs:
     - 1D: Input (B, 1, L) → (B, num_patches, embed_dim)
     - 2D: Input (B, 1, H, W) → (B, num_patches, embed_dim)
+
+    Args:
+        in_shape: Spatial shape (L,) for 1D or (H, W) for 2D
+        patch_size: Size of each patch
+        embed_dim: Embedding dimension
+        pad_if_needed: If True, pad input to nearest patch-aligned size instead of
+            dropping edge pixels. Important for NDE/QUS applications where edge
+            effects matter. Default: False (original behavior with warning).
     """
 
-    def __init__(self, in_shape: SpatialShape, patch_size: int, embed_dim: int):
+    def __init__(
+        self,
+        in_shape: SpatialShape,
+        patch_size: int,
+        embed_dim: int,
+        pad_if_needed: bool = False,
+    ):
         super().__init__()
 
         self.dim = len(in_shape)
         self.patch_size = patch_size
         self.embed_dim = embed_dim
+        self.pad_if_needed = pad_if_needed
+        self._padding = None  # Will be set if padding is needed
 
         if self.dim == 1:
             # 1D: segment patches
             L = in_shape[0]
-            if L % patch_size != 0:
-                import warnings
+            remainder = L % patch_size
+            if remainder != 0:
+                if pad_if_needed:
+                    # Pad to next multiple of patch_size
+                    pad_amount = patch_size - remainder
+                    self._padding = (0, pad_amount)  # (left, right)
+                    L_padded = L + pad_amount
+                    self.num_patches = L_padded // patch_size
+                else:
+                    import warnings
 
-                warnings.warn(
-                    f"Input length {L} not divisible by patch_size {patch_size}. "
-                    f"Last {L % patch_size} elements will be dropped. "
-                    f"Consider padding input to {((L // patch_size) + 1) * patch_size}.",
-                    UserWarning,
-                    stacklevel=2,
-                )
-            self.num_patches = L // patch_size
+                    warnings.warn(
+                        f"Input length {L} not divisible by patch_size {patch_size}. "
+                        f"Last {remainder} elements will be dropped. "
+                        f"Consider using pad_if_needed=True or padding input to "
+                        f"{((L // patch_size) + 1) * patch_size}.",
+                        UserWarning,
+                        stacklevel=2,
+                    )
+                    self.num_patches = L // patch_size
+            else:
+                self.num_patches = L // patch_size
             self.proj = nn.Conv1d(
                 1, embed_dim, kernel_size=patch_size, stride=patch_size
             )
         elif self.dim == 2:
             # 2D: grid patches
             H, W = in_shape
-            if H % patch_size != 0 or W % patch_size != 0:
-                import warnings
+            h_rem, w_rem = H % patch_size, W % patch_size
+            if h_rem != 0 or w_rem != 0:
+                if pad_if_needed:
+                    # Pad to next multiple of patch_size
+                    h_pad = (patch_size - h_rem) % patch_size
+                    w_pad = (patch_size - w_rem) % patch_size
+                    # Padding format: (left, right, top, bottom)
+                    self._padding = (0, w_pad, 0, h_pad)
+                    H_padded, W_padded = H + h_pad, W + w_pad
+                    self.num_patches = (H_padded // patch_size) * (
+                        W_padded // patch_size
+                    )
+                else:
+                    import warnings
 
-                warnings.warn(
-                    f"Input shape ({H}, {W}) not divisible by patch_size {patch_size}. "
-                    f"Border pixels will be dropped (H: {H % patch_size}, W: {W % patch_size}). "
-                    f"Consider padding to ({((H // patch_size) + 1) * patch_size}, "
-                    f"{((W // patch_size) + 1) * patch_size}).",
-                    UserWarning,
-                    stacklevel=2,
-                )
-            self.num_patches = (H // patch_size) * (W // patch_size)
+                    warnings.warn(
+                        f"Input shape ({H}, {W}) not divisible by patch_size {patch_size}. "
+                        f"Border pixels will be dropped (H: {h_rem}, W: {w_rem}). "
+                        f"Consider using pad_if_needed=True or padding to "
+                        f"({((H // patch_size) + 1) * patch_size}, "
+                        f"{((W // patch_size) + 1) * patch_size}).",
+                        UserWarning,
+                        stacklevel=2,
+                    )
+                    self.num_patches = (H // patch_size) * (W // patch_size)
+            else:
+                self.num_patches = (H // patch_size) * (W // patch_size)
             self.proj = nn.Conv2d(
                 1, embed_dim, kernel_size=patch_size, stride=patch_size
             )
@@ -97,6 +139,10 @@ class PatchEmbed(nn.Module):
         Returns:
             Patch embeddings (B, num_patches, embed_dim)
         """
+        # Apply padding if configured
+        if self._padding is not None:
+            x = nn.functional.pad(x, self._padding, mode="constant", value=0)
+
         x = self.proj(x)  # (B, embed_dim, ..reduced_spatial..)
         x = x.flatten(2)  # (B, embed_dim, num_patches)
         x = x.transpose(1, 2)  # (B, num_patches, embed_dim)
@@ -185,6 +231,18 @@ class ViTBase(BaseModel):
     3. Transformer encoder blocks
     4. Extract CLS token
     5. Regression head
+
+    Args:
+        in_shape: Spatial shape (L,) for 1D or (H, W) for 2D
+        out_size: Number of regression targets
+        patch_size: Size of each patch (default: 16)
+        embed_dim: Embedding dimension (default: 768)
+        depth: Number of transformer blocks (default: 12)
+        num_heads: Number of attention heads (default: 12)
+        mlp_ratio: MLP hidden dim multiplier (default: 4.0)
+        dropout_rate: Dropout rate (default: 0.1)
+        pad_if_needed: If True, pad input to nearest patch-aligned size instead
+            of dropping edge pixels. Important for NDE/QUS applications.
     """
 
     def __init__(
@@ -197,6 +255,7 @@ class ViTBase(BaseModel):
         num_heads: int = 12,
         mlp_ratio: float = 4.0,
         dropout_rate: float = 0.1,
+        pad_if_needed: bool = False,
         **kwargs,
     ):
         super().__init__(in_shape, out_size)
@@ -207,9 +266,10 @@ class ViTBase(BaseModel):
         self.num_heads = num_heads
         self.dropout_rate = dropout_rate
         self.dim = len(in_shape)
+        self.pad_if_needed = pad_if_needed
 
         # Patch embedding
-        self.patch_embed = PatchEmbed(in_shape, patch_size, embed_dim)
+        self.patch_embed = PatchEmbed(in_shape, patch_size, embed_dim, pad_if_needed)
         num_patches = self.patch_embed.num_patches
 
         # Learnable CLS token and position embeddings
