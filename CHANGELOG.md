@@ -5,17 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.5.6] - 2026-01-15
 
 ### Added
 - **ViT**: `pad_if_needed` parameter in `PatchEmbed` and `ViTBase` for NDE/QUS applications where edge effects matter (pads input to patch-aligned size instead of dropping edge pixels)
+- **Training**: `--no_pretrained` flag to train from scratch without ImageNet weights
+- **MATLAB**: `WaveDL_ONNX_Inference.m` script for ONNX model inference in MATLAB with automatic data format handling
 
 ### Changed
 - **API**: `NPZSource.load_mmap()` now returns `LazyDataHandle` (consistent with `HDF5Source` and `MATSource`)
 - **Warnings**: Narrowed warning suppression in `train.py` to preserve legitimate torch/numpy warnings about NaN and dtype issues
+- **Data**: Cache validation now uses SHA256 content hash instead of mtime (portable across folders, robust against Dropbox/cloud sync)
+- **Examples**: Renamed `elastic_cnn_example/` to `elasticity_prediction/` with MobileNetV3 model (was CNN)
 
 ### Fixed
 - **API**: Removed special-case handling in train.py and data.py for inconsistent `load_mmap()` return types
+- **DDP**: ReduceLROnPlateau patience was divided by GPU count (accelerator wrapper caused multi-process stepping)
+- **MATLAB ONNX**: Fixed critical image transpose issue - data must be transposed to convert from MATLAB column-major to Python row-major ordering
+- **MATLAB ONNX**: Added network initialization step after `importNetworkFromONNX` (required for networks with unknown input formats)
 
 ## [1.5.5] - 2026-01-13
 
@@ -274,6 +281,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Example configurations and training scripts
 - MIT License and citation file
 
+[1.5.6]: https://github.com/ductho-le/WaveDL/compare/v1.5.5...v1.5.6
 [1.5.5]: https://github.com/ductho-le/WaveDL/compare/v1.5.4...v1.5.5
 [1.5.4]: https://github.com/ductho-le/WaveDL/compare/v1.5.3...v1.5.4
 [1.5.3]: https://github.com/ductho-le/WaveDL/compare/v1.5.2...v1.5.3

@@ -238,6 +238,18 @@ def parse_args() -> argparse.Namespace:
         default=[],
         help="Python modules to import before training (for custom models)",
     )
+    parser.add_argument(
+        "--pretrained",
+        action="store_true",
+        default=True,
+        help="Use pretrained weights (default: True)",
+    )
+    parser.add_argument(
+        "--no_pretrained",
+        dest="pretrained",
+        action="store_false",
+        help="Train from scratch without pretrained weights",
+    )
 
     # Configuration File
     parser.add_argument(
@@ -690,7 +702,9 @@ def main():
     )
 
     # Build model using registry
-    model = build_model(args.model, in_shape=in_shape, out_size=out_dim)
+    model = build_model(
+        args.model, in_shape=in_shape, out_size=out_dim, pretrained=args.pretrained
+    )
 
     if accelerator.is_main_process:
         param_info = model.parameter_summary()
@@ -867,10 +881,22 @@ def main():
             milestones=milestones,
             warmup_epochs=args.warmup_epochs,
         )
-        # Prepare everything together
-        model, optimizer, train_dl, val_dl, scheduler = accelerator.prepare(
-            model, optimizer, train_dl, val_dl, scheduler
-        )
+
+        # For ReduceLROnPlateau: DON'T include scheduler in accelerator.prepare()
+        # because accelerator wraps scheduler.step() to sync across processes,
+        # which defeats our rank-0-only stepping for correct patience counting.
+        # Other schedulers are safe to prepare (no internal state affected by multi-call).
+        if args.scheduler == "plateau":
+            model, optimizer, train_dl, val_dl = accelerator.prepare(
+                model, optimizer, train_dl, val_dl
+            )
+            # Scheduler stays unwrapped - we handle sync manually in training loop
+            # But register it for checkpointing so state is saved/loaded on resume
+            accelerator.register_for_checkpointing(scheduler)
+        else:
+            model, optimizer, train_dl, val_dl, scheduler = accelerator.prepare(
+                model, optimizer, train_dl, val_dl, scheduler
+            )
 
     # ==========================================================================
     # AUTO-RESUME / RESUME FROM CHECKPOINT

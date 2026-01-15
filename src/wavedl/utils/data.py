@@ -13,6 +13,7 @@ Version: 1.0.0
 """
 
 import gc
+import hashlib
 import logging
 import os
 import pickle
@@ -47,6 +48,29 @@ except ImportError:
 # Supported key names for input/output arrays (priority order, pairwise aligned)
 INPUT_KEYS = ["input_train", "input_test", "X", "data", "inputs", "features", "x"]
 OUTPUT_KEYS = ["output_train", "output_test", "Y", "labels", "outputs", "targets", "y"]
+
+
+def _compute_file_hash(path: str, chunk_size: int = 8 * 1024 * 1024) -> str:
+    """
+    Compute SHA256 hash of a file for cache validation.
+
+    Uses chunked reading to handle large files efficiently without loading
+    the entire file into memory. This is more reliable than mtime for detecting
+    actual content changes, especially with cloud sync services (Dropbox, etc.)
+    that may touch files without modifying content.
+
+    Args:
+        path: Path to file to hash
+        chunk_size: Read buffer size (default 8MB for fast I/O)
+
+    Returns:
+        Hex string of SHA256 hash
+    """
+    hasher = hashlib.sha256()
+    with open(path, "rb") as f:
+        while chunk := f.read(chunk_size):
+            hasher.update(chunk)
+    return hasher.hexdigest()
 
 
 class LazyDataHandle:
@@ -1158,32 +1182,21 @@ def prepare_data(
         and os.path.exists(META_FILE)
     )
 
-    # Validate cache matches current data_path (prevents stale cache corruption)
+    # Validate cache using content hash (portable across folders/machines)
+    # File size is a fast pre-check, content hash is definitive validation
     if cache_exists:
         try:
             with open(META_FILE, "rb") as f:
                 meta = pickle.load(f)
-            cached_data_path = meta.get("data_path", None)
             cached_file_size = meta.get("file_size", None)
-            cached_file_mtime = meta.get("file_mtime", None)
+            cached_content_hash = meta.get("content_hash", None)
 
             # Get current file stats
             current_stats = os.stat(args.data_path)
             current_size = current_stats.st_size
-            current_mtime = current_stats.st_mtime
 
-            # Check if data path changed
-            if cached_data_path != os.path.abspath(args.data_path):
-                if accelerator.is_main_process:
-                    logger.warning(
-                        f"⚠️  Cache was created from different data file!\n"
-                        f"   Cached: {cached_data_path}\n"
-                        f"   Current: {os.path.abspath(args.data_path)}\n"
-                        f"   Invalidating cache and regenerating..."
-                    )
-                cache_exists = False
-            # Check if file was modified (size or mtime changed)
-            elif cached_file_size is not None and cached_file_size != current_size:
+            # Check if file size changed (fast check before expensive hash)
+            if cached_file_size is not None and cached_file_size != current_size:
                 if accelerator.is_main_process:
                     logger.warning(
                         f"⚠️  Data file size changed!\n"
@@ -1192,13 +1205,16 @@ def prepare_data(
                         f"   Invalidating cache and regenerating..."
                     )
                 cache_exists = False
-            elif cached_file_mtime is not None and cached_file_mtime != current_mtime:
-                if accelerator.is_main_process:
-                    logger.warning(
-                        "⚠️  Data file was modified!\n"
-                        "   Cache may be stale, regenerating..."
-                    )
-                cache_exists = False
+            # Content hash check (robust against cloud sync mtime changes)
+            elif cached_content_hash is not None:
+                current_hash = _compute_file_hash(args.data_path)
+                if cached_content_hash != current_hash:
+                    if accelerator.is_main_process:
+                        logger.warning(
+                            "⚠️  Data file content changed!\n"
+                            "   Cache is stale, regenerating..."
+                        )
+                    cache_exists = False
         except Exception:
             cache_exists = False
 
@@ -1312,8 +1328,9 @@ def prepare_data(
                 f"   Shape Detected: {full_shape} [{dim_type}] | Output Dim: {out_dim}"
             )
 
-            # Save metadata (including data path, size, mtime for cache validation)
+            # Save metadata (including data path, size, content hash for cache validation)
             file_stats = os.stat(args.data_path)
+            content_hash = _compute_file_hash(args.data_path)
             with open(META_FILE, "wb") as f:
                 pickle.dump(
                     {
@@ -1321,7 +1338,7 @@ def prepare_data(
                         "out_dim": out_dim,
                         "data_path": os.path.abspath(args.data_path),
                         "file_size": file_stats.st_size,
-                        "file_mtime": file_stats.st_mtime,
+                        "content_hash": content_hash,
                     },
                     f,
                 )

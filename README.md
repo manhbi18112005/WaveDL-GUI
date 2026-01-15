@@ -424,6 +424,7 @@ WaveDL/
 ⭐ = **Pretrained on ImageNet** (recommended for smaller datasets). Weights are downloaded automatically on first use.
 - **Cache location**: `~/.cache/torch/hub/checkpoints/` (or `./.torch_cache/` on HPC if home is not writable)
 - **Size**: ~20–350 MB per model depending on architecture
+- **Train from scratch**: Use `--no_pretrained` to disable pretrained weights
 
 **💡 HPC Users**: If compute nodes block internet, pre-download weights on the login node:
 
@@ -984,7 +985,7 @@ print(f"✓ Output: {data['output_train'].shape} {data['output_train'].dtype}")
 
 ## 📦 Examples [![Try it on Colab](https://img.shields.io/badge/Try_it_on_Colab-8E44AD?style=plastic&logo=googlecolab&logoColor=white)](https://colab.research.google.com/github/ductho-le/WaveDL/blob/main/notebooks/demo.ipynb)
 
-The `examples/` folder contains a **complete, ready-to-run example** for **material characterization of isotropic plates**. The pre-trained CNN predicts three physical parameters from Lamb wave dispersion curves:
+The `examples/` folder contains a **complete, ready-to-run example** for **material characterization of isotropic plates**. The pre-trained MobileNetV3 predicts three physical parameters from Lamb wave dispersion curves:
 
 | Parameter | Unit | Description |
 |-----------|------|-------------|
@@ -999,22 +1000,22 @@ The `examples/` folder contains a **complete, ready-to-run example** for **mater
 
 ```bash
 # Run inference on the example data
-python -m wavedl.test --checkpoint ./examples/elastic_cnn_example/best_checkpoint \
-  --data_path ./examples/elastic_cnn_example/Test_data_500.mat \
-  --plot --save_predictions --output_dir ./examples/elastic_cnn_example/test_results
+python -m wavedl.test --checkpoint ./examples/elasticity_prediction/best_checkpoint \
+  --data_path ./examples/elasticity_prediction/Test_data_100.mat \
+  --plot --save_predictions --output_dir ./examples/elasticity_prediction/test_results
 
 # Export to ONNX (already included as model.onnx)
-python -m wavedl.test --checkpoint ./examples/elastic_cnn_example/best_checkpoint \
-  --data_path ./examples/elastic_cnn_example/Test_data_500.mat \
-  --export onnx --export_path ./examples/elastic_cnn_example/model.onnx
+python -m wavedl.test --checkpoint ./examples/elasticity_prediction/best_checkpoint \
+  --data_path ./examples/elasticity_prediction/Test_data_100.mat \
+  --export onnx --export_path ./examples/elasticity_prediction/model.onnx
 ```
 
 **What's Included:**
 
 | File | Description |
 |------|-------------|
-| `best_checkpoint/` | Pre-trained CNN checkpoint |
-| `Test_data_500.mat` | 500 sample test set (500×500 dispersion curves → *h*, √(*E*/ρ), *ν*) |
+| `best_checkpoint/` | Pre-trained MobileNetV3 checkpoint |
+| `Test_data_100.mat` | 100 sample test set (500×500 dispersion curves → *h*, √(*E*/ρ), *ν*) |
 | `model.onnx` | ONNX export with embedded de-normalization |
 | `training_history.csv` | Epoch-by-epoch training metrics (loss, R², LR, etc.) |
 | `training_curves.png` | Training/validation loss and learning rate plot |
@@ -1024,59 +1025,59 @@ python -m wavedl.test --checkpoint ./examples/elastic_cnn_example/best_checkpoin
 **Training Progress:**
 
 <p align="center">
-  <img src="examples/elastic_cnn_example/training_curves.png" alt="Training curves" width="600"><br>
-  <em>Training and validation loss over 227 epochs with <code>onecycle</code> learning rate schedule</em>
+  <img src="examples/elasticity_prediction/training_curves.png" alt="Training curves" width="600"><br>
+  <em>Training and validation loss with <code>plateau</code> learning rate schedule</em>
 </p>
 
 **Inference Results:**
 
 <p align="center">
-  <img src="examples/elastic_cnn_example/test_results/scatter_all.png" alt="Scatter plot" width="700"><br>
+  <img src="examples/elasticity_prediction/test_results/scatter_all.png" alt="Scatter plot" width="700"><br>
   <em>Figure 1: Predictions vs ground truth for all three elastic parameters</em>
 </p>
 
 <p align="center">
-  <img src="examples/elastic_cnn_example/test_results/error_histogram.png" alt="Error histogram" width="700"><br>
+  <img src="examples/elasticity_prediction/test_results/error_histogram.png" alt="Error histogram" width="700"><br>
   <em>Figure 2: Distribution of prediction errors showing near-zero mean bias</em>
 </p>
 
 <p align="center">
-  <img src="examples/elastic_cnn_example/test_results/residuals.png" alt="Residual plot" width="700"><br>
+  <img src="examples/elasticity_prediction/test_results/residuals.png" alt="Residual plot" width="700"><br>
   <em>Figure 3: Residuals vs predicted values (no heteroscedasticity detected)</em>
 </p>
 
 <p align="center">
-  <img src="examples/elastic_cnn_example/test_results/bland_altman.png" alt="Bland-Altman plot" width="700"><br>
+  <img src="examples/elasticity_prediction/test_results/bland_altman.png" alt="Bland-Altman plot" width="700"><br>
   <em>Figure 4: Bland-Altman analysis with ±1.96 SD limits of agreement</em>
 </p>
 
 <p align="center">
-  <img src="examples/elastic_cnn_example/test_results/qq_plot.png" alt="Q-Q plot" width="700"><br>
+  <img src="examples/elasticity_prediction/test_results/qq_plot.png" alt="Q-Q plot" width="700"><br>
   <em>Figure 5: Q-Q plots confirming normally distributed prediction errors</em>
 </p>
 
 <p align="center">
-  <img src="examples/elastic_cnn_example/test_results/error_correlation.png" alt="Error correlation" width="300"><br>
+  <img src="examples/elasticity_prediction/test_results/error_correlation.png" alt="Error correlation" width="300"><br>
   <em>Figure 6: Error correlation matrix between parameters</em>
 </p>
 
 <p align="center">
-  <img src="examples/elastic_cnn_example/test_results/relative_error.png" alt="Relative error" width="700"><br>
+  <img src="examples/elasticity_prediction/test_results/relative_error.png" alt="Relative error" width="700"><br>
   <em>Figure 7: Relative error (%) vs true value for each parameter</em>
 </p>
 
 <p align="center">
-  <img src="examples/elastic_cnn_example/test_results/error_cdf.png" alt="Error CDF" width="500"><br>
+  <img src="examples/elasticity_prediction/test_results/error_cdf.png" alt="Error CDF" width="500"><br>
   <em>Figure 8: Cumulative error distribution — 95% of predictions within indicated bounds</em>
 </p>
 
 <p align="center">
-  <img src="examples/elastic_cnn_example/test_results/prediction_vs_index.png" alt="Prediction vs index" width="700"><br>
+  <img src="examples/elasticity_prediction/test_results/prediction_vs_index.png" alt="Prediction vs index" width="700"><br>
   <em>Figure 9: True vs predicted values by sample index</em>
 </p>
 
 <p align="center">
-  <img src="examples/elastic_cnn_example/test_results/error_boxplot.png" alt="Error box plot" width="400"><br>
+  <img src="examples/elasticity_prediction/test_results/error_boxplot.png" alt="Error box plot" width="400"><br>
   <em>Figure 10: Error distribution summary (median, quartiles, outliers)</em>
 </p>
 
