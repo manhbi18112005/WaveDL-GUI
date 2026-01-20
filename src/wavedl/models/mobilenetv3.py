@@ -194,7 +194,7 @@ class MobileNetV3Small(MobileNetV3Base):
 
     Performance (approximate):
         - CPU inference: ~6ms (single core)
-        - Parameters: 2.5M
+        - Parameters: ~1.1M
         - MAdds: 56M
 
     Args:
@@ -241,7 +241,7 @@ class MobileNetV3Large(MobileNetV3Base):
 
     Performance (approximate):
         - CPU inference: ~20ms (single core)
-        - Parameters: 5.4M
+        - Parameters: ~3.2M
         - MAdds: 219M
 
     Args:

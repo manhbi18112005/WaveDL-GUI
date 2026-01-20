@@ -24,10 +24,10 @@ from sklearn.metrics import r2_score
 FIGURE_WIDTH_CM = 19
 FIGURE_WIDTH_INCH = FIGURE_WIDTH_CM / 2.54
 
-# Font sizes (consistent 8pt for publication)
-FONT_SIZE_TEXT = 8
-FONT_SIZE_TICKS = 8
-FONT_SIZE_TITLE = 9
+# Font sizes (publication quality)
+FONT_SIZE_TEXT = 10
+FONT_SIZE_TICKS = 9
+FONT_SIZE_TITLE = 11
 
 # DPI for publication (300 for print, 150 for screen)
 FIGURE_DPI = 300
@@ -40,6 +40,7 @@ COLORS = {
     "neutral": "#6B717E",  # Slate gray
     "error": "#C73E1D",  # Red
     "success": "#3A7D44",  # Green
+    "scatter": "#96C2D5",  # Light steel blue (simulates primary at 50% alpha on white)
 }
 
 
@@ -47,10 +48,11 @@ def configure_matplotlib_style():
     """Configure matplotlib for publication-quality LaTeX-style plots."""
     plt.rcParams.update(
         {
-            # LaTeX-style fonts
+            # LaTeX text rendering (requires LaTeX installation)
+            "text.usetex": True,
             "font.family": "serif",
-            "font.serif": ["Times New Roman", "DejaVu Serif", "serif"],
-            "mathtext.fontset": "cm",  # Computer Modern for math
+            "font.serif": ["Computer Modern Roman"],
+            "text.latex.preamble": r"\usepackage{amsmath} \usepackage{amssymb}",
             # Font sizes
             "font.size": FONT_SIZE_TEXT,
             "axes.titlesize": FONT_SIZE_TITLE,
@@ -62,8 +64,8 @@ def configure_matplotlib_style():
             "axes.linewidth": 0.8,
             "grid.linewidth": 0.5,
             "lines.linewidth": 1.5,
-            # Grid style
-            "grid.alpha": 0.4,
+            # Grid style (use light gray instead of alpha for vector compatibility)
+            "grid.color": "#CCCCCC",
             "grid.linestyle": ":",
             # Figure settings
             "figure.dpi": FIGURE_DPI,
@@ -73,6 +75,9 @@ def configure_matplotlib_style():
             # Remove top/right spines for cleaner look
             "axes.spines.top": False,
             "axes.spines.right": False,
+            # SVG/vector export settings - prevent rasterization
+            "svg.fonttype": "none",  # Embed fonts as text, not paths
+            "image.composite_image": False,  # Don't composite images
         }
     )
 
@@ -212,6 +217,83 @@ def calc_per_target_r2(y_true: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
 
 
 # ==============================================================================
+# VISUALIZATION HELPERS (internal)
+# ==============================================================================
+def _prepare_plot_data(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    param_names: list[str] | None = None,
+    max_samples: int | None = None,
+) -> tuple[np.ndarray, np.ndarray, list[str], int]:
+    """Prepare data for plotting: reshape, sample, and generate param names."""
+    # Handle 1D case
+    if y_true.ndim == 1:
+        y_true = y_true.reshape(-1, 1)
+        y_pred = y_pred.reshape(-1, 1)
+
+    num_params = y_true.shape[1]
+
+    # Subsample if needed
+    if max_samples and len(y_true) > max_samples:
+        indices = np.random.choice(len(y_true), max_samples, replace=False)
+        y_true = y_true[indices]
+        y_pred = y_pred[indices]
+
+    # Generate default param names if needed
+    if param_names is None or len(param_names) != num_params:
+        param_names = [f"P{i}" for i in range(num_params)]
+
+    return y_true, y_pred, param_names, num_params
+
+
+def _create_subplot_grid(
+    num_params: int,
+    height_ratio: float = 1.0,
+    max_cols: int = 4,
+) -> tuple[plt.Figure, np.ndarray]:
+    """Create a subplot grid for multi-parameter plots."""
+    cols = min(num_params, max_cols)
+    rows = (num_params + cols - 1) // cols
+    subplot_size = FIGURE_WIDTH_INCH / cols
+
+    fig, axes = plt.subplots(
+        rows,
+        cols,
+        figsize=(FIGURE_WIDTH_INCH, subplot_size * rows * height_ratio),
+    )
+    axes = np.array(axes).flatten() if num_params > 1 else [axes]
+    return fig, axes
+
+
+def _add_unified_legend(
+    fig: plt.Figure,
+    axes: np.ndarray,
+    ncol: int = 2,
+    y_offset: float = -0.13,
+    bottom_margin: float = 0.22,
+) -> None:
+    """Add a unified legend below the figure."""
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(
+        handles,
+        labels,
+        loc="lower center",
+        ncol=ncol,
+        fontsize=FONT_SIZE_TEXT,
+        fancybox=False,
+        framealpha=1.0,
+        bbox_to_anchor=(0.5, y_offset),
+    )
+    fig.subplots_adjust(bottom=bottom_margin)
+
+
+def _hide_unused_subplots(axes: np.ndarray, num_used: int) -> None:
+    """Hide unused subplots in a grid."""
+    for i in range(num_used, len(axes)):
+        axes[i].axis("off")
+
+
+# ==============================================================================
 # VISUALIZATION - SCATTER PLOTS
 # ==============================================================================
 def plot_scientific_scatter(
@@ -235,50 +317,25 @@ def plot_scientific_scatter(
     Returns:
         Matplotlib Figure object (can be saved or logged to WandB)
     """
-    num_params = y_true.shape[1] if y_true.ndim > 1 else 1
-
-    # Handle 1D case
-    if y_true.ndim == 1:
-        y_true = y_true.reshape(-1, 1)
-        y_pred = y_pred.reshape(-1, 1)
-
-    # Downsample for visualization performance
-    if len(y_true) > max_samples:
-        indices = np.random.choice(len(y_true), max_samples, replace=False)
-        y_true = y_true[indices]
-        y_pred = y_pred[indices]
-
-    # Calculate grid dimensions
-    cols = min(num_params, 4)
-    rows = (num_params + cols - 1) // cols
-
-    # Calculate figure size (19 cm width)
-    subplot_size = FIGURE_WIDTH_INCH / cols
-    fig, axes = plt.subplots(
-        rows,
-        cols,
-        figsize=(FIGURE_WIDTH_INCH, subplot_size * rows),
+    y_true, y_pred, param_names, num_params = _prepare_plot_data(
+        y_true, y_pred, param_names, max_samples
     )
-    axes = np.array(axes).flatten() if num_params > 1 else [axes]
+    fig, axes = _create_subplot_grid(num_params, height_ratio=1.0)
 
     for i in range(num_params):
         ax = axes[i]
 
         # Calculate R² for this target
-        if len(y_true) >= 2:
-            r2 = r2_score(y_true[:, i], y_pred[:, i])
-        else:
-            r2 = float("nan")
+        r2 = r2_score(y_true[:, i], y_pred[:, i]) if len(y_true) >= 2 else float("nan")
 
-        # Scatter plot
-        ax.scatter(
+        # Scatter plot (using plot for vector SVG compatibility)
+        ax.plot(
             y_true[:, i],
             y_pred[:, i],
-            alpha=0.5,
-            s=15,
-            c=COLORS["primary"],
-            edgecolors="none",
-            rasterized=True,
+            "o",
+            markersize=5,
+            markerfacecolor=COLORS["scatter"],
+            markeredgecolor="none",
             label="Data",
         )
 
@@ -292,25 +349,20 @@ def plot_scientific_scatter(
             "--",
             color=COLORS["error"],
             lw=1.2,
-            alpha=0.8,
             label="Ideal",
         )
 
         # Labels and formatting
-        title = param_names[i] if param_names and i < len(param_names) else f"Param {i}"
-        ax.set_title(f"{title}\n$R^2 = {r2:.4f}$")
+        ax.set_title(f"{param_names[i]}\n$R^2 = {r2:.4f}$")
         ax.set_xlabel("Ground Truth")
         ax.set_ylabel("Prediction")
         ax.grid(True)
         ax.set_aspect("equal", adjustable="box")
         ax.set_xlim(min_val - margin, max_val + margin)
         ax.set_ylim(min_val - margin, max_val + margin)
-        ax.legend(fontsize=6, loc="best")
+        ax.legend(fontsize=FONT_SIZE_TICKS, loc="best", fancybox=False, framealpha=1.0)
 
-    # Hide unused subplots
-    for i in range(num_params, len(axes)):
-        axes[i].axis("off")
-
+    _hide_unused_subplots(axes, num_params)
     plt.tight_layout()
     return fig
 
@@ -339,75 +391,48 @@ def plot_error_histogram(
     Returns:
         Matplotlib Figure object
     """
-    num_params = y_true.shape[1] if y_true.ndim > 1 else 1
-
-    # Handle 1D case
-    if y_true.ndim == 1:
-        y_true = y_true.reshape(-1, 1)
-        y_pred = y_pred.reshape(-1, 1)
-
-    # Calculate errors
-    errors = y_pred - y_true
-
-    # Calculate grid dimensions
-    cols = min(num_params, 4)
-    rows = (num_params + cols - 1) // cols
-
-    # Calculate figure size
-    subplot_size = FIGURE_WIDTH_INCH / cols
-    fig, axes = plt.subplots(
-        rows,
-        cols,
-        figsize=(FIGURE_WIDTH_INCH, subplot_size * rows * 0.8),
+    y_true, y_pred, param_names, num_params = _prepare_plot_data(
+        y_true, y_pred, param_names
     )
-    axes = np.array(axes).flatten() if num_params > 1 else [axes]
+    errors = y_pred - y_true
+    fig, axes = _create_subplot_grid(num_params)
 
     for i in range(num_params):
         ax = axes[i]
         err = errors[:, i]
+        mean_err, std_err, mae = np.mean(err), np.std(err), np.mean(np.abs(err))
 
-        # Statistics
-        mean_err = np.mean(err)
-        std_err = np.std(err)
-        mae = np.mean(np.abs(err))
-
-        # Histogram
+        # Histogram - only label first subplot
         ax.hist(
             err,
             bins=bins,
             color=COLORS["primary"],
-            alpha=0.7,
             edgecolor="white",
             linewidth=0.5,
-            label="Errors",
+            label="Errors" if i == 0 else None,
         )
-
-        # Vertical line at zero
         ax.axvline(
-            x=0, color=COLORS["error"], linestyle="--", lw=1.2, alpha=0.8, label="Zero"
+            x=0,
+            color=COLORS["error"],
+            linestyle="--",
+            lw=1.2,
+            label="Zero" if i == 0 else None,
         )
-
-        # Mean line
         ax.axvline(
             x=mean_err,
             color=COLORS["accent"],
             linestyle="-",
             lw=1.2,
-            label=f"Mean = {mean_err:.4f}",
+            label="Mean" if i == 0 else None,
         )
 
-        # Labels and formatting
-        title = param_names[i] if param_names and i < len(param_names) else f"Param {i}"
-        ax.set_title(f"{title}\nMAE = {mae:.4f}, $\\sigma$ = {std_err:.4f}")
+        ax.set_title(f"{param_names[i]}\nMAE = {mae:.4f}, $\\sigma$ = {std_err:.4f}")
         ax.set_xlabel("Prediction Error")
         ax.set_ylabel("Count")
         ax.grid(True, axis="y")
-        ax.legend(fontsize=6, loc="best")
 
-    # Hide unused subplots
-    for i in range(num_params, len(axes)):
-        axes[i].axis("off")
-
+    _hide_unused_subplots(axes, num_params)
+    _add_unified_legend(fig, axes, ncol=3)
     plt.tight_layout()
     return fig
 
@@ -436,78 +461,46 @@ def plot_residuals(
     Returns:
         Matplotlib Figure object
     """
-    num_params = y_true.shape[1] if y_true.ndim > 1 else 1
-
-    # Handle 1D case
-    if y_true.ndim == 1:
-        y_true = y_true.reshape(-1, 1)
-        y_pred = y_pred.reshape(-1, 1)
-
-    # Calculate residuals
-    residuals = y_pred - y_true
-
-    # Downsample for visualization
-    if len(y_true) > max_samples:
-        indices = np.random.choice(len(y_true), max_samples, replace=False)
-        y_pred = y_pred[indices]
-        residuals = residuals[indices]
-
-    # Calculate grid dimensions
-    cols = min(num_params, 4)
-    rows = (num_params + cols - 1) // cols
-
-    # Calculate figure size
-    subplot_size = FIGURE_WIDTH_INCH / cols
-    fig, axes = plt.subplots(
-        rows,
-        cols,
-        figsize=(FIGURE_WIDTH_INCH, subplot_size * rows * 0.8),
+    y_true, y_pred, param_names, num_params = _prepare_plot_data(
+        y_true, y_pred, param_names, max_samples
     )
-    axes = np.array(axes).flatten() if num_params > 1 else [axes]
+    residuals = y_pred - y_true
+    fig, axes = _create_subplot_grid(num_params)
 
     for i in range(num_params):
         ax = axes[i]
-
-        # Scatter plot of residuals
-        ax.scatter(
+        ax.plot(
             y_pred[:, i],
             residuals[:, i],
-            alpha=0.5,
-            s=15,
-            c=COLORS["primary"],
-            edgecolors="none",
-            rasterized=True,
-            label="Data",
+            "o",
+            markersize=5,
+            markerfacecolor=COLORS["scatter"],
+            markeredgecolor="none",
+            label="Data" if i == 0 else None,
         )
-
-        # Zero line
         ax.axhline(
-            y=0, color=COLORS["error"], linestyle="--", lw=1.2, alpha=0.8, label="Zero"
+            y=0,
+            color=COLORS["error"],
+            linestyle="--",
+            lw=1.2,
+            label="Zero" if i == 0 else None,
         )
-
-        # Calculate and show mean residual
         mean_res = np.mean(residuals[:, i])
         ax.axhline(
             y=mean_res,
             color=COLORS["accent"],
             linestyle="-",
             lw=1.0,
-            alpha=0.7,
-            label=f"Mean = {mean_res:.4f}",
+            label="Mean" if i == 0 else None,
         )
 
-        # Labels
-        title = param_names[i] if param_names and i < len(param_names) else f"Param {i}"
-        ax.set_title(f"{title}")
+        ax.set_title(f"{param_names[i]}")
         ax.set_xlabel("Predicted Value")
-        ax.set_ylabel("Residual (Pred - True)")
+        ax.set_ylabel("Pred - True")
         ax.grid(True)
-        ax.legend(fontsize=6, loc="best")
 
-    # Hide unused subplots
-    for i in range(num_params, len(axes)):
-        axes[i].axis("off")
-
+    _hide_unused_subplots(axes, num_params)
+    _add_unified_legend(fig, axes, ncol=3)
     plt.tight_layout()
     return fig
 
@@ -602,7 +595,7 @@ def create_training_curves(
     ax1.set_xlabel("Epoch")
     ax1.set_ylabel("Loss")
     ax1.set_yscale("log")  # Log scale for loss
-    ax1.grid(True, alpha=0.3)
+    ax1.grid(True)
 
     # Collect all loss values and set clean power of 10 ticks
     all_loss_values = []
@@ -623,7 +616,6 @@ def create_training_curves(
             "--",
             color=COLORS["neutral"],
             linewidth=1.0,
-            alpha=0.7,
             label="Learning Rate",
         )
         ax2.set_ylabel("Learning Rate")
@@ -635,7 +627,14 @@ def create_training_curves(
 
     # Combined legend
     labels = [l.get_label() for l in lines]
-    ax1.legend(lines, labels, loc="best", fontsize=6)
+    ax1.legend(
+        lines,
+        labels,
+        loc="best",
+        fontsize=FONT_SIZE_TICKS,
+        fancybox=False,
+        framealpha=1.0,
+    )
 
     ax1.set_title("Training Curves")
 
@@ -668,97 +667,53 @@ def plot_bland_altman(
     Returns:
         Matplotlib Figure object
     """
-    num_params = y_true.shape[1] if y_true.ndim > 1 else 1
-
-    # Handle 1D case
-    if y_true.ndim == 1:
-        y_true = y_true.reshape(-1, 1)
-        y_pred = y_pred.reshape(-1, 1)
-
-    # Calculate mean and difference
+    y_true, y_pred, param_names, num_params = _prepare_plot_data(
+        y_true, y_pred, param_names, max_samples
+    )
     mean_vals = (y_true + y_pred) / 2
     diff_vals = y_pred - y_true
-
-    # Downsample for visualization
-    if len(y_true) > max_samples:
-        indices = np.random.choice(len(y_true), max_samples, replace=False)
-        mean_vals = mean_vals[indices]
-        diff_vals = diff_vals[indices]
-
-    # Calculate grid dimensions
-    cols = min(num_params, 4)
-    rows = (num_params + cols - 1) // cols
-
-    # Calculate figure size
-    subplot_size = FIGURE_WIDTH_INCH / cols
-    fig, axes = plt.subplots(
-        rows,
-        cols,
-        figsize=(FIGURE_WIDTH_INCH, subplot_size * rows * 0.8),
-    )
-    axes = np.array(axes).flatten() if num_params > 1 else [axes]
+    fig, axes = _create_subplot_grid(num_params)
 
     for i in range(num_params):
         ax = axes[i]
-
         mean_diff = np.mean(diff_vals[:, i])
         std_diff = np.std(diff_vals[:, i])
-
-        # Limits of agreement (95% CI = mean ± 1.96*SD)
         upper_loa = mean_diff + 1.96 * std_diff
         lower_loa = mean_diff - 1.96 * std_diff
 
-        # Scatter plot
-        ax.scatter(
+        ax.plot(
             mean_vals[:, i],
             diff_vals[:, i],
-            alpha=0.5,
-            s=15,
-            c=COLORS["primary"],
-            edgecolors="none",
-            rasterized=True,
+            "o",
+            markersize=5,
+            markerfacecolor=COLORS["scatter"],
+            markeredgecolor="none",
+            label="Data" if i == 0 else None,
         )
-
-        # Mean difference line
         ax.axhline(
             y=mean_diff,
             color=COLORS["accent"],
             linestyle="-",
             lw=1.2,
-            label=f"Mean = {mean_diff:.3f}",
+            label="Mean" if i == 0 else None,
         )
-
-        # Limits of agreement
         ax.axhline(
             y=upper_loa,
             color=COLORS["error"],
             linestyle="--",
             lw=1.0,
-            label=f"+1.96 SD = {upper_loa:.3f}",
+            label=r"$\pm$1.96 SD" if i == 0 else None,
         )
-        ax.axhline(
-            y=lower_loa,
-            color=COLORS["error"],
-            linestyle="--",
-            lw=1.0,
-            label=f"-1.96 SD = {lower_loa:.3f}",
-        )
+        ax.axhline(y=lower_loa, color=COLORS["error"], linestyle="--", lw=1.0)
+        ax.axhline(y=0, color="gray", linestyle=":", lw=0.8)
 
-        # Zero line
-        ax.axhline(y=0, color="gray", linestyle=":", lw=0.8, alpha=0.5)
-
-        # Labels
-        title = param_names[i] if param_names and i < len(param_names) else f"Param {i}"
-        ax.set_title(f"{title}")
-        ax.set_xlabel("Mean of True and Predicted")
-        ax.set_ylabel("Difference (Pred - True)")
+        ax.set_title(f"{param_names[i]}")
+        ax.set_xlabel("Mean of True and Pred")
+        ax.set_ylabel("Pred - True")
         ax.grid(True)
-        ax.legend(fontsize=6, loc="best")
 
-    # Hide unused subplots
-    for i in range(num_params, len(axes)):
-        axes[i].axis("off")
-
+    _hide_unused_subplots(axes, num_params)
+    _add_unified_legend(fig, axes, ncol=3)
     plt.tight_layout()
     return fig
 
@@ -828,7 +783,7 @@ def plot_qq(
                 "Zero variance\n(constant errors)",
                 ha="center",
                 va="center",
-                fontsize=10,
+                fontsize=FONT_SIZE_TEXT,
                 transform=ax.transAxes,
             )
             ax.set_title(f"{title}\n(zero variance)")
@@ -841,15 +796,14 @@ def plot_qq(
         # Calculate theoretical quantiles and sample quantiles
         (osm, osr), (slope, intercept, r) = stats.probplot(standardized, dist="norm")
 
-        # Scatter plot
-        ax.scatter(
+        # Scatter plot (using plot for vector SVG compatibility)
+        ax.plot(
             osm,
             osr,
-            alpha=0.5,
-            s=15,
-            c=COLORS["primary"],
-            edgecolors="none",
-            rasterized=True,
+            "o",
+            markersize=5,
+            markerfacecolor=COLORS["scatter"],
+            markeredgecolor="none",
             label="Data",
         )
 
@@ -864,7 +818,7 @@ def plot_qq(
         ax.set_xlabel("Theoretical Quantiles")
         ax.set_ylabel("Sample Quantiles")
         ax.grid(True)
-        ax.legend(fontsize=6, loc="best")
+        ax.legend(fontsize=FONT_SIZE_TICKS, loc="best", fancybox=False, framealpha=1.0)
 
     # Hide unused subplots
     for i in range(num_params, len(axes)):
@@ -896,6 +850,9 @@ def plot_correlation_heatmap(
     Returns:
         Matplotlib Figure object
     """
+    from matplotlib.colors import Normalize
+    from matplotlib.patches import Rectangle
+
     num_params = y_true.shape[1] if y_true.ndim > 1 else 1
 
     if num_params < 2:
@@ -907,7 +864,7 @@ def plot_correlation_heatmap(
             "Correlation heatmap requires\nat least 2 parameters",
             ha="center",
             va="center",
-            fontsize=10,
+            fontsize=FONT_SIZE_TEXT,
         )
         ax.axis("off")
         return fig
@@ -928,12 +885,55 @@ def plot_correlation_heatmap(
     fig_size = min(FIGURE_WIDTH_INCH * 0.6, 2 + num_params * 0.6)
     fig, ax = plt.subplots(figsize=(fig_size, fig_size))
 
-    # Heatmap
-    im = ax.imshow(corr_matrix, cmap="RdBu_r", vmin=-1, vmax=1, aspect="equal")
+    # Heatmap using Rectangle patches (vector-compatible, no imshow)
+    cmap = plt.cm.RdBu_r
+    norm = Normalize(vmin=-1, vmax=1)
 
-    # Colorbar
-    cbar = plt.colorbar(im, ax=ax, shrink=0.8)
-    cbar.set_label("Correlation", fontsize=FONT_SIZE_TICKS)
+    for i in range(num_params):
+        for j in range(num_params):
+            color = cmap(norm(corr_matrix[i, j]))
+            rect = Rectangle(
+                (j - 0.5, i - 0.5),  # bottom-left corner
+                1,
+                1,  # width, height
+                facecolor=color,
+                edgecolor="white",
+                linewidth=0.5,
+            )
+            ax.add_patch(rect)
+
+    # Set axis limits and aspect
+    ax.set_xlim(-0.5, num_params - 0.5)
+    ax.set_ylim(num_params - 0.5, -0.5)  # Invert y-axis for matrix orientation
+    ax.set_aspect("equal")
+
+    # Vector colorbar using rectangles (no raster gradient)
+    # Create a separate axes for colorbar
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad=0.1)
+
+    # Draw colorbar as discrete rectangles (20 segments for smooth gradient)
+    n_segments = 20
+    for k in range(n_segments):
+        val = -1 + 2 * k / (n_segments - 1)  # -1 to 1
+        color = cmap(norm(val))
+        rect = Rectangle(
+            (0, val - 1 / n_segments),
+            1,
+            2 / n_segments,
+            facecolor=color,
+            edgecolor="none",
+        )
+        cax.add_patch(rect)
+
+    cax.set_xlim(0, 1)
+    cax.set_ylim(-1, 1)
+    cax.set_xticks([])
+    cax.set_ylabel("Correlation", fontsize=FONT_SIZE_TEXT)
+    cax.yaxis.set_label_position("right")
+    cax.yaxis.tick_right()
 
     # Labels
     ax.set_xticks(range(num_params))
@@ -944,14 +944,14 @@ def plot_correlation_heatmap(
     # Annotate with values
     for i in range(num_params):
         for j in range(num_params):
-            color = "white" if abs(corr_matrix[i, j]) > 0.5 else "black"
+            text_color = "white" if abs(corr_matrix[i, j]) > 0.5 else "black"
             ax.text(
                 j,
                 i,
                 f"{corr_matrix[i, j]:.2f}",
                 ha="center",
                 va="center",
-                color=color,
+                color=text_color,
                 fontsize=FONT_SIZE_TICKS,
             )
 
@@ -985,74 +985,40 @@ def plot_relative_error(
     Returns:
         Matplotlib Figure object
     """
-    num_params = y_true.shape[1] if y_true.ndim > 1 else 1
-
-    # Handle 1D case
-    if y_true.ndim == 1:
-        y_true = y_true.reshape(-1, 1)
-        y_pred = y_pred.reshape(-1, 1)
-
-    # Downsample for visualization
-    if len(y_true) > max_samples:
-        indices = np.random.choice(len(y_true), max_samples, replace=False)
-        y_true = y_true[indices]
-        y_pred = y_pred[indices]
+    y_true, y_pred, param_names, num_params = _prepare_plot_data(
+        y_true, y_pred, param_names, max_samples
+    )
 
     # Calculate relative error (avoid division by zero)
     with np.errstate(divide="ignore", invalid="ignore"):
         rel_error = np.abs((y_pred - y_true) / y_true) * 100
         rel_error = np.nan_to_num(rel_error, nan=0.0, posinf=0.0, neginf=0.0)
 
-    # Calculate grid dimensions
-    cols = min(num_params, 4)
-    rows = (num_params + cols - 1) // cols
-
-    # Calculate figure size
-    subplot_size = FIGURE_WIDTH_INCH / cols
-    fig, axes = plt.subplots(
-        rows,
-        cols,
-        figsize=(FIGURE_WIDTH_INCH, subplot_size * rows * 0.8),
-    )
-    axes = np.array(axes).flatten() if num_params > 1 else [axes]
+    fig, axes = _create_subplot_grid(num_params)
 
     for i in range(num_params):
         ax = axes[i]
-
-        # Scatter plot
-        ax.scatter(
+        ax.plot(
             y_true[:, i],
             rel_error[:, i],
-            alpha=0.5,
-            s=15,
-            c=COLORS["primary"],
-            edgecolors="none",
-            rasterized=True,
+            "o",
+            markersize=5,
+            markerfacecolor=COLORS["scatter"],
+            markeredgecolor="none",
             label="Data",
         )
-
-        # Mean relative error line
         mean_rel = np.mean(rel_error[:, i])
         ax.axhline(
-            y=mean_rel,
-            color=COLORS["accent"],
-            linestyle="-",
-            lw=1.2,
-            label=f"Mean = {mean_rel:.2f}%",
+            y=mean_rel, color=COLORS["accent"], linestyle="-", lw=1.2, label="Mean"
         )
 
-        # Labels
-        title = param_names[i] if param_names and i < len(param_names) else f"Param {i}"
-        ax.set_title(f"{title}")
+        ax.set_title(f"{param_names[i]}")
         ax.set_xlabel("True Value")
-        ax.set_ylabel("Relative Error (%)")
+        ax.set_ylabel("Relative Error (\\%)")
         ax.grid(True)
-        ax.legend(fontsize=6, loc="best")
+        ax.legend(fontsize=FONT_SIZE_TICKS, loc="best", fancybox=False, framealpha=1.0)
 
-    # Hide unused subplots
-    for i in range(num_params, len(axes)):
-        axes[i].axis("off")
-
+    _hide_unused_subplots(axes, num_params)
     plt.tight_layout()
     return fig
 
@@ -1096,7 +1062,7 @@ def plot_error_cdf(
         with np.errstate(divide="ignore", invalid="ignore"):
             errors = np.abs((y_pred - y_true) / y_true) * 100
             errors = np.nan_to_num(errors, nan=0.0, posinf=0.0, neginf=0.0)
-        xlabel = "Relative Error (%)"
+        xlabel = r"Relative Error\;$(\%)$"
     else:
         errors = np.abs(y_pred - y_true)
         xlabel = "Absolute Error"
@@ -1121,15 +1087,15 @@ def plot_error_cdf(
 
         # Find 95th percentile (use np.percentile for accuracy)
         p95_val = np.percentile(errors[:, i], 95)
-        ax.axvline(x=p95_val, color=color, linestyle=":", alpha=0.5)
+        ax.axvline(x=p95_val, color=color, linestyle=":")
 
     # Reference lines
-    ax.axhline(y=95, color="gray", linestyle="--", lw=0.8, alpha=0.7, label="95%")
+    ax.axhline(y=95, color="gray", linestyle="--", lw=0.8, label=r"95\%")
 
     ax.set_xlabel(xlabel)
-    ax.set_ylabel("Cumulative Percentage (%)")
+    ax.set_ylabel(r"Cumulative Percentage\;$(\%)$")
     ax.set_title("Cumulative Error Distribution")
-    ax.legend(fontsize=6, loc="best")
+    ax.legend(fontsize=FONT_SIZE_TICKS, loc="best", fancybox=False, framealpha=1.0)
     ax.grid(True)
     ax.set_ylim(0, 105)
 
@@ -1161,67 +1127,38 @@ def plot_prediction_vs_index(
     Returns:
         Matplotlib Figure object
     """
-    num_params = y_true.shape[1] if y_true.ndim > 1 else 1
-
-    # Handle 1D case
-    if y_true.ndim == 1:
-        y_true = y_true.reshape(-1, 1)
-        y_pred = y_pred.reshape(-1, 1)
-
-    # Limit samples
-    n_samples = min(len(y_true), max_samples)
-    y_true = y_true[:n_samples]
-    y_pred = y_pred[:n_samples]
-    indices = np.arange(n_samples)
-
-    # Calculate grid dimensions
-    cols = min(num_params, 4)
-    rows = (num_params + cols - 1) // cols
-
-    # Calculate figure size
-    subplot_size = FIGURE_WIDTH_INCH / cols
-    fig, axes = plt.subplots(
-        rows,
-        cols,
-        figsize=(FIGURE_WIDTH_INCH, subplot_size * rows * 0.8),
+    y_true, y_pred, param_names, num_params = _prepare_plot_data(
+        y_true, y_pred, param_names, max_samples
     )
-    axes = np.array(axes).flatten() if num_params > 1 else [axes]
+    indices = np.arange(len(y_true))
+    fig, axes = _create_subplot_grid(num_params)
 
     for i in range(num_params):
         ax = axes[i]
-
-        # Plot true and predicted
         ax.plot(
             indices,
             y_true[:, i],
             "o",
-            markersize=3,
-            alpha=0.6,
+            markersize=5,
             color=COLORS["primary"],
-            label="True",
+            label="True" if i == 0 else None,
         )
         ax.plot(
             indices,
             y_pred[:, i],
             "x",
-            markersize=3,
-            alpha=0.6,
+            markersize=5,
             color=COLORS["error"],
-            label="Predicted",
+            label="Predicted" if i == 0 else None,
         )
 
-        # Labels
-        title = param_names[i] if param_names and i < len(param_names) else f"Param {i}"
-        ax.set_title(f"{title}")
+        ax.set_title(f"{param_names[i]}")
         ax.set_xlabel("Sample Index")
         ax.set_ylabel("Value")
         ax.grid(True)
-        ax.legend(fontsize=6, loc="best")
 
-    # Hide unused subplots
-    for i in range(num_params, len(axes)):
-        axes[i].axis("off")
-
+    _hide_unused_subplots(axes, num_params)
+    _add_unified_legend(fig, axes, ncol=2)
     plt.tight_layout()
     return fig
 
@@ -1290,7 +1227,7 @@ def plot_error_boxplot(
 
     # Zero line for signed errors
     if not use_relative:
-        ax.axhline(y=0, color=COLORS["error"], linestyle="--", lw=1.0, alpha=0.7)
+        ax.axhline(y=0, color=COLORS["error"], linestyle="--", lw=1.0)
 
     ax.set_ylabel(ylabel)
     ax.set_title("Error Distribution by Parameter")
