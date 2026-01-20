@@ -44,15 +44,39 @@ COLORS = {
 }
 
 
+def _is_latex_available() -> bool:
+    """Check if LaTeX is available for matplotlib rendering."""
+    import shutil
+
+    return shutil.which("latex") is not None
+
+
 def configure_matplotlib_style():
-    """Configure matplotlib for publication-quality LaTeX-style plots."""
-    plt.rcParams.update(
-        {
-            # LaTeX text rendering (requires LaTeX installation)
+    """Configure matplotlib for publication-quality LaTeX-style plots.
+
+    Falls back to standard fonts if LaTeX is not installed.
+    """
+    use_latex = _is_latex_available()
+
+    if use_latex:
+        latex_settings = {
             "text.usetex": True,
             "font.family": "serif",
             "font.serif": ["Computer Modern Roman"],
             "text.latex.preamble": r"\usepackage{amsmath} \usepackage{amssymb}",
+        }
+    else:
+        # Fallback for systems without LaTeX (e.g., CI runners)
+        latex_settings = {
+            "text.usetex": False,
+            "font.family": "serif",
+            "font.serif": ["DejaVu Serif", "Times New Roman", "serif"],
+        }
+
+    plt.rcParams.update(
+        {
+            # LaTeX/font settings (conditional)
+            **latex_settings,
             # Font sizes
             "font.size": FONT_SIZE_TEXT,
             "axes.titlesize": FONT_SIZE_TITLE,
