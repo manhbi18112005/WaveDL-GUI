@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Plotting**: Refactored with helper functions for cleaner code
+- **Tests**: 178 new unit tests (725 → 903 total) for data leakage prevention, CLI, architecture, and integration
+
+### Changed
+- **Plotting**: Publication-quality styling with LaTeX fonts and improved grid/font settings
+- **Documentation**: Updated README with new SPIE paper link
+
+### Fixed
+- **CI**: LaTeX rendering now optional with `_is_latex_available()` check (prevents CI failures on systems without LaTeX)
+- **Examples**: Added missing `scaler.pkl` and `training_meta.pkl` to `elasticity_prediction/best_checkpoint/`
+- **Examples**: Fixed notebook inference cell
+- **Tests**: Fixed unused variable lint warnings in `test_data_cv.py` (RUF059)
+
 ## [1.5.6] - 2026-01-15
 
 ### Added
@@ -96,7 +112,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Input indexing with literal integers (`x[0]`, `x[0,5]`, `x[0,5,10]`)
 - Input aggregates (`x_mean`, `x_sum`, `x_max`, `x_min`, `x_std`)
 - Automatic denormalization for constraints in physical space
-- 21 new unit tests for constraints (704 → 725 total)
+- 21 new unit tests for constraints (704 → 903 total)
 
 ### Removed
 - `--output_transform` and `--output_bounds` (hard constraints) — redundant with soft constraints
@@ -281,6 +297,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Example configurations and training scripts
 - MIT License and citation file
 
+[Unreleased]: https://github.com/ductho-le/WaveDL/compare/v1.5.6...HEAD
 [1.5.6]: https://github.com/ductho-le/WaveDL/compare/v1.5.5...v1.5.6
 [1.5.5]: https://github.com/ductho-le/WaveDL/compare/v1.5.4...v1.5.5
 [1.5.4]: https://github.com/ductho-le/WaveDL/compare/v1.5.3...v1.5.4

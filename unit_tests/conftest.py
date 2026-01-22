@@ -206,3 +206,94 @@ def pytest_configure(config):
         "markers", "gpu: marks tests that require GPU (deselect with '-m \"not gpu\"')"
     )
     config.addinivalue_line("markers", "integration: marks integration tests")
+
+
+# ==============================================================================
+# CHECKPOINT AND SCALER FIXTURES
+# ==============================================================================
+@pytest.fixture
+def mock_scaler():
+    """Create a mock StandardScaler for testing."""
+    from sklearn.preprocessing import StandardScaler
+
+    scaler = StandardScaler()
+    # Fit on dummy data to populate mean_ and scale_
+    scaler.fit(np.random.randn(100, 5))
+    return scaler
+
+
+@pytest.fixture
+def temp_checkpoint_dir(temp_dir, mock_scaler):
+    """Create a temporary checkpoint directory with model weights and scaler.
+
+    Returns:
+        Path to checkpoint directory containing:
+        - model.bin: Random model weights
+        - scaler.pkl: Fitted StandardScaler
+        - training_meta.pkl: Training metadata
+    """
+    import pickle
+
+    from wavedl.models.cnn import CNN
+
+    checkpoint_dir = os.path.join(temp_dir, "best_checkpoint")
+    os.makedirs(checkpoint_dir, exist_ok=True)
+
+    # Create and save model weights
+    model = CNN(in_shape=(64, 64), out_size=5)
+    torch.save(model.state_dict(), os.path.join(checkpoint_dir, "model.bin"))
+
+    # Save scaler
+    with open(os.path.join(checkpoint_dir, "scaler.pkl"), "wb") as f:
+        pickle.dump(mock_scaler, f)
+
+    # Save training metadata
+    meta = {
+        "epoch": 50,
+        "best_val_loss": 0.0123,
+        "patience_ctr": 0,
+        "model_name": "cnn",
+        "in_shape": (64, 64),
+        "out_dim": 5,
+    }
+    with open(os.path.join(checkpoint_dir, "training_meta.pkl"), "wb") as f:
+        pickle.dump(meta, f)
+
+    return checkpoint_dir
+
+
+@pytest.fixture
+def temp_training_data(temp_dir):
+    """Create temporary training data files.
+
+    Returns:
+        Dict with paths to NPZ and cache files.
+    """
+    n_samples = 100
+    X = np.random.randn(n_samples, 64, 64).astype(np.float32)
+    y = np.random.randn(n_samples, 5).astype(np.float32)
+
+    npz_path = os.path.join(temp_dir, "train_data.npz")
+    np.savez(npz_path, input_train=X, output_train=y)
+
+    return {
+        "npz_path": npz_path,
+        "n_samples": n_samples,
+        "in_shape": (64, 64),
+        "out_dim": 5,
+        "temp_dir": temp_dir,
+    }
+
+
+@pytest.fixture
+def sample_predictions():
+    """Generate sample predictions and targets for metrics testing."""
+    n_samples = 100
+    n_targets = 5
+
+    # Create correlated predictions (not random) for meaningful metrics
+    y_true = np.random.randn(n_samples, n_targets).astype(np.float32)
+    noise = np.random.randn(n_samples, n_targets).astype(np.float32) * 0.1
+    y_pred = y_true + noise  # High correlation with small noise
+
+    return y_true, y_pred

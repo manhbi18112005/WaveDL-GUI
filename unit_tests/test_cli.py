@@ -581,3 +581,322 @@ class TestHPCPrintSummary:
 
         captured = capsys.readouterr()
         assert "Training failed" in captured.out
+
+    def test_success_without_wandb(self, capsys):
+        """Test success message when wandb is disabled."""
+        from wavedl.hpc import print_summary
+
+        print_summary(
+            exit_code=0,
+            wandb_enabled=False,
+            wandb_mode="offline",
+            wandb_dir="/tmp/wandb",
+        )
+
+        captured = capsys.readouterr()
+        assert "Training completed successfully" in captured.out
+        assert "wandb sync" not in captured.out
+
+
+# ==============================================================================
+# TRAINING MODULE CACHE SETUP TESTS
+# ==============================================================================
+class TestTrainCacheSetup:
+    """Tests for cache directory setup functions in train.py."""
+
+    def test_setup_cache_dir_respects_existing_env(self):
+        """Test that _setup_cache_dir respects existing environment variables."""
+        from wavedl.train import _setup_cache_dir
+
+        original = os.environ.get("TEST_CACHE_VAR")
+        try:
+            os.environ["TEST_CACHE_VAR"] = "/custom/path"
+            _setup_cache_dir("TEST_CACHE_VAR", "test_cache")
+            assert os.environ["TEST_CACHE_VAR"] == "/custom/path"
+        finally:
+            if original:
+                os.environ["TEST_CACHE_VAR"] = original
+            elif "TEST_CACHE_VAR" in os.environ:
+                del os.environ["TEST_CACHE_VAR"]
+
+    def test_setup_cache_dir_creates_directory(self, temp_dir):
+        """Test that _setup_cache_dir creates the cache directory."""
+        from wavedl.train import _setup_cache_dir
+
+        test_var = "WAVEDL_TEST_CACHE_" + str(os.getpid())
+        original_cwd = os.getcwd()
+
+        try:
+            # Ensure env var is not set
+            if test_var in os.environ:
+                del os.environ[test_var]
+
+            # Change to temp dir and mock non-writable home
+            os.chdir(temp_dir)
+            with patch("os.access", return_value=False):
+                _setup_cache_dir(test_var, "my_cache")
+
+            # Verify directory was created
+            # Use realpath to resolve symlinks (e.g., /var -> /private/var on macOS)
+            expected_path = os.path.realpath(os.path.join(temp_dir, ".my_cache"))
+            actual_path = os.path.realpath(os.environ.get(test_var, ""))
+            assert actual_path == expected_path
+            assert os.path.exists(expected_path)
+        finally:
+            os.chdir(original_cwd)
+            if test_var in os.environ:
+                del os.environ[test_var]
+
+
+class TestTrainSuppressLogging:
+    """Tests for logging suppression context manager."""
+
+    def test_suppress_accelerate_logging_restores_level(self):
+        """Test that suppress_accelerate_logging restores original log level."""
+        import logging
+
+        from wavedl.train import suppress_accelerate_logging
+
+        accelerate_logger = logging.getLogger("accelerate.checkpointing")
+        original_level = accelerate_logger.level
+
+        with suppress_accelerate_logging():
+            assert accelerate_logger.level == logging.WARNING
+
+        assert accelerate_logger.level == original_level
+
+
+# ==============================================================================
+# INFERENCE MODULE TESTS (wavedl.test) - EXTENDED
+# ==============================================================================
+class TestLoadCheckpoint:
+    """Tests for checkpoint loading functionality."""
+
+    def test_load_checkpoint_success(self, temp_checkpoint_dir):
+        """Test successful checkpoint loading."""
+        from wavedl.test import load_checkpoint
+
+        model, scaler = load_checkpoint(
+            temp_checkpoint_dir,
+            in_shape=(64, 64),
+            out_size=5,
+            model_name="cnn",
+        )
+
+        assert model is not None
+        assert hasattr(scaler, "mean_")
+        assert hasattr(scaler, "scale_")
+
+    def test_load_checkpoint_auto_detects_model(self, temp_checkpoint_dir):
+        """Test that model is auto-detected from metadata."""
+        from wavedl.test import load_checkpoint
+
+        model, _scaler = load_checkpoint(
+            temp_checkpoint_dir,
+            in_shape=(64, 64),
+            out_size=5,
+            model_name=None,  # Auto-detect
+        )
+
+        assert model is not None
+
+    def test_load_checkpoint_missing_raises(self):
+        """Test that missing checkpoint raises FileNotFoundError."""
+        from wavedl.test import load_checkpoint
+
+        with pytest.raises(FileNotFoundError):
+            load_checkpoint(
+                "/nonexistent/checkpoint",
+                in_shape=(64, 64),
+                out_size=5,
+            )
+
+
+class TestRunInference:
+    """Tests for batch inference functionality."""
+
+    def test_run_inference_produces_correct_shape(self):
+        """Test that inference produces correct output shape."""
+        from wavedl.models.cnn import CNN
+        from wavedl.test import run_inference
+
+        model = CNN(in_shape=(64, 64), out_size=5)
+        X = torch.randn(20, 1, 64, 64)
+
+        predictions = run_inference(model, X, batch_size=8)
+
+        assert predictions.shape == (20, 5)
+        assert isinstance(predictions, np.ndarray)
+
+    def test_run_inference_single_sample(self):
+        """Test inference with single sample."""
+        from wavedl.models.cnn import CNN
+        from wavedl.test import run_inference
+
+        model = CNN(in_shape=(32, 32), out_size=3)
+        X = torch.randn(1, 1, 32, 32)
+
+        predictions = run_inference(model, X, batch_size=1)
+
+        assert predictions.shape == (1, 3)
+
+    def test_run_inference_deterministic(self):
+        """Test that inference is deterministic in eval mode."""
+        from wavedl.models.cnn import CNN
+        from wavedl.test import run_inference
+
+        model = CNN(in_shape=(32, 32), out_size=3)
+        X = torch.randn(10, 1, 32, 32)
+
+        pred1 = run_inference(model, X, batch_size=4)
+        pred2 = run_inference(model, X, batch_size=4)
+
+        np.testing.assert_array_almost_equal(pred1, pred2)
+
+
+class TestSavePredictions:
+    """Tests for prediction saving functionality."""
+
+    def test_save_predictions_creates_csv(self, temp_dir):
+        """Test that save_predictions creates a valid CSV file."""
+        from wavedl.test import save_predictions
+
+        y_true = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
+        y_pred = np.array([[1.1, 2.1], [3.1, 4.1], [5.1, 6.1]])
+        output_path = os.path.join(temp_dir, "predictions.csv")
+
+        save_predictions(y_true, y_pred, output_path)
+
+        assert os.path.exists(output_path)
+
+        # Verify CSV content
+        import pandas as pd
+
+        df = pd.read_csv(output_path)
+        assert "True_P0" in df.columns
+        assert "Pred_P0" in df.columns
+        assert "Error_P0" in df.columns
+        assert len(df) == 3
+
+    def test_save_predictions_with_param_names(self, temp_dir):
+        """Test save_predictions with custom parameter names."""
+        from wavedl.test import save_predictions
+
+        y_true = np.array([[1.0, 2.0, 3.0]])
+        y_pred = np.array([[1.1, 2.1, 3.1]])
+        output_path = os.path.join(temp_dir, "predictions.csv")
+        param_names = ["height", "velocity", "density"]
+
+        save_predictions(y_true, y_pred, output_path, param_names=param_names)
+
+        import pandas as pd
+
+        df = pd.read_csv(output_path)
+        assert "True_height" in df.columns
+        assert "Pred_velocity" in df.columns
+
+
+class TestPrintResults:
+    """Tests for result printing functionality."""
+
+    def test_print_results_outputs_metrics(self, capsys):
+        """Test that print_results outputs expected metrics."""
+        from wavedl.test import compute_metrics, print_results
+
+        y_true = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
+        y_pred = np.array([[1.1, 2.1], [3.1, 4.1], [5.1, 6.1]])
+        metrics = compute_metrics(y_true, y_pred)
+
+        print_results(y_true, y_pred, metrics)
+
+        captured = capsys.readouterr()
+        assert "R² Score" in captured.out
+        assert "Pearson" in captured.out
+        assert "MAE" in captured.out
+
+
+class TestONNXExport:
+    """Tests for ONNX export functionality."""
+
+    def test_export_creates_file(self, temp_dir):
+        """Test that ONNX export creates a file."""
+        from wavedl.models.cnn import CNN
+        from wavedl.test import export_to_onnx
+
+        model = CNN(in_shape=(32, 32), out_size=3)
+        sample_input = torch.randn(1, 1, 32, 32)
+        output_path = os.path.join(temp_dir, "model.onnx")
+
+        success = export_to_onnx(model, sample_input, output_path, validate=False)
+
+        assert success
+        assert os.path.exists(output_path)
+
+    def test_export_with_denormalization(self, temp_dir, mock_scaler):
+        """Test ONNX export with denormalization layer."""
+        from wavedl.models.cnn import CNN
+        from wavedl.test import export_to_onnx
+
+        model = CNN(in_shape=(32, 32), out_size=5)
+        sample_input = torch.randn(1, 1, 32, 32)
+        output_path = os.path.join(temp_dir, "model_denorm.onnx")
+
+        success = export_to_onnx(
+            model,
+            sample_input,
+            output_path,
+            scaler=mock_scaler,
+            include_denorm=True,
+            validate=False,
+        )
+
+        assert success
+        assert os.path.exists(output_path)
+
+    def test_get_onnx_model_info(self, temp_dir):
+        """Test ONNX model info extraction."""
+        from wavedl.models.cnn import CNN
+        from wavedl.test import export_to_onnx, get_onnx_model_info
+
+        model = CNN(in_shape=(32, 32), out_size=3)
+        sample_input = torch.randn(1, 1, 32, 32)
+        output_path = os.path.join(temp_dir, "model.onnx")
+
+        export_to_onnx(model, sample_input, output_path, validate=False)
+        info = get_onnx_model_info(output_path)
+
+        assert "input_name" in info or "error" in info
+        if "error" not in info:
+            assert "output_name" in info
+            assert "file_size_mb" in info
+
+
+class TestLoadDataForInference:
+    """Tests for inference data loading."""
+
+    def test_load_data_for_inference_npz(self, temp_dir):
+        """Test loading NPZ data for inference."""
+        from wavedl.test import load_data_for_inference
+
+        X = np.random.randn(20, 64, 64).astype(np.float32)
+        y = np.random.randn(20, 5).astype(np.float32)
+        path = os.path.join(temp_dir, "test.npz")
+        np.savez(path, input_test=X, output_test=y)
+
+        X_loaded, y_loaded = load_data_for_inference(path)
+
+        assert X_loaded.shape == (20, 1, 64, 64)  # Channel added
+        assert y_loaded.shape == (20, 5)
+
+    def test_load_data_for_inference_without_targets(self, temp_dir):
+        """Test loading data without target values."""
+        from wavedl.test import load_data_for_inference
+
+        X = np.random.randn(10, 32, 32).astype(np.float32)
+        path = os.path.join(temp_dir, "inputs_only.npz")
+        np.savez(path, input_test=X)
+
+        X_loaded, y_loaded = load_data_for_inference(path)
+
+        assert X_loaded.shape == (10, 1, 32, 32)
+        assert y_loaded is None

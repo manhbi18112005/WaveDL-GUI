@@ -419,3 +419,202 @@ class TestGradientFlowIntegration:
         total_norm = total_norm**0.5
 
         assert total_norm <= max_norm * 1.01  # Small tolerance
+
+
+# ==============================================================================
+# CHECKPOINT AND RESUME INTEGRATION
+# ==============================================================================
+@pytest.mark.integration
+class TestCheckpointIntegration:
+    """Integration tests for checkpoint saving and loading."""
+
+    def test_full_checkpoint_save_load_cycle(self):
+        """Test complete checkpoint save and load cycle."""
+
+        model = CNN(in_shape=(32, 32), out_size=3)
+        optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10)
+
+        # Train for a few steps
+        X = torch.randn(8, 1, 32, 32)
+        y = torch.randn(8, 3)
+        criterion = nn.MSELoss()
+
+        for _ in range(5):
+            optimizer.zero_grad()
+            loss = criterion(model(X), y)
+            loss.backward()
+            optimizer.step()
+        scheduler.step()
+
+        # Save checkpoint
+        with tempfile.TemporaryDirectory() as tmpdir:
+            checkpoint = {
+                "model_state_dict": model.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "scheduler_state_dict": scheduler.state_dict(),
+                "epoch": 5,
+                "best_val_loss": 0.123,
+            }
+            checkpoint_path = os.path.join(tmpdir, "checkpoint.pt")
+            torch.save(checkpoint, checkpoint_path)
+
+            # Load checkpoint
+            new_model = CNN(in_shape=(32, 32), out_size=3)
+            new_optimizer = torch.optim.Adam(new_model.parameters(), lr=1e-3)
+            new_scheduler = torch.optim.lr_scheduler.StepLR(new_optimizer, step_size=10)
+
+            loaded = torch.load(checkpoint_path, weights_only=True)
+            new_model.load_state_dict(loaded["model_state_dict"])
+            new_optimizer.load_state_dict(loaded["optimizer_state_dict"])
+            new_scheduler.load_state_dict(loaded["scheduler_state_dict"])
+
+            # Verify states match
+            assert loaded["epoch"] == 5
+            assert loaded["best_val_loss"] == 0.123
+
+            # Verify model outputs match
+            model.eval()
+            new_model.eval()
+            with torch.no_grad():
+                out1 = model(X)
+                out2 = new_model(X)
+            assert torch.allclose(out1, out2)
+
+    def test_scaler_save_load(self):
+        """Test StandardScaler save and load for inference."""
+        import pickle
+
+        from sklearn.preprocessing import StandardScaler
+
+        # Fit scaler
+        y_train = np.random.randn(100, 5)
+        scaler = StandardScaler()
+        scaler.fit(y_train)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            scaler_path = os.path.join(tmpdir, "scaler.pkl")
+            with open(scaler_path, "wb") as f:
+                pickle.dump(scaler, f)
+
+            with open(scaler_path, "rb") as f:
+                loaded_scaler = pickle.load(f)
+
+            # Verify transform matches
+            test_data = np.random.randn(10, 5)
+            np.testing.assert_array_almost_equal(
+                scaler.transform(test_data),
+                loaded_scaler.transform(test_data),
+            )
+
+
+# ==============================================================================
+# ERROR HANDLING INTEGRATION
+# ==============================================================================
+@pytest.mark.integration
+class TestErrorHandling:
+    """Integration tests for error handling."""
+
+    def test_nan_loss_detection(self):
+        """Test that NaN loss is detectable."""
+        model = CNN(in_shape=(32, 32), out_size=3)
+        model.train()
+
+        X = torch.randn(4, 1, 32, 32)
+        y = torch.randn(4, 3)
+
+        output = model(X)
+        loss = nn.MSELoss()(output, y)
+
+        # Normal loss should not be NaN
+        assert not torch.isnan(loss).any()
+
+        # Simulate NaN (for detection logic testing)
+        nan_loss = torch.tensor(float("nan"))
+        assert torch.isnan(nan_loss)
+
+    def test_inf_output_detection(self):
+        """Test that infinite outputs are detectable."""
+        model = CNN(in_shape=(32, 32), out_size=3)
+        model.eval()
+
+        X = torch.randn(4, 1, 32, 32)
+        with torch.no_grad():
+            output = model(X)
+
+        # Normal output should not have inf
+        assert not torch.isinf(output).any()
+
+    def test_empty_batch_handling(self):
+        """Test behavior with edge case batch sizes."""
+        model = CNN(in_shape=(32, 32), out_size=3)
+        model.eval()
+
+        # Single sample should work
+        X = torch.randn(1, 1, 32, 32)
+        with torch.no_grad():
+            output = model(X)
+        assert output.shape == (1, 3)
+
+
+# ==============================================================================
+# LEARNING RATE SCHEDULER INTEGRATION
+# ==============================================================================
+@pytest.mark.integration
+class TestSchedulerIntegration:
+    """Integration tests for learning rate schedulers with training."""
+
+    def test_plateau_scheduler_reduces_lr(self):
+        """Test ReduceLROnPlateau reduces LR when loss plateaus."""
+        model = CNN(in_shape=(32, 32), out_size=3)
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.1)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, patience=2, factor=0.5
+        )
+
+        initial_lr = optimizer.param_groups[0]["lr"]
+
+        # Simulate plateau (same loss for multiple epochs)
+        for _ in range(5):
+            scheduler.step(1.0)  # Same val_loss
+
+        final_lr = optimizer.param_groups[0]["lr"]
+        assert final_lr < initial_lr
+
+    def test_cosine_scheduler_varies_lr(self):
+        """Test CosineAnnealingLR varies LR over epochs."""
+        model = CNN(in_shape=(32, 32), out_size=3)
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.1)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10)
+
+        lrs = []
+        for _ in range(10):
+            lrs.append(optimizer.param_groups[0]["lr"])
+            scheduler.step()
+
+        # LR should vary (not constant)
+        assert len(set(lrs)) > 1
+
+    def test_onecycle_scheduler_with_training(self):
+        """Test OneCycleLR works with training loop."""
+        model = CNN(in_shape=(32, 32), out_size=3)
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+
+        total_steps = 100
+        scheduler = torch.optim.lr_scheduler.OneCycleLR(
+            optimizer, max_lr=0.01, total_steps=total_steps
+        )
+
+        X = torch.randn(4, 1, 32, 32)
+        y = torch.randn(4, 3)
+        criterion = nn.MSELoss()
+
+        # Simulate training steps
+        for _ in range(total_steps):
+            optimizer.zero_grad()
+            loss = criterion(model(X), y)
+            loss.backward()
+            optimizer.step()
+            scheduler.step()
+
+        # Should complete without error

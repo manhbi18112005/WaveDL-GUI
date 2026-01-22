@@ -836,3 +836,166 @@ class TestLoadTestDataSingleSample:
 
         assert X_loaded.shape == (1, 1, 64, 64)
         assert y_loaded.shape == (1, 1)
+
+
+# ==============================================================================
+# FILE HASH AND CACHE VALIDATION TESTS
+# ==============================================================================
+class TestFileHash:
+    """Tests for file hash computation used in cache validation."""
+
+    def test_compute_file_hash_deterministic(self, temp_dir):
+        """Test that file hash is deterministic."""
+        from wavedl.utils.data import _compute_file_hash
+
+        path = os.path.join(temp_dir, "test_file.bin")
+        with open(path, "wb") as f:
+            f.write(b"test content for hashing")
+
+        hash1 = _compute_file_hash(path)
+        hash2 = _compute_file_hash(path)
+
+        assert hash1 == hash2
+        assert len(hash1) == 64  # SHA256 produces 64 hex characters
+
+    def test_compute_file_hash_changes_with_content(self, temp_dir):
+        """Test that hash changes when file content changes."""
+        from wavedl.utils.data import _compute_file_hash
+
+        path = os.path.join(temp_dir, "test_file.bin")
+
+        with open(path, "wb") as f:
+            f.write(b"original content")
+        hash1 = _compute_file_hash(path)
+
+        with open(path, "wb") as f:
+            f.write(b"modified content")
+        hash2 = _compute_file_hash(path)
+
+        assert hash1 != hash2
+
+    def test_compute_file_hash_large_file(self, temp_dir):
+        """Test hash computation on larger files."""
+        from wavedl.utils.data import _compute_file_hash
+
+        path = os.path.join(temp_dir, "large_file.bin")
+        # Create a file larger than chunk size (8MB default)
+        with open(path, "wb") as f:
+            f.write(os.urandom(10 * 1024 * 1024))  # 10MB
+
+        hash_val = _compute_file_hash(path)
+        assert len(hash_val) == 64
+
+
+# ==============================================================================
+# LOAD OUTPUTS ONLY TESTS
+# ==============================================================================
+class TestLoadOutputsOnly:
+    """Tests for memory-efficient output-only loading."""
+
+    def test_load_outputs_only_npz(self, temp_dir):
+        """Test loading only outputs from NPZ file."""
+        from wavedl.utils.data import load_outputs_only
+
+        X = np.random.randn(100, 128, 128).astype(np.float32)  # Large inputs
+        y = np.random.randn(100, 5).astype(np.float32)  # Small outputs
+        path = os.path.join(temp_dir, "data.npz")
+        np.savez(path, input_train=X, output_train=y)
+
+        outputs = load_outputs_only(path)
+
+        assert outputs.shape == (100, 5)
+        np.testing.assert_array_equal(outputs, y)
+
+    def test_load_outputs_only_hdf5(self, temp_dir):
+        """Test loading only outputs from HDF5 file."""
+        from wavedl.utils.data import load_outputs_only
+
+        X = np.random.randn(50, 64, 64).astype(np.float32)
+        y = np.random.randn(50, 3).astype(np.float32)
+        path = os.path.join(temp_dir, "data.h5")
+
+        with h5py.File(path, "w") as f:
+            f.create_dataset("input_train", data=X)
+            f.create_dataset("output_train", data=y)
+
+        outputs = load_outputs_only(path)
+
+        assert outputs.shape == (50, 3)
+
+
+# ==============================================================================
+# TRANSPOSED H5 DATASET TESTS
+# ==============================================================================
+class TestTransposedH5Dataset:
+    """Tests for _TransposedH5Dataset lazy transpose wrapper."""
+
+    def test_integer_indexing(self, temp_dir):
+        """Test integer indexing returns correctly transposed data."""
+        from wavedl.utils.data import _TransposedH5Dataset
+
+        # Create test data in MATLAB column-major order
+        original = np.random.randn(32, 64, 10).astype(np.float32)  # (W, H, N)
+        path = os.path.join(temp_dir, "test.h5")
+
+        with h5py.File(path, "w") as f:
+            f.create_dataset("data", data=original)
+
+        with h5py.File(path, "r") as f:
+            wrapper = _TransposedH5Dataset(f["data"], file_handle=f)
+
+            assert wrapper.shape == (10, 64, 32)  # Transposed: (N, H, W)
+            assert len(wrapper) == 10
+
+            # Get single sample
+            sample = wrapper[0]
+            assert sample.shape == (64, 32)
+
+    def test_slice_indexing(self, temp_dir):
+        """Test slice indexing returns correctly transposed batch."""
+        from wavedl.utils.data import _TransposedH5Dataset
+
+        original = np.random.randn(16, 32, 20).astype(np.float32)  # (W, H, N)
+        path = os.path.join(temp_dir, "test.h5")
+
+        with h5py.File(path, "w") as f:
+            f.create_dataset("data", data=original)
+
+        with h5py.File(path, "r") as f:
+            wrapper = _TransposedH5Dataset(f["data"], file_handle=f)
+
+            batch = wrapper[0:5]
+            assert batch.shape == (5, 32, 16)  # (batch, H, W)
+
+
+# ==============================================================================
+# INPUT CHANNELS OVERRIDE TESTS
+# ==============================================================================
+class TestInputChannelsOverride:
+    """Tests for explicit input_channels parameter in load_test_data."""
+
+    def test_input_channels_1_adds_channel(self, temp_dir):
+        """Test input_channels=1 forces channel dimension addition."""
+        # Create 4D data that could be (N, D, H, W) volume or (N, C, H, W) image
+        X = np.random.randn(10, 8, 32, 32).astype(np.float32)
+        y = np.random.randn(10, 3).astype(np.float32)
+        path = os.path.join(temp_dir, "data.npz")
+        np.savez(path, input_test=X, output_test=y)
+
+        # With input_channels=1, should add channel: (N, D, H, W) -> (N, 1, D, H, W)
+        X_loaded, _ = load_test_data(path, input_channels=1)
+
+        assert X_loaded.shape == (10, 1, 8, 32, 32)
+
+    def test_input_channels_none_uses_heuristic(self, temp_dir):
+        """Test that input_channels=None uses default heuristic."""
+        # Create data with large first dim (>16) - should be treated as needing channel
+        X = np.random.randn(10, 32, 32, 32).astype(np.float32)
+        y = np.random.randn(10, 3).astype(np.float32)
+        path = os.path.join(temp_dir, "data.npz")
+        np.savez(path, input_test=X, output_test=y)
+
+        X_loaded, _ = load_test_data(path, input_channels=None)
+
+        # Heuristic: dim 1 > 16, so add channel
+        assert X_loaded.shape == (10, 1, 32, 32, 32)

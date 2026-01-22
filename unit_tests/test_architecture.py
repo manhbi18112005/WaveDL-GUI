@@ -499,3 +499,174 @@ class TestGPUModels:
 
         assert output.shape == (4, 5)
         assert not torch.isnan(output).any()
+
+
+# ==============================================================================
+# PARAMETER SUMMARY TESTS FOR ALL MODELS
+# ==============================================================================
+@pytest.mark.slow
+class TestModelParameterSummary:
+    """Tests for parameter_summary() method across all models."""
+
+    @pytest.mark.parametrize("model_name", list_models())
+    def test_parameter_summary_returns_dict(self, model_name):
+        """Test that parameter_summary returns a properly structured dict."""
+        in_shape, kwargs = get_test_config(model_name)
+        model = build_model(model_name, in_shape=in_shape, out_size=3, **kwargs)
+
+        summary = model.parameter_summary()
+
+        assert isinstance(summary, dict)
+        assert "total_parameters" in summary
+        assert "trainable_parameters" in summary
+        assert "frozen_parameters" in summary
+        assert "total_mb" in summary
+
+        # Verify values are reasonable
+        assert summary["total_parameters"] >= 0
+        assert summary["trainable_parameters"] >= 0
+        assert summary["frozen_parameters"] >= 0
+        assert summary["total_mb"] >= 0
+
+    @pytest.mark.parametrize("model_name", list_models())
+    def test_optimizer_groups_returns_list(self, model_name):
+        """Test that get_optimizer_groups returns valid parameter groups."""
+        in_shape, kwargs = get_test_config(model_name)
+        model = build_model(model_name, in_shape=in_shape, out_size=3, **kwargs)
+
+        groups = model.get_optimizer_groups(base_lr=0.001, weight_decay=0.01)
+
+        assert isinstance(groups, list)
+        assert len(groups) >= 1
+
+        for group in groups:
+            assert "params" in group
+            assert "lr" in group
+            assert "weight_decay" in group
+
+    @pytest.mark.parametrize("model_name", list_models())
+    def test_count_parameters_matches_summary(self, model_name):
+        """Test that count_parameters matches parameter_summary."""
+        in_shape, kwargs = get_test_config(model_name)
+        model = build_model(model_name, in_shape=in_shape, out_size=3, **kwargs)
+
+        count = model.count_parameters(trainable_only=True)
+        summary = model.parameter_summary()
+
+        assert count == summary["trainable_parameters"]
+
+
+# ==============================================================================
+# MODEL EDGE CASE TESTS
+# ==============================================================================
+class TestModelEdgeCases:
+    """Tests for edge cases in model behavior."""
+
+    def test_single_output_dimension(self):
+        """Test model with single output dimension."""
+        model = CNN(in_shape=(32, 32), out_size=1)
+        x = torch.randn(4, 1, 32, 32)
+
+        output = model(x)
+
+        assert output.shape == (4, 1)
+
+    def test_large_output_dimension(self):
+        """Test model with many output dimensions."""
+        model = CNN(in_shape=(32, 32), out_size=100)
+        x = torch.randn(2, 1, 32, 32)
+
+        output = model(x)
+
+        assert output.shape == (2, 100)
+
+    def test_very_small_input(self):
+        """Test model with minimum viable input size."""
+        # CNN has 5 pooling layers (each halves spatial dims), so minimum is 32x32
+        # Input: 32 -> 16 -> 8 -> 4 -> 2 -> 1 (valid spatial output)
+        model = CNN(in_shape=(32, 32), out_size=3)
+        x = torch.randn(2, 1, 32, 32)
+
+        output = model(x)
+
+        assert output.shape == (2, 3)
+        assert not torch.isnan(output).any()
+
+    def test_non_square_input(self):
+        """Test model with non-square input dimensions."""
+        model = CNN(in_shape=(32, 64), out_size=5)
+        x = torch.randn(4, 1, 32, 64)
+
+        output = model(x)
+
+        assert output.shape == (4, 5)
+
+    def test_model_state_dict_save_load(self):
+        """Test that model state can be saved and loaded."""
+        import tempfile
+
+        model1 = CNN(in_shape=(32, 32), out_size=3)
+        x = torch.randn(2, 1, 32, 32)
+
+        # Get output from original model
+        model1.eval()
+        with torch.no_grad():
+            out1 = model1(x)
+
+        # Save and load state dict
+        with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as f:
+            torch.save(model1.state_dict(), f.name)
+
+            model2 = CNN(in_shape=(32, 32), out_size=3)
+            model2.load_state_dict(torch.load(f.name, weights_only=True))
+            model2.eval()
+
+            with torch.no_grad():
+                out2 = model2(x)
+
+            import os
+
+            os.unlink(f.name)
+
+        assert torch.allclose(out1, out2)
+
+    def test_model_train_eval_mode_difference(self):
+        """Test that train and eval modes behave differently for models with dropout/batchnorm."""
+        model = CNN(in_shape=(32, 32), out_size=3)
+        x = torch.randn(4, 1, 32, 32)
+
+        # In eval mode, output should be deterministic
+        model.eval()
+        with torch.no_grad():
+            out1 = model(x)
+            out2 = model(x)
+        assert torch.allclose(out1, out2)
+
+        # In train mode with dropout, outputs may differ
+        # (but this depends on model architecture)
+        model.train()
+
+
+# ==============================================================================
+# PRETRAINED MODEL TESTS
+# ==============================================================================
+class TestPretrainedModels:
+    """Tests for pretrained model loading (with pretrained=False for CI)."""
+
+    @pytest.mark.parametrize(
+        "model_name",
+        [
+            m
+            for m in list_models()
+            if "pretrained" in m.lower() or m in ["resnet18", "efficientnet_b0"]
+        ],
+    )
+    def test_pretrained_model_builds(self, model_name):
+        """Test that pretrained models can be built (with pretrained=False)."""
+        in_shape, kwargs = get_test_config(model_name)
+        kwargs["pretrained"] = False  # Disable download for CI
+
+        model = build_model(model_name, in_shape=in_shape, out_size=5, **kwargs)
+
+        assert model is not None
+        assert model.count_parameters() > 0

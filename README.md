@@ -342,7 +342,7 @@ WaveDL/
 ├── configs/                      # YAML config templates
 ├── examples/                     # Ready-to-run examples
 ├── notebooks/                    # Jupyter notebooks
-├── unit_tests/                   # Pytest test suite (731 tests)
+├── unit_tests/                   # Pytest test suite (903 tests)
 │
 ├── pyproject.toml                # Package config, dependencies
 ├── CHANGELOG.md                  # Version history
