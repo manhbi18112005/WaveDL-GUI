@@ -23,7 +23,16 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 import torch
-import torch.nn as nn
+from torch import nn
+
+
+# Check for optional ONNX dependencies
+try:
+    import onnxscript  # noqa: F401
+
+    HAS_ONNXSCRIPT = True
+except ImportError:
+    HAS_ONNXSCRIPT = False
 
 
 # ==============================================================================
@@ -815,6 +824,7 @@ class TestPrintResults:
         assert "MAE" in captured.out
 
 
+@pytest.mark.skipif(not HAS_ONNXSCRIPT, reason="onnxscript not installed")
 class TestONNXExport:
     """Tests for ONNX export functionality."""
 
