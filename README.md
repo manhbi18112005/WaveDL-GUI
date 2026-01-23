@@ -989,13 +989,20 @@ The `examples/` folder contains a **complete, ready-to-run example** for **mater
 
 | Parameter | Unit | Description |
 |-----------|------|-------------|
-| *h* | mm | Plate thickness |
-| √(*E*/ρ) | km/s | Square root of Young's modulus over density |
-| *ν* | — | Poisson's ratio |
+| $h$ | mm | Plate thickness |
+| $\sqrt{E/\rho}$ | km/s | Square root of Young's modulus over density |
+| $\nu$ | — | Poisson's ratio |
 
 > [!NOTE]
 > This example is based on our paper at **SPIE Smart Structures + NDE 2026**: [*"A lightweight deep learning model for ultrasonic assessment of plate thickness and elasticity
 "*](https://spie.org/spie-smart-structures-and-materials-nondestructive-evaluation/presentation/A-lightweight-deep-learning-model-for-ultrasonic-assessment-of-plate/13951-4) (Paper 13951-4, to appear).
+
+**Sample Dispersion Data:**
+
+<p align="center">
+  <img src="examples/elasticity_prediction/dispersion_samples.png" alt="Dispersion curve samples" width="700"><br>
+  <em>Test samples showing the wavenumber-frequency relationship for different plate properties</em>
+</p>
 
 **Try it yourself:**
 
@@ -1016,7 +1023,8 @@ python -m wavedl.test --checkpoint ./examples/elasticity_prediction/best_checkpo
 | File | Description |
 |------|-------------|
 | `best_checkpoint/` | Pre-trained MobileNetV3 checkpoint |
-| `Test_data_100.mat` | 100 sample test set (500×500 dispersion curves → *h*, √(*E*/ρ), *ν*) |
+| `Test_data_100.mat` | 100 sample test set (500×500 dispersion curves → $h$, $\sqrt{E/\rho}$, $\nu$) |
+| `dispersion_samples.png` | Visualization of sample dispersion curves with material parameters |
 | `model.onnx` | ONNX export with embedded de-normalization |
 | `training_history.csv` | Epoch-by-epoch training metrics (loss, R², LR, etc.) |
 | `training_curves.png` | Training/validation loss and learning rate plot |
