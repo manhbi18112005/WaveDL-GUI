@@ -311,7 +311,7 @@ def load_data_for_inference(
 # ==============================================================================
 def load_checkpoint(
     checkpoint_dir: str,
-    in_shape: tuple[int, int],
+    in_shape: tuple[int, ...],
     out_size: int,
     model_name: str | None = None,
 ) -> tuple[nn.Module, any]:
@@ -320,7 +320,7 @@ def load_checkpoint(
 
     Args:
         checkpoint_dir: Path to checkpoint directory
-        in_shape: Input image shape (H, W)
+        in_shape: Input spatial shape - (L,) for 1D, (H, W) for 2D, or (D, H, W) for 3D
         out_size: Number of output parameters
         model_name: Model architecture name (auto-detect if None)
 
@@ -376,7 +376,11 @@ def load_checkpoint(
                 )
 
     logging.info(f"   Building model: {model_name}")
-    model = build_model(model_name, in_shape=in_shape, out_size=out_size)
+    # Use pretrained=False: checkpoint weights will overwrite any pretrained weights,
+    # so downloading ImageNet weights is wasteful and breaks offline/HPC inference.
+    model = build_model(
+        model_name, in_shape=in_shape, out_size=out_size, pretrained=False
+    )
 
     # Load weights (check multiple formats in order of preference)
     weight_path = None

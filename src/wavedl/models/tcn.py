@@ -45,6 +45,26 @@ from wavedl.models.base import BaseModel
 from wavedl.models.registry import register_model
 
 
+def _find_group_count(channels: int, max_groups: int = 8) -> int:
+    """
+    Find largest valid group count for GroupNorm.
+
+    GroupNorm requires channels to be divisible by num_groups.
+    This finds the largest divisor up to max_groups.
+
+    Args:
+        channels: Number of channels
+        max_groups: Maximum group count to consider (default: 8)
+
+    Returns:
+        Largest valid group count (always >= 1)
+    """
+    for g in range(min(max_groups, channels), 0, -1):
+        if channels % g == 0:
+            return g
+    return 1
+
+
 class CausalConv1d(nn.Module):
     """
     Causal 1D convolution with dilation.
@@ -101,13 +121,13 @@ class TemporalBlock(nn.Module):
 
         # First causal convolution
         self.conv1 = CausalConv1d(in_channels, out_channels, kernel_size, dilation)
-        self.norm1 = nn.GroupNorm(min(8, out_channels), out_channels)
+        self.norm1 = nn.GroupNorm(_find_group_count(out_channels), out_channels)
         self.act1 = nn.GELU()
         self.dropout1 = nn.Dropout(dropout)
 
         # Second causal convolution
         self.conv2 = CausalConv1d(out_channels, out_channels, kernel_size, dilation)
-        self.norm2 = nn.GroupNorm(min(8, out_channels), out_channels)
+        self.norm2 = nn.GroupNorm(_find_group_count(out_channels), out_channels)
         self.act2 = nn.GELU()
         self.dropout2 = nn.Dropout(dropout)
 

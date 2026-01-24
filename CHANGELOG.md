@@ -5,21 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.5.7] - 2026-01-24
 
 ### Added
 - **Plotting**: Refactored with helper functions for cleaner code
-- **Tests**: 178 new unit tests (725 → 903 total) for data leakage prevention, CLI, architecture, and integration
+- **Tests**: 178 new unit tests (725 → 903 total)
+- **Training**: `--deterministic` and `--cache_validate` flags
 
 ### Changed
-- **Plotting**: Publication-quality styling with LaTeX fonts and improved grid/font settings
+- **Plotting**: Publication-quality styling with LaTeX fonts
 - **Documentation**: Updated README with new SPIE paper link
+- **Pretrained Models**: All use modified conv for 1-channel (3× memory savings vs expand)
 
 ### Fixed
-- **CI**: LaTeX rendering now optional with `_is_latex_available()` check (prevents CI failures on systems without LaTeX)
-- **Examples**: Added missing `scaler.pkl` and `training_meta.pkl` to `elasticity_prediction/best_checkpoint/`
-- **Examples**: Fixed notebook inference cell
-- **Tests**: Fixed unused variable lint warnings in `test_data_cv.py` (RUF059)
+- **CLI**: `--pretrained` now uses `BooleanOptionalAction` (was no-op)
+- **Constraints**: `x[i,j]` auto-squeezes channel for single-channel data
+- **Inference**: Channels-last format now raises error with fix guidance
+- **Inference**: `load_checkpoint` uses `pretrained=False` (offline-safe)
+- **Inference**: `--input_key`/`--output_key` strict validation (exact match required)
+- **TCN**: `GroupNorm` divisibility for custom channel counts
+- **CLI**: `--import` error handling for missing/invalid files
+- **Pretrained**: `freeze_backbone` now freezes adapted stem conv
+- **Pretrained**: Swin `features[0][0]` access guarded for torchvision compatibility
+- **CI**: LaTeX rendering optional with `_is_latex_available()` check
+- **Examples**: Added missing checkpoint files, fixed notebook cell
+- **Tests**: Fixed RUF059 lint warnings in `test_data_cv.py`
 
 ## [1.5.6] - 2026-01-15
 
@@ -297,7 +307,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Example configurations and training scripts
 - MIT License and citation file
 
-[Unreleased]: https://github.com/ductho-le/WaveDL/compare/v1.5.6...HEAD
+[Unreleased]: https://github.com/ductho-le/WaveDL/compare/v1.5.7...HEAD
+[1.5.7]: https://github.com/ductho-le/WaveDL/compare/v1.5.6...v1.5.7
 [1.5.6]: https://github.com/ductho-le/WaveDL/compare/v1.5.5...v1.5.6
 [1.5.5]: https://github.com/ductho-le/WaveDL/compare/v1.5.4...v1.5.5
 [1.5.4]: https://github.com/ductho-le/WaveDL/compare/v1.5.3...v1.5.4

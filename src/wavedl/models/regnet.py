@@ -140,9 +140,36 @@ class RegNetBase(BaseModel):
             nn.Linear(regression_hidden, out_size),
         )
 
-        # Optionally freeze backbone for fine-tuning
+        # Adapt first conv for single-channel input (3× memory savings vs expand)
+        self._adapt_input_channels()
+
+        # Optionally freeze backbone for fine-tuning (after adaptation so new conv is frozen too)
         if freeze_backbone:
             self._freeze_backbone()
+
+    def _adapt_input_channels(self):
+        """Modify first conv to accept single-channel input.
+
+        Instead of expanding 1→3 channels in forward (which triples memory),
+        we replace the first conv layer with a 1-channel version and initialize
+        weights as the mean of the pretrained RGB filters.
+        """
+        old_conv = self.backbone.stem[0]
+        new_conv = nn.Conv2d(
+            1,  # Single channel input
+            old_conv.out_channels,
+            kernel_size=old_conv.kernel_size,
+            stride=old_conv.stride,
+            padding=old_conv.padding,
+            dilation=old_conv.dilation,
+            groups=old_conv.groups,
+            padding_mode=old_conv.padding_mode,
+            bias=old_conv.bias is not None,
+        )
+        if self.pretrained:
+            with torch.no_grad():
+                new_conv.weight.copy_(old_conv.weight.mean(dim=1, keepdim=True))
+        self.backbone.stem[0] = new_conv
 
     def _freeze_backbone(self):
         """Freeze all backbone parameters except the fc layer."""
@@ -155,15 +182,11 @@ class RegNetBase(BaseModel):
         Forward pass.
 
         Args:
-            x: Input tensor of shape (B, C, H, W) where C is 1 or 3
+            x: Input tensor of shape (B, 1, H, W)
 
         Returns:
             Output tensor of shape (B, out_size)
         """
-        # Expand single channel to 3 channels for pretrained weights compatibility
-        if x.size(1) == 1:
-            x = x.expand(-1, 3, -1, -1)
-
         return self.backbone(x)
 
     @classmethod

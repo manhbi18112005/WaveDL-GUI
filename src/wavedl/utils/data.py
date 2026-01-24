@@ -50,9 +50,11 @@ INPUT_KEYS = ["input_train", "input_test", "X", "data", "inputs", "features", "x
 OUTPUT_KEYS = ["output_train", "output_test", "Y", "labels", "outputs", "targets", "y"]
 
 
-def _compute_file_hash(path: str, chunk_size: int = 8 * 1024 * 1024) -> str:
+def _compute_file_hash(
+    path: str, mode: str = "sha256", chunk_size: int = 8 * 1024 * 1024
+) -> str:
     """
-    Compute SHA256 hash of a file for cache validation.
+    Compute hash of a file for cache validation.
 
     Uses chunked reading to handle large files efficiently without loading
     the entire file into memory. This is more reliable than mtime for detecting
@@ -61,16 +63,34 @@ def _compute_file_hash(path: str, chunk_size: int = 8 * 1024 * 1024) -> str:
 
     Args:
         path: Path to file to hash
+        mode: Validation mode:
+            - 'sha256': Full content hash (default, most reliable)
+            - 'fast': Partial hash (first+last 1MB + size, faster for large files)
+            - 'size': File size only (fastest, least reliable)
         chunk_size: Read buffer size (default 8MB for fast I/O)
 
     Returns:
-        Hex string of SHA256 hash
+        Hash string for cache comparison
     """
-    hasher = hashlib.sha256()
-    with open(path, "rb") as f:
-        while chunk := f.read(chunk_size):
-            hasher.update(chunk)
-    return hasher.hexdigest()
+    if mode == "size":
+        return str(os.path.getsize(path))
+    elif mode == "fast":
+        # Hash first 1MB + last 1MB + file size for quick validation
+        file_size = os.path.getsize(path)
+        hasher = hashlib.sha256()
+        hasher.update(str(file_size).encode())
+        with open(path, "rb") as f:
+            hasher.update(f.read(1024 * 1024))  # First 1MB
+            if file_size > 2 * 1024 * 1024:
+                f.seek(-1024 * 1024, 2)
+                hasher.update(f.read())  # Last 1MB
+        return hasher.hexdigest()
+    else:  # sha256 (full)
+        hasher = hashlib.sha256()
+        with open(path, "rb") as f:
+            while chunk := f.read(chunk_size):
+                hasher.update(chunk)
+        return hasher.hexdigest()
 
 
 class LazyDataHandle:
@@ -840,9 +860,21 @@ def load_test_data(
                 keys = list(probe.keys())
             inp_key = DataSource._find_key(keys, custom_input_keys)
             out_key = DataSource._find_key(keys, custom_output_keys)
+            # Strict validation: if user explicitly specified input_key, it must exist exactly
+            if input_key is not None and input_key not in keys:
+                raise KeyError(
+                    f"Explicit --input_key '{input_key}' not found. "
+                    f"Available keys: {keys}"
+                )
             if inp_key is None:
                 raise KeyError(
                     f"Input key not found. Tried: {custom_input_keys}. Found: {keys}"
+                )
+            # Strict validation: if user explicitly specified output_key, it must exist exactly
+            if output_key is not None and output_key not in keys:
+                raise KeyError(
+                    f"Explicit --output_key '{output_key}' not found. "
+                    f"Available keys: {keys}"
                 )
             data = NPZSource._load_and_copy(
                 path, [inp_key] + ([out_key] if out_key else [])
@@ -858,9 +890,21 @@ def load_test_data(
                 keys = list(f.keys())
                 inp_key = DataSource._find_key(keys, custom_input_keys)
                 out_key = DataSource._find_key(keys, custom_output_keys)
+                # Strict validation: if user explicitly specified input_key, it must exist exactly
+                if input_key is not None and input_key not in keys:
+                    raise KeyError(
+                        f"Explicit --input_key '{input_key}' not found. "
+                        f"Available keys: {keys}"
+                    )
                 if inp_key is None:
                     raise KeyError(
                         f"Input key not found. Tried: {custom_input_keys}. Found: {keys}"
+                    )
+                # Strict validation: if user explicitly specified output_key, it must exist exactly
+                if output_key is not None and output_key not in keys:
+                    raise KeyError(
+                        f"Explicit --output_key '{output_key}' not found. "
+                        f"Available keys: {keys}"
                     )
                 # OOM guard: warn if dataset is very large
                 n_samples = f[inp_key].shape[0]
@@ -878,9 +922,21 @@ def load_test_data(
                 keys = list(f.keys())
                 inp_key = DataSource._find_key(keys, custom_input_keys)
                 out_key = DataSource._find_key(keys, custom_output_keys)
+                # Strict validation: if user explicitly specified input_key, it must exist exactly
+                if input_key is not None and input_key not in keys:
+                    raise KeyError(
+                        f"Explicit --input_key '{input_key}' not found. "
+                        f"Available keys: {keys}"
+                    )
                 if inp_key is None:
                     raise KeyError(
                         f"Input key not found. Tried: {custom_input_keys}. Found: {keys}"
+                    )
+                # Strict validation: if user explicitly specified output_key, it must exist exactly
+                if output_key is not None and output_key not in keys:
+                    raise KeyError(
+                        f"Explicit --output_key '{output_key}' not found. "
+                        f"Available keys: {keys}"
                     )
                 # OOM guard: warn if dataset is very large (MAT is transposed)
                 n_samples = f[inp_key].shape[-1]
@@ -1020,9 +1076,18 @@ def load_test_data(
             if input_channels == 1:
                 X = X.unsqueeze(1)  # Add channel: (N, D, H, W) → (N, 1, D, H, W)
             # else: already has channels, leave as-is
-        elif X.shape[1] > 16:
-            # Heuristic fallback: large dim 1 suggests 3D volume needing channel
-            X = X.unsqueeze(1)  # 3D volume: (N, D, H, W) → (N, 1, D, H, W)
+        else:
+            # Detect channels-last format: (N, H, W, C) where C is small (1-4)
+            # and spatial dims are large (>16). This catches common mistakes.
+            if X.shape[-1] <= 4 and X.shape[1] > 16 and X.shape[2] > 16:
+                raise ValueError(
+                    f"Input appears to be channels-last format: {tuple(X.shape)}. "
+                    "WaveDL expects channels-first (N, C, H, W). "
+                    "Convert your data using: X = X.permute(0, 3, 1, 2)"
+                )
+            elif X.shape[1] > 16:
+                # Heuristic fallback: large dim 1 suggests 3D volume needing channel
+                X = X.unsqueeze(1)  # 3D volume: (N, D, H, W) → (N, 1, D, H, W)
     # X.ndim >= 5: assume channel dimension already exists
 
     return X, y
@@ -1207,7 +1272,9 @@ def prepare_data(
                 cache_exists = False
             # Content hash check (robust against cloud sync mtime changes)
             elif cached_content_hash is not None:
-                current_hash = _compute_file_hash(args.data_path)
+                current_hash = _compute_file_hash(
+                    args.data_path, mode=getattr(args, "cache_validate", "sha256")
+                )
                 if cached_content_hash != current_hash:
                     if accelerator.is_main_process:
                         logger.warning(
@@ -1330,7 +1397,9 @@ def prepare_data(
 
             # Save metadata (including data path, size, content hash for cache validation)
             file_stats = os.stat(args.data_path)
-            content_hash = _compute_file_hash(args.data_path)
+            content_hash = _compute_file_hash(
+                args.data_path, mode=getattr(args, "cache_validate", "sha256")
+            )
             with open(META_FILE, "wb") as f:
                 pickle.dump(
                     {

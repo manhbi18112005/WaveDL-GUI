@@ -82,6 +82,8 @@ cv_bins: 10                   # Number of bins for stratification
 # fresh: false                # Start fresh, ignore existing checkpoints
 workers: -1                   # DataLoader workers (-1 = auto-detect)
 seed: 2025                    # Random seed for reproducibility
+deterministic: false          # Deterministic mode for exact reproducibility (slower)
+cache_validate: sha256        # Cache validation: sha256 (full), fast (partial), size (quick)
 # single_channel: false       # Confirm data is single-channel (for shallow 3D volumes)
 # import_modules: []           # Python modules/files to import for custom models
                               # Supports: module names (my_model) or file paths (./my_model.py)

@@ -240,15 +240,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--pretrained",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
         default=True,
-        help="Use pretrained weights (default: True)",
-    )
-    parser.add_argument(
-        "--no_pretrained",
-        dest="pretrained",
-        action="store_false",
-        help="Train from scratch without pretrained weights",
+        help="Use pretrained weights (default: True). Use --no-pretrained to train from scratch.",
     )
 
     # Configuration File
@@ -367,6 +361,18 @@ def parse_args() -> argparse.Namespace:
         help="DataLoader workers per GPU (-1=auto-detect based on CPU cores)",
     )
     parser.add_argument("--seed", type=int, default=2025, help="Random seed")
+    parser.add_argument(
+        "--deterministic",
+        action="store_true",
+        help="Enable deterministic mode for reproducibility (slower, disables TF32/cuDNN benchmark)",
+    )
+    parser.add_argument(
+        "--cache_validate",
+        type=str,
+        default="sha256",
+        choices=["sha256", "fast", "size"],
+        help="Cache validation mode: sha256 (full hash), fast (partial), size (quick)",
+    )
     parser.add_argument(
         "--single_channel",
         action="store_true",
@@ -512,11 +518,23 @@ def main():
                     # Import as regular module
                     importlib.import_module(module_name)
                     print(f"✓ Imported module: {module_name}")
-            except ImportError as e:
+            except (ImportError, FileNotFoundError, SyntaxError, PermissionError) as e:
                 print(f"✗ Failed to import '{module_name}': {e}", file=sys.stderr)
-                print(
-                    "  Make sure the module is in your Python path or current directory."
-                )
+                if isinstance(e, FileNotFoundError):
+                    print("  File does not exist. Check the path.", file=sys.stderr)
+                elif isinstance(e, SyntaxError):
+                    print(
+                        f"  Syntax error at line {e.lineno}: {e.msg}", file=sys.stderr
+                    )
+                elif isinstance(e, PermissionError):
+                    print(
+                        "  Permission denied. Check file permissions.", file=sys.stderr
+                    )
+                else:
+                    print(
+                        "  Make sure the module is in your Python path or current directory.",
+                        file=sys.stderr,
+                    )
                 sys.exit(1)
 
     # Handle --list_models flag
@@ -647,6 +665,17 @@ def main():
         log_with="wandb" if args.wandb and WANDB_AVAILABLE else None,
     )
     set_seed(args.seed)
+
+    # Deterministic mode for scientific reproducibility
+    # Disables TF32 and cuDNN benchmark for exact reproducibility (slower)
+    if args.deterministic:
+        torch.backends.cudnn.benchmark = False
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cuda.matmul.allow_tf32 = False
+        torch.backends.cudnn.allow_tf32 = False
+        torch.use_deterministic_algorithms(True, warn_only=True)
+        if accelerator.is_main_process:
+            print("🔒 Deterministic mode enabled (slower but reproducible)")
 
     # Configure logging (rank 0 only prints to console)
     logging.basicConfig(

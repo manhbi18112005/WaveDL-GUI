@@ -110,9 +110,30 @@ class EfficientNetBase(BaseModel):
             self._freeze_backbone()
 
     def _adapt_input_channels(self):
-        """Modify first conv to handle single-channel input by expanding to 3ch."""
-        # We'll handle this in forward by repeating channels
-        pass
+        """Modify first conv to accept single-channel input.
+
+        Instead of expanding 1→3 channels in forward (which triples memory),
+        we replace the first conv layer with a 1-channel version and initialize
+        weights as the mean of the pretrained RGB filters.
+        """
+        # EfficientNet stem conv is at: features[0][0]
+        old_conv = self.backbone.features[0][0]
+        new_conv = nn.Conv2d(
+            1,  # Single channel input
+            old_conv.out_channels,
+            kernel_size=old_conv.kernel_size,
+            stride=old_conv.stride,
+            padding=old_conv.padding,
+            dilation=old_conv.dilation,
+            groups=old_conv.groups,
+            padding_mode=old_conv.padding_mode,
+            bias=old_conv.bias is not None,
+        )
+        if self.pretrained:
+            # Initialize with mean of pretrained RGB weights
+            with torch.no_grad():
+                new_conv.weight.copy_(old_conv.weight.mean(dim=1, keepdim=True))
+        self.backbone.features[0][0] = new_conv
 
     def _freeze_backbone(self):
         """Freeze all backbone parameters except the classifier."""
@@ -130,10 +151,6 @@ class EfficientNetBase(BaseModel):
         Returns:
             Output tensor of shape (B, out_size)
         """
-        # Expand single channel to 3 channels for pretrained weights
-        if x.size(1) == 1:
-            x = x.expand(-1, 3, -1, -1)
-
         return self.backbone(x)
 
     @classmethod

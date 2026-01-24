@@ -207,22 +207,28 @@ class ExpressionConstraint(nn.Module):
             # Parse indices from the slice
             indices = self._parse_subscript_indices(node.slice)
 
+            # Auto-squeeze channel dimension for single-channel inputs
+            # This allows x[i,j] syntax for (B, 1, H, W) inputs instead of x[c,i,j]
+            inputs_for_indexing = inputs
+            if inputs.ndim >= 3 and inputs.shape[1] == 1:
+                inputs_for_indexing = inputs.squeeze(1)  # (B, 1, H, W) → (B, H, W)
+
             # Validate dimensions match
             # inputs shape: (batch, dim1) or (batch, dim1, dim2) or (batch, dim1, dim2, dim3)
-            input_ndim = inputs.ndim - 1  # Exclude batch dimension
+            input_ndim = inputs_for_indexing.ndim - 1  # Exclude batch dimension
             if len(indices) != input_ndim:
                 raise ValueError(
-                    f"Input has {input_ndim}D shape, but got {len(indices)} indices. "
+                    f"Input has {input_ndim}D shape (after channel squeeze), but got {len(indices)} indices. "
                     f"Use x[i] for 1D, x[i,j] for 2D, x[i,j,k] for 3D inputs."
                 )
 
             # Extract the value at the specified indices (for entire batch)
             if len(indices) == 1:
-                return inputs[:, indices[0]]
+                return inputs_for_indexing[:, indices[0]]
             elif len(indices) == 2:
-                return inputs[:, indices[0], indices[1]]
+                return inputs_for_indexing[:, indices[0], indices[1]]
             elif len(indices) == 3:
-                return inputs[:, indices[0], indices[1], indices[2]]
+                return inputs_for_indexing[:, indices[0], indices[1], indices[2]]
             else:
                 raise ValueError("Only 1D, 2D, or 3D input indexing supported.")
         elif isinstance(node, ast.Expression):
