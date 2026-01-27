@@ -474,9 +474,18 @@ class _TransposedH5Dataset:
         self.shape = tuple(reversed(h5_dataset.shape))
         self.dtype = h5_dataset.dtype
 
-        # Precompute transpose axis order for efficiency
-        # For shape (A, B, C) -> reversed (C, B, A), transpose axes are (2, 1, 0)
-        self._transpose_axes = tuple(range(len(h5_dataset.shape) - 1, -1, -1))
+    @property
+    def ndim(self) -> int:
+        """Number of dimensions (derived from shape for numpy compatibility)."""
+        return len(self.shape)
+
+    @property
+    def _transpose_axes(self) -> tuple[int, ...]:
+        """Transpose axis order for reversing dimensions.
+
+        For shape (A, B, C) -> reversed (C, B, A), transpose axes are (2, 1, 0).
+        """
+        return tuple(range(len(self._dataset.shape) - 1, -1, -1))
 
     def __len__(self) -> int:
         return self.shape[0]
@@ -965,8 +974,17 @@ def load_test_data(
         else:
             # Fallback to default source.load() for unknown formats
             inp, outp = source.load(path)
-    except KeyError:
-        # Try with just inputs if outputs not found (inference-only mode)
+    except KeyError as e:
+        # IMPORTANT: Only fall back to inference-only mode if outputs are
+        # genuinely missing (auto-detection failed). If user explicitly
+        # provided --output_key, they expect it to exist - don't silently drop.
+        if output_key is not None:
+            raise KeyError(
+                f"Explicit --output_key '{output_key}' not found in file. "
+                f"Available keys depend on file format. Original error: {e}"
+            ) from e
+
+        # Legitimate fallback: no explicit output_key, outputs just not present
         if format == "npz":
             # First pass to find keys
             with np.load(path, allow_pickle=False) as probe:
@@ -1083,11 +1101,26 @@ def load_test_data(
                 raise ValueError(
                     f"Input appears to be channels-last format: {tuple(X.shape)}. "
                     "WaveDL expects channels-first (N, C, H, W). "
-                    "Convert your data using: X = X.permute(0, 3, 1, 2)"
+                    "Convert your data using: X = X.permute(0, 3, 1, 2). "
+                    "If this is actually a 3D volume with small depth, "
+                    "use --input_channels 1 to add a channel dimension."
                 )
             elif X.shape[1] > 16:
                 # Heuristic fallback: large dim 1 suggests 3D volume needing channel
                 X = X.unsqueeze(1)  # 3D volume: (N, D, H, W) → (N, 1, D, H, W)
+            else:
+                # Ambiguous case: shallow 3D volume (D <= 16) or multi-channel 2D
+                # Default to treating as multi-channel 2D (no modification needed)
+                # Log a warning so users know about the --input_channels option
+                import warnings
+
+                warnings.warn(
+                    f"Ambiguous 4D input shape: {tuple(X.shape)}. "
+                    f"Assuming {X.shape[1]} channels (multi-channel 2D). "
+                    f"For 3D volumes with depth={X.shape[1]}, use --input_channels 1.",
+                    UserWarning,
+                    stacklevel=2,
+                )
     # X.ndim >= 5: assume channel dimension already exists
 
     return X, y

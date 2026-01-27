@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **Data**: `_TransposedH5Dataset` now has `ndim` property (fixes MAT v7.3 memmap crash)
+- **Data**: Explicit `--output_key` now raises `KeyError` if not found (no silent fallback)
+- **Training**: Mixed precision (`--precision bf16/fp16`) now wraps forward pass in `autocast()`
+
 ## [1.5.7] - 2026-01-24
 
 ### Added

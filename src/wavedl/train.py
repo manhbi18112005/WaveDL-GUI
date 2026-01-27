@@ -1028,12 +1028,14 @@ def main():
 
             for x, y in pbar:
                 with accelerator.accumulate(model):
-                    pred = model(x)
-                    # Pass inputs for input-dependent constraints (x_mean, x[...], etc.)
-                    if isinstance(criterion, PhysicsConstrainedLoss):
-                        loss = criterion(pred, y, x)
-                    else:
-                        loss = criterion(pred, y)
+                    # Use mixed precision for forward pass (respects --precision flag)
+                    with accelerator.autocast():
+                        pred = model(x)
+                        # Pass inputs for input-dependent constraints (x_mean, x[...], etc.)
+                        if isinstance(criterion, PhysicsConstrainedLoss):
+                            loss = criterion(pred, y, x)
+                        else:
+                            loss = criterion(pred, y)
 
                     accelerator.backward(loss)
 
@@ -1082,12 +1084,14 @@ def main():
 
             with torch.inference_mode():
                 for x, y in val_dl:
-                    pred = model(x)
-                    # Pass inputs for input-dependent constraints
-                    if isinstance(criterion, PhysicsConstrainedLoss):
-                        loss = criterion(pred, y, x)
-                    else:
-                        loss = criterion(pred, y)
+                    # Use mixed precision for validation (consistent with training)
+                    with accelerator.autocast():
+                        pred = model(x)
+                        # Pass inputs for input-dependent constraints
+                        if isinstance(criterion, PhysicsConstrainedLoss):
+                            loss = criterion(pred, y, x)
+                        else:
+                            loss = criterion(pred, y)
 
                     val_loss_sum += loss.detach() * x.size(0)
                     val_samples += x.size(0)

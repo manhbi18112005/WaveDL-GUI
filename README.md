@@ -424,7 +424,7 @@ WaveDL/
 ⭐ = **Pretrained on ImageNet** (recommended for smaller datasets). Weights are downloaded automatically on first use.
 - **Cache location**: `~/.cache/torch/hub/checkpoints/` (or `./.torch_cache/` on HPC if home is not writable)
 - **Size**: ~20–350 MB per model depending on architecture
-- **Train from scratch**: Use `--no_pretrained` to disable pretrained weights
+- **Train from scratch**: Use `--no-pretrained` to disable pretrained weights
 
 **💡 HPC Users**: If compute nodes block internet, pre-download weights on the login node:
 
