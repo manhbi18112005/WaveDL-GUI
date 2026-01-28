@@ -239,11 +239,12 @@ def parse_args() -> argparse.Namespace:
         help="Python modules to import before training (for custom models)",
     )
     parser.add_argument(
-        "--pretrained",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Use pretrained weights (default: True). Use --no-pretrained to train from scratch.",
+        "--no_pretrained",
+        dest="pretrained",
+        action="store_false",
+        help="Train from scratch without pretrained weights (default: use pretrained)",
     )
+    parser.set_defaults(pretrained=True)
 
     # Configuration File
     parser.add_argument(
