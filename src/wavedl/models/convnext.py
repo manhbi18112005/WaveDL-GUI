@@ -105,24 +105,22 @@ class LayerNormNd(nn.Module):
 
 class ConvNeXtBlock(nn.Module):
     """
-    ConvNeXt block with inverted bottleneck design and LayerScale.
+    ConvNeXt block matching the official Facebook implementation.
 
-    Architecture:
-    - 7x7 depthwise conv
-    - LayerNorm
-    - 1x1 conv (expand by 4x)
-    - GELU
-    - 1x1 conv (reduce back)
-    - LayerScale (learnable scaling, init=1e-6)
-    - Residual connection
+    Uses the second variant from the paper which is slightly faster in PyTorch:
+    1. DwConv (channels-first)
+    2. Permute to channels-last
+    3. LayerNorm → Linear → GELU → Linear (all channels-last)
+    4. LayerScale (gamma * x)
+    5. Permute back to channels-first
+    6. Residual connection
 
     The LayerScale mechanism is critical for stable training in deep networks.
-    It scales the output of each block by a learnable parameter initialized
-    to a very small value (1e-6), preventing gradient explosion.
+    It scales the output by a learnable parameter initialized to 1e-6.
 
     References:
         Liu, Z., et al. (2022). A ConvNet for the 2020s. CVPR 2022.
-        Touvron, H., et al. (2021). Going deeper with Image Transformers. ICCV 2021.
+        https://github.com/facebookresearch/ConvNeXt
     """
 
     def __init__(
@@ -138,21 +136,28 @@ class ConvNeXtBlock(nn.Module):
         Conv = _get_conv_layer(dim)
         hidden_dim = int(channels * expansion_ratio)
 
-        # Depthwise conv (7x7)
+        # Depthwise conv (7x7) - operates in channels-first
         self.dwconv = Conv(
             channels, channels, kernel_size=7, padding=3, groups=channels
         )
-        self.norm = LayerNormNd(channels, dim)
 
-        # Pointwise convs (1x1)
-        self.pwconv1 = Conv(channels, hidden_dim, kernel_size=1)
+        # LayerNorm (channels-last format, using standard nn.LayerNorm)
+        self.norm = nn.LayerNorm(channels, eps=1e-6)
+
+        # Pointwise convs implemented with Linear layers (channels-last)
+        # This matches the official implementation and is slightly faster
+        self.pwconv1 = nn.Linear(channels, hidden_dim)
         self.act = nn.GELU()
-        self.pwconv2 = Conv(hidden_dim, channels, kernel_size=1)
+        self.pwconv2 = nn.Linear(hidden_dim, channels)
 
         # LayerScale: learnable per-channel scaling (critical for deep networks)
         # Initialized to small value (1e-6) to prevent gradient explosion
-        self.gamma = nn.Parameter(
-            layer_scale_init_value * torch.ones(channels), requires_grad=True
+        self.gamma = (
+            nn.Parameter(
+                layer_scale_init_value * torch.ones(channels), requires_grad=True
+            )
+            if layer_scale_init_value > 0
+            else None
         )
 
         # Stochastic depth (drop path) - simplified version
@@ -161,20 +166,38 @@ class ConvNeXtBlock(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         residual = x
 
+        # Depthwise conv in channels-first format
         x = self.dwconv(x)
+
+        # Permute to channels-last for LayerNorm and Linear layers
+        if self.dim == 1:
+            x = x.permute(0, 2, 1)  # (B, C, L) -> (B, L, C)
+        elif self.dim == 2:
+            x = x.permute(0, 2, 3, 1)  # (B, C, H, W) -> (B, H, W, C)
+        else:
+            x = x.permute(0, 2, 3, 4, 1)  # (B, C, D, H, W) -> (B, D, H, W, C)
+
+        # LayerNorm + MLP (all in channels-last)
         x = self.norm(x)
         x = self.pwconv1(x)
         x = self.act(x)
         x = self.pwconv2(x)
 
-        # Apply LayerScale: scale output by learnable gamma
-        # Reshape gamma for broadcasting: (C,) -> (1, C, 1...) for N-dim
-        shape = [1, -1] + [1] * self.dim
-        x = x * self.gamma.view(*shape)
+        # Apply LayerScale
+        if self.gamma is not None:
+            x = self.gamma * x
 
-        x = self.drop_path(x)
+        # Permute back to channels-first
+        if self.dim == 1:
+            x = x.permute(0, 2, 1)  # (B, L, C) -> (B, C, L)
+        elif self.dim == 2:
+            x = x.permute(0, 3, 1, 2)  # (B, H, W, C) -> (B, C, H, W)
+        else:
+            x = x.permute(0, 4, 1, 2, 3)  # (B, D, H, W, C) -> (B, C, D, H, W)
 
-        return residual + x
+        # Residual connection with drop path
+        x = residual + self.drop_path(x)
+        return x
 
 
 class ConvNeXtBase(BaseModel):
