@@ -105,7 +105,7 @@ class LayerNormNd(nn.Module):
 
 class ConvNeXtBlock(nn.Module):
     """
-    ConvNeXt block with inverted bottleneck design.
+    ConvNeXt block with inverted bottleneck design and LayerScale.
 
     Architecture:
     - 7x7 depthwise conv
@@ -113,7 +113,16 @@ class ConvNeXtBlock(nn.Module):
     - 1x1 conv (expand by 4x)
     - GELU
     - 1x1 conv (reduce back)
+    - LayerScale (learnable scaling, init=1e-6)
     - Residual connection
+
+    The LayerScale mechanism is critical for stable training in deep networks.
+    It scales the output of each block by a learnable parameter initialized
+    to a very small value (1e-6), preventing gradient explosion.
+
+    References:
+        Liu, Z., et al. (2022). A ConvNet for the 2020s. CVPR 2022.
+        Touvron, H., et al. (2021). Going deeper with Image Transformers. ICCV 2021.
     """
 
     def __init__(
@@ -122,8 +131,10 @@ class ConvNeXtBlock(nn.Module):
         dim: int = 2,
         expansion_ratio: float = 4.0,
         drop_path: float = 0.0,
+        layer_scale_init_value: float = 1e-6,
     ):
         super().__init__()
+        self.dim = dim
         Conv = _get_conv_layer(dim)
         hidden_dim = int(channels * expansion_ratio)
 
@@ -138,6 +149,12 @@ class ConvNeXtBlock(nn.Module):
         self.act = nn.GELU()
         self.pwconv2 = Conv(hidden_dim, channels, kernel_size=1)
 
+        # LayerScale: learnable per-channel scaling (critical for deep networks)
+        # Initialized to small value (1e-6) to prevent gradient explosion
+        self.gamma = nn.Parameter(
+            layer_scale_init_value * torch.ones(channels), requires_grad=True
+        )
+
         # Stochastic depth (drop path) - simplified version
         self.drop_path = nn.Identity()  # Can be replaced with DropPath if needed
 
@@ -149,6 +166,12 @@ class ConvNeXtBlock(nn.Module):
         x = self.pwconv1(x)
         x = self.act(x)
         x = self.pwconv2(x)
+
+        # Apply LayerScale: scale output by learnable gamma
+        # Reshape gamma for broadcasting: (C,) -> (1, C, 1...) for N-dim
+        shape = [1, -1] + [1] * self.dim
+        x = x * self.gamma.view(*shape)
+
         x = self.drop_path(x)
 
         return residual + x
