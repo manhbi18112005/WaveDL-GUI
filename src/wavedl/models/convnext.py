@@ -26,6 +26,7 @@ from typing import Any
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from wavedl.models.base import BaseModel
 from wavedl.models.registry import register_model
@@ -51,26 +52,54 @@ class LayerNormNd(nn.Module):
     """
     LayerNorm for N-dimensional tensors (channels-first format).
 
-    Normalizes over the channel dimension, supporting Conv1d/2d/3d outputs.
+    Implements channels-last LayerNorm as used in the original ConvNeXt paper.
+    Permutes data to channels-last, applies LayerNorm per-channel over spatial
+    dimensions, and permutes back to channels-first format.
+
+    This matches PyTorch's nn.LayerNorm behavior when applied to the channel
+    dimension, providing stable gradients for deep ConvNeXt networks.
+
+    References:
+        Liu, Z., et al. (2022). A ConvNet for the 2020s. CVPR 2022.
+        https://github.com/facebookresearch/ConvNeXt
     """
 
     def __init__(self, num_channels: int, dim: int, eps: float = 1e-6):
         super().__init__()
         self.dim = dim
+        self.num_channels = num_channels
         self.weight = nn.Parameter(torch.ones(num_channels))
         self.bias = nn.Parameter(torch.zeros(num_channels))
         self.eps = eps
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x: (B, C, ..spatial..)
-        # Normalize over channel dimension
-        mean = x.mean(dim=1, keepdim=True)
-        var = x.var(dim=1, keepdim=True, unbiased=False)
-        x = (x - mean) / (var + self.eps).sqrt()
+        """
+        Apply LayerNorm in channels-last format.
 
-        # Apply learnable parameters
-        shape = [1, -1] + [1] * self.dim  # (1, C, 1, ...) for broadcasting
-        x = x * self.weight.view(*shape) + self.bias.view(*shape)
+        Args:
+            x: Input tensor in channels-first format
+               - 1D: (B, C, L)
+               - 2D: (B, C, H, W)
+               - 3D: (B, C, D, H, W)
+
+        Returns:
+            Normalized tensor in same format as input
+        """
+        if self.dim == 1:
+            # (B, C, L) -> (B, L, C) -> LayerNorm -> (B, C, L)
+            x = x.permute(0, 2, 1)
+            x = F.layer_norm(x, (self.num_channels,), self.weight, self.bias, self.eps)
+            x = x.permute(0, 2, 1)
+        elif self.dim == 2:
+            # (B, C, H, W) -> (B, H, W, C) -> LayerNorm -> (B, C, H, W)
+            x = x.permute(0, 2, 3, 1)
+            x = F.layer_norm(x, (self.num_channels,), self.weight, self.bias, self.eps)
+            x = x.permute(0, 3, 1, 2)
+        else:
+            # (B, C, D, H, W) -> (B, D, H, W, C) -> LayerNorm -> (B, C, D, H, W)
+            x = x.permute(0, 2, 3, 4, 1)
+            x = F.layer_norm(x, (self.num_channels,), self.weight, self.bias, self.eps)
+            x = x.permute(0, 4, 1, 2, 3)
         return x
 
 
