@@ -304,7 +304,7 @@ class SwinTiny(SwinTransformerBase):
     """
     Swin-T (Tiny): Efficient default for most wave-based tasks.
 
-    ~28M parameters. Good balance of accuracy and computational cost.
+    ~27.5M backbone parameters. Good balance of accuracy and computational cost.
     Outperforms ResNet50 while being more efficient.
 
     Recommended for:
@@ -353,7 +353,7 @@ class SwinSmall(SwinTransformerBase):
     """
     Swin-S (Small): Higher accuracy with moderate compute.
 
-    ~50M parameters. Better accuracy than Swin-T for larger datasets.
+    ~48.8M backbone parameters. Better accuracy than Swin-T for larger datasets.
 
     Recommended for:
         - Larger datasets (>20k samples)
@@ -400,7 +400,7 @@ class SwinBase(SwinTransformerBase):
     """
     Swin-B (Base): Maximum accuracy for large-scale tasks.
 
-    ~88M parameters. Best accuracy but requires more compute and data.
+    ~86.7M backbone parameters. Best accuracy but requires more compute and data.
 
     Recommended for:
         - Very large datasets (>50k samples)

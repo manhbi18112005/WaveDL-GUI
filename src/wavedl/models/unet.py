@@ -119,7 +119,7 @@ class UNetRegression(BaseModel):
     Uses U-Net encoder-decoder architecture with skip connections,
     then applies global pooling for standard vector regression output.
 
-    ~31.1M parameters (2D). Good for leveraging multi-scale features
+    ~31.0M backbone parameters (2D). Good for leveraging multi-scale features
     and skip connections for regression tasks.
 
     Args:

@@ -13,8 +13,8 @@ optimization to achieve excellent accuracy with minimal computational cost.
     - Designed for real-time inference on CPUs and edge devices
 
 **Variants**:
-    - mobilenet_v3_small: Ultra-lightweight (~1.1M params) - Edge/embedded
-    - mobilenet_v3_large: Balanced (~3.2M params) - Mobile deployment
+    - mobilenet_v3_small: Ultra-lightweight (~0.9M backbone params) - Edge/embedded
+    - mobilenet_v3_large: Balanced (~3.0M backbone params) - Mobile deployment
 
 **Use Cases**:
     - Real-time structural health monitoring on embedded systems
@@ -206,7 +206,7 @@ class MobileNetV3Small(MobileNetV3Base):
     """
     MobileNetV3-Small: Ultra-lightweight for edge deployment.
 
-    ~1.1M parameters. Designed for the most constrained environments.
+    ~0.9M backbone parameters. Designed for the most constrained environments.
     Achieves ~67% ImageNet accuracy with minimal compute.
 
     Recommended for:
@@ -217,7 +217,7 @@ class MobileNetV3Small(MobileNetV3Base):
 
     Performance (approximate):
         - CPU inference: ~6ms (single core)
-        - Parameters: ~1.1M
+        - Parameters: ~0.9M backbone
         - MAdds: 56M
 
     Args:
@@ -253,7 +253,7 @@ class MobileNetV3Large(MobileNetV3Base):
     """
     MobileNetV3-Large: Balanced efficiency and accuracy.
 
-    ~3.2M parameters. Best trade-off for mobile/portable deployment.
+    ~3.0M backbone parameters. Best trade-off for mobile/portable deployment.
     Achieves ~75% ImageNet accuracy with efficient inference.
 
     Recommended for:
@@ -264,7 +264,7 @@ class MobileNetV3Large(MobileNetV3Base):
 
     Performance (approximate):
         - CPU inference: ~20ms (single core)
-        - Parameters: ~3.2M
+        - Parameters: ~3.0M backbone
         - MAdds: 219M
 
     Args:

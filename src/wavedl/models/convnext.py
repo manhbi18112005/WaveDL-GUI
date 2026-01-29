@@ -11,9 +11,9 @@ Features: inverted bottleneck, LayerNorm, GELU activation, depthwise convolution
     - 3D: Volumetric data, CT/MRI (N, 1, D, H, W) → Conv3d
 
 **Variants**:
-    - convnext_tiny: Smallest (~28M params for 2D)
-    - convnext_small: Medium (~50M params for 2D)
-    - convnext_base: Standard (~89M params for 2D)
+    - convnext_tiny: Smallest (~27.8M backbone params for 2D)
+    - convnext_small: Medium (~49.5M backbone params for 2D)
+    - convnext_base: Standard (~87.6M backbone params for 2D)
 
 References:
     Liu, Z., et al. (2022). A ConvNet for the 2020s.
@@ -319,7 +319,7 @@ class ConvNeXtTiny(ConvNeXtBase):
     """
     ConvNeXt-Tiny: Smallest variant.
 
-    ~28M parameters (2D). Good for: Limited compute, fast training.
+    ~27.8M backbone parameters (2D). Good for: Limited compute, fast training.
 
     Args:
         in_shape: (L,), (H, W), or (D, H, W)
@@ -345,7 +345,7 @@ class ConvNeXtSmall(ConvNeXtBase):
     """
     ConvNeXt-Small: Medium variant.
 
-    ~50M parameters (2D). Good for: Balanced performance.
+    ~49.5M backbone parameters (2D). Good for: Balanced performance.
 
     Args:
         in_shape: (L,), (H, W), or (D, H, W)
@@ -371,7 +371,7 @@ class ConvNeXtBase_(ConvNeXtBase):
     """
     ConvNeXt-Base: Standard variant.
 
-    ~89M parameters (2D). Good for: High accuracy, larger datasets.
+    ~87.6M backbone parameters (2D). Good for: High accuracy, larger datasets.
 
     Args:
         in_shape: (L,), (H, W), or (D, H, W)
@@ -412,7 +412,7 @@ class ConvNeXtTinyPretrained(BaseModel):
     """
     ConvNeXt-Tiny with ImageNet pretrained weights (2D only).
 
-    ~28M parameters. Good for: Transfer learning with modern CNN.
+    ~27.8M backbone parameters. Good for: Transfer learning with modern CNN.
 
     Args:
         in_shape: (H, W) image dimensions

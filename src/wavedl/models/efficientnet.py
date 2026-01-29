@@ -6,9 +6,9 @@ Wrapper around torchvision's EfficientNet with a regression head.
 Provides optional ImageNet pretrained weights for transfer learning.
 
 **Variants**:
-    - efficientnet_b0: Smallest, fastest (~4.7M params)
-    - efficientnet_b1: Light (~7.2M params)
-    - efficientnet_b2: Balanced (~8.4M params)
+    - efficientnet_b0: Smallest, fastest (~4.0M backbone params)
+    - efficientnet_b1: Light (~6.5M backbone params)
+    - efficientnet_b2: Balanced (~7.7M backbone params)
 
 **Note**: EfficientNet is 2D-only. For 1D data, use TCN. For 3D data, use ResNet3D.
 
@@ -169,7 +169,7 @@ class EfficientNetB0(EfficientNetBase):
     """
     EfficientNet-B0: Smallest, most efficient variant.
 
-    ~5.3M parameters. Good for: Quick training, limited compute, baseline.
+    ~4.0M backbone parameters. Good for: Quick training, limited compute, baseline.
 
     Args:
         in_shape: (H, W) image dimensions
@@ -200,7 +200,7 @@ class EfficientNetB1(EfficientNetBase):
     """
     EfficientNet-B1: Slightly larger variant.
 
-    ~7.8M parameters. Good for: Better accuracy with moderate compute.
+    ~6.5M backbone parameters. Good for: Better accuracy with moderate compute.
 
     Args:
         in_shape: (H, W) image dimensions
@@ -231,7 +231,7 @@ class EfficientNetB2(EfficientNetBase):
     """
     EfficientNet-B2: Best balance of size and performance.
 
-    ~9.1M parameters. Good for: High accuracy without excessive compute.
+    ~7.7M backbone parameters. Good for: High accuracy without excessive compute.
 
     Args:
         in_shape: (H, W) image dimensions

@@ -13,11 +13,11 @@ Models scale smoothly from mobile to server deployments.
     - Optional Squeeze-and-Excitation (SE) attention
 
 **Variants** (RegNetY includes SE attention):
-    - regnet_y_400mf: Ultra-light (~4.0M params, 0.4 GFLOPs)
-    - regnet_y_800mf: Light (~5.8M params, 0.8 GFLOPs)
-    - regnet_y_1_6gf: Medium (~10.5M params, 1.6 GFLOPs) - Recommended
-    - regnet_y_3_2gf: Large (~18.3M params, 3.2 GFLOPs)
-    - regnet_y_8gf: Very large (~37.9M params, 8.0 GFLOPs)
+    - regnet_y_400mf: Ultra-light (~3.9M backbone params, 0.4 GFLOPs)
+    - regnet_y_800mf: Light (~5.7M backbone params, 0.8 GFLOPs)
+    - regnet_y_1_6gf: Medium (~10.3M backbone params, 1.6 GFLOPs) - Recommended
+    - regnet_y_3_2gf: Large (~17.9M backbone params, 3.2 GFLOPs)
+    - regnet_y_8gf: Very large (~37.4M backbone params, 8.0 GFLOPs)
 
 **When to Use RegNet**:
     - When you need predictable performance at a given compute budget
@@ -210,7 +210,7 @@ class RegNetY400MF(RegNetBase):
     """
     RegNetY-400MF: Ultra-lightweight for constrained environments.
 
-    ~4.0M parameters, 0.4 GFLOPs. Smallest RegNet variant with SE attention.
+    ~3.9M backbone parameters, 0.4 GFLOPs. Smallest RegNet variant with SE attention.
 
     Recommended for:
         - Edge deployment with moderate accuracy needs
@@ -250,7 +250,7 @@ class RegNetY800MF(RegNetBase):
     """
     RegNetY-800MF: Light variant with good accuracy.
 
-    ~6.4M parameters, 0.8 GFLOPs. Good balance for mobile deployment.
+    ~5.7M backbone parameters, 0.8 GFLOPs. Good balance for mobile deployment.
 
     Recommended for:
         - Mobile/portable devices
@@ -290,7 +290,7 @@ class RegNetY1_6GF(RegNetBase):
     """
     RegNetY-1.6GF: Recommended default for balanced performance.
 
-    ~11.2M parameters, 1.6 GFLOPs. Best trade-off of accuracy and efficiency.
+    ~10.3M backbone parameters, 1.6 GFLOPs. Best trade-off of accuracy and efficiency.
     Comparable to ResNet50 but more efficient.
 
     Recommended for:
@@ -331,7 +331,7 @@ class RegNetY3_2GF(RegNetBase):
     """
     RegNetY-3.2GF: Higher accuracy for demanding tasks.
 
-    ~19.4M parameters, 3.2 GFLOPs. Use when 1.6GF isn't sufficient.
+    ~17.9M backbone parameters, 3.2 GFLOPs. Use when 1.6GF isn't sufficient.
 
     Recommended for:
         - Larger datasets requiring more capacity
@@ -371,7 +371,7 @@ class RegNetY8GF(RegNetBase):
     """
     RegNetY-8GF: High capacity for large-scale tasks.
 
-    ~39.2M parameters, 8.0 GFLOPs. Use for maximum accuracy needs.
+    ~37.4M backbone parameters, 8.0 GFLOPs. Use for maximum accuracy needs.
 
     Recommended for:
         - Very large datasets (>50k samples)

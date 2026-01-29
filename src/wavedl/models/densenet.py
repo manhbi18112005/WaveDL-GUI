@@ -11,8 +11,8 @@ Features: feature reuse, efficient gradient flow, compact model.
     - 3D: Volumetric data, CT/MRI (N, 1, D, H, W) → Conv3d
 
 **Variants**:
-    - densenet121: Standard (121 layers, ~8M params for 2D)
-    - densenet169: Deeper (169 layers, ~14M params for 2D)
+    - densenet121: Standard (121 layers, ~7.0M backbone params for 2D)
+    - densenet169: Deeper (169 layers, ~12.5M backbone params for 2D)
 
 References:
     Huang, G., et al. (2017). Densely Connected Convolutional Networks.
@@ -262,7 +262,7 @@ class DenseNet121(DenseNetBase):
     """
     DenseNet-121: Standard variant with 121 layers.
 
-    ~8M parameters (2D). Good for: Balanced accuracy, efficient training.
+    ~7.0M backbone parameters (2D). Good for: Balanced accuracy, efficient training.
 
     Args:
         in_shape: (L,), (H, W), or (D, H, W)
@@ -285,7 +285,7 @@ class DenseNet169(DenseNetBase):
     """
     DenseNet-169: Deeper variant with 169 layers.
 
-    ~14M parameters (2D). Good for: Higher capacity, more complex patterns.
+    ~12.5M backbone parameters (2D). Good for: Higher capacity, more complex patterns.
 
     Args:
         in_shape: (L,), (H, W), or (D, H, W)
@@ -320,7 +320,7 @@ class DenseNet121Pretrained(BaseModel):
     """
     DenseNet-121 with ImageNet pretrained weights (2D only).
 
-    ~8M parameters. Good for: Transfer learning with efficient feature reuse.
+    ~7.0M backbone parameters. Good for: Transfer learning with efficient feature reuse.
 
     Args:
         in_shape: (H, W) image dimensions

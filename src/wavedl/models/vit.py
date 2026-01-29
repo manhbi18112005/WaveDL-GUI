@@ -10,9 +10,9 @@ Supports both 1D (signals) and 2D (images) inputs via configurable patch embeddi
     - 2D: Images/spectrograms → patches are grid squares
 
 **Variants**:
-    - vit_tiny: Smallest (~5.7M params, embed_dim=192, depth=12, heads=3)
-    - vit_small: Light (~22M params, embed_dim=384, depth=12, heads=6)
-    - vit_base: Standard (~86M params, embed_dim=768, depth=12, heads=12)
+    - vit_tiny: Smallest (~5.4M backbone params, embed_dim=192, depth=12, heads=3)
+    - vit_small: Light (~21.4M backbone params, embed_dim=384, depth=12, heads=6)
+    - vit_base: Standard (~85.3M backbone params, embed_dim=768, depth=12, heads=12)
 
 References:
     Dosovitskiy, A., et al. (2021). An Image is Worth 16x16 Words:
@@ -365,7 +365,7 @@ class ViTTiny(ViTBase):
     """
     ViT-Tiny: Smallest Vision Transformer variant.
 
-    ~5.7M parameters. Good for: Quick experiments, smaller datasets.
+    ~5.4M backbone parameters. Good for: Quick experiments, smaller datasets.
 
     Args:
         in_shape: (L,) for 1D or (H, W) for 2D
@@ -398,7 +398,7 @@ class ViTSmall(ViTBase):
     """
     ViT-Small: Light Vision Transformer variant.
 
-    ~22M parameters. Good for: Balanced performance.
+    ~21.4M backbone parameters. Good for: Balanced performance.
 
     Args:
         in_shape: (L,) for 1D or (H, W) for 2D
@@ -429,7 +429,7 @@ class ViTBase_(ViTBase):
     """
     ViT-Base: Standard Vision Transformer variant.
 
-    ~86M parameters. Good for: High accuracy, larger datasets.
+    ~85.3M backbone parameters. Good for: High accuracy, larger datasets.
 
     Args:
         in_shape: (L,) for 1D or (H, W) for 2D

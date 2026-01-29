@@ -5,7 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.6.0] - 2026-01-29
+
+### Added
+- **Models**: 19 new architectures (38 → 57 total): ConvNeXt V2, Mamba, Vision Mamba, MaxViT, FastViT, CAFormer, PoolFormer
+- **Tests**: Expanded architecture tests with freeze_backbone and single-channel input validation
+
+### Changed
+- **CLI**: Renamed `--no-pretrained` to `--no_pretrained` for consistency with other flags
 
 ### Fixed
 - **ConvNeXt**: Added LayerScale (init=1e-6) and fixed LayerNorm to prevent gradient explosion
@@ -315,7 +322,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Example configurations and training scripts
 - MIT License and citation file
 
-[Unreleased]: https://github.com/ductho-le/WaveDL/compare/v1.5.7...HEAD
+[Unreleased]: https://github.com/ductho-le/WaveDL/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/ductho-le/WaveDL/compare/v1.5.7...v1.6.0
 [1.5.7]: https://github.com/ductho-le/WaveDL/compare/v1.5.6...v1.5.7
 [1.5.6]: https://github.com/ductho-le/WaveDL/compare/v1.5.5...v1.5.6
 [1.5.5]: https://github.com/ductho-le/WaveDL/compare/v1.5.4...v1.5.5

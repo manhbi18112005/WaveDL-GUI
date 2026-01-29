@@ -11,9 +11,9 @@ Provides multiple depth variants (18, 34, 50) with optional pretrained weights f
     - 3D: Volumetric data, CT/MRI (N, 1, D, H, W) → Conv3d
 
 **Variants**:
-    - resnet18: Lightweight, fast training (~11M params)
-    - resnet34: Balanced capacity (~21M params)
-    - resnet50: Higher capacity with bottleneck blocks (~25M params)
+    - resnet18: Lightweight, fast training (~11.2M backbone params)
+    - resnet34: Balanced capacity (~21.3M backbone params)
+    - resnet50: Higher capacity with bottleneck blocks (~23.5M backbone params)
 
 References:
     He, K., Zhang, X., Ren, S., & Sun, J. (2016). Deep Residual Learning
@@ -534,7 +534,7 @@ class ResNet18Pretrained(PretrainedResNetBase):
     """
     ResNet-18 with ImageNet pretrained weights (2D only).
 
-    ~11M parameters. Good for: Transfer learning, faster convergence.
+    ~11.2M backbone parameters. Good for: Transfer learning, faster convergence.
 
     Args:
         in_shape: (H, W) image dimensions
@@ -563,7 +563,7 @@ class ResNet50Pretrained(PretrainedResNetBase):
     """
     ResNet-50 with ImageNet pretrained weights (2D only).
 
-    ~25M parameters. Good for: High accuracy with transfer learning.
+    ~23.5M backbone parameters. Good for: High accuracy with transfer learning.
 
     Args:
         in_shape: (H, W) image dimensions

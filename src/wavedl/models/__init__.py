@@ -6,10 +6,11 @@ This module provides a centralized registry for neural network architectures,
 enabling dynamic model selection via command-line arguments.
 
 **Dimensionality Coverage**:
-    - 1D (waveforms): TCN, CNN, ResNet, ConvNeXt, DenseNet, ViT
-    - 2D (images): CNN, ResNet, ConvNeXt, DenseNet, ViT, UNet,
-                   EfficientNet, MobileNetV3, RegNet, Swin
-    - 3D (volumes): ResNet3D, CNN, ResNet, ConvNeXt, DenseNet
+    - 1D (waveforms): TCN, CNN, ResNet, ConvNeXt, ConvNeXt V2, DenseNet, ViT, Mamba
+    - 2D (images): CNN, ResNet, ConvNeXt, ConvNeXt V2, DenseNet, ViT, UNet,
+                   EfficientNet, MobileNetV3, RegNet, Swin, MaxViT, FastViT,
+                   CAFormer, PoolFormer, Vision Mamba
+    - 3D (volumes): ResNet3D, CNN, ResNet, ConvNeXt, ConvNeXt V2, DenseNet
 
 Usage:
     from wavedl.models import get_model, list_models, MODEL_REGISTRY
@@ -46,9 +47,19 @@ from .base import BaseModel
 # Import model implementations (triggers registration via decorators)
 from .cnn import CNN
 from .convnext import ConvNeXtBase_, ConvNeXtSmall, ConvNeXtTiny
+
+# New models (v1.6+)
+from .convnext_v2 import (
+    ConvNeXtV2Base,
+    ConvNeXtV2BaseLarge,
+    ConvNeXtV2Small,
+    ConvNeXtV2Tiny,
+    ConvNeXtV2TinyPretrained,
+)
 from .densenet import DenseNet121, DenseNet169
 from .efficientnet import EfficientNetB0, EfficientNetB1, EfficientNetB2
 from .efficientnetv2 import EfficientNetV2L, EfficientNetV2M, EfficientNetV2S
+from .mamba import Mamba1D, VimBase, VimSmall, VimTiny
 from .mobilenetv3 import MobileNetV3Large, MobileNetV3Small
 from .registry import (
     MODEL_REGISTRY,
@@ -66,6 +77,17 @@ from .unet import UNetRegression
 from .vit import ViTBase_, ViTSmall, ViTTiny
 
 
+# Optional timm-based models (imported conditionally)
+try:
+    from .caformer import CaFormerS18, CaFormerS36, PoolFormerS12
+    from .fastvit import FastViTS12, FastViTSA12, FastViTT8, FastViTT12
+    from .maxvit import MaxViTBaseLarge, MaxViTSmall, MaxViTTiny
+
+    _HAS_TIMM_MODELS = True
+except ImportError:
+    _HAS_TIMM_MODELS = False
+
+
 # Export public API (sorted alphabetically per RUF022)
 # See module docstring for dimensionality support details
 __all__ = [
@@ -77,6 +99,11 @@ __all__ = [
     "ConvNeXtBase_",
     "ConvNeXtSmall",
     "ConvNeXtTiny",
+    "ConvNeXtV2Base",
+    "ConvNeXtV2BaseLarge",
+    "ConvNeXtV2Small",
+    "ConvNeXtV2Tiny",
+    "ConvNeXtV2TinyPretrained",
     "DenseNet121",
     "DenseNet169",
     "EfficientNetB0",
@@ -85,6 +112,7 @@ __all__ = [
     "EfficientNetV2L",
     "EfficientNetV2M",
     "EfficientNetV2S",
+    "Mamba1D",
     "MobileNetV3Large",
     "MobileNetV3Small",
     "RegNetY1_6GF",
@@ -105,8 +133,28 @@ __all__ = [
     "ViTBase_",
     "ViTSmall",
     "ViTTiny",
+    "VimBase",
+    "VimSmall",
+    "VimTiny",
     "build_model",
     "get_model",
     "list_models",
     "register_model",
 ]
+
+# Add timm-based models to __all__ if available
+if _HAS_TIMM_MODELS:
+    __all__.extend(
+        [
+            "CaFormerS18",
+            "CaFormerS36",
+            "FastViTS12",
+            "FastViTSA12",
+            "FastViTT8",
+            "FastViTT12",
+            "MaxViTBaseLarge",
+            "MaxViTSmall",
+            "MaxViTTiny",
+            "PoolFormerS12",
+        ]
+    )

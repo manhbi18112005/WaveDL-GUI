@@ -199,7 +199,7 @@ class EfficientNetV2S(EfficientNetV2Base):
     """
     EfficientNetV2-S: Small variant, recommended default.
 
-    ~21.5M parameters. Best balance of speed and accuracy for most tasks.
+    ~20.2M backbone parameters. Best balance of speed and accuracy for most tasks.
     2× faster training than EfficientNet-B4 with better accuracy.
 
     Recommended for:
@@ -240,7 +240,7 @@ class EfficientNetV2M(EfficientNetV2Base):
     """
     EfficientNetV2-M: Medium variant for higher accuracy.
 
-    ~54.1M parameters. Use when accuracy is more important than speed.
+    ~52.9M backbone parameters. Use when accuracy is more important than speed.
 
     Recommended for:
         - Large datasets (>50k samples)
@@ -280,7 +280,7 @@ class EfficientNetV2L(EfficientNetV2Base):
     """
     EfficientNetV2-L: Large variant for maximum accuracy.
 
-    ~118.5M parameters. Use only with large datasets and sufficient compute.
+    ~117.2M backbone parameters. Use only with large datasets and sufficient compute.
 
     Recommended for:
         - Very large datasets (>100k samples)

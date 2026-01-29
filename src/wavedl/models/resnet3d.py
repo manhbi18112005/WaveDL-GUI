@@ -179,7 +179,7 @@ class ResNet3D18(ResNet3DBase):
     """
     ResNet3D-18: Lightweight 3D ResNet for volumetric data.
 
-    ~33M parameters. Uses 3D convolutions throughout for true volumetric processing.
+    ~33.2M backbone parameters. Uses 3D convolutions throughout for true volumetric processing.
     Pretrained on Kinetics-400 (video action recognition).
 
     Recommended for:
@@ -221,7 +221,7 @@ class MC3_18(ResNet3DBase):
     """
     MC3-18: Mixed Convolution 3D ResNet (3D stem + 2D residual blocks).
 
-    ~11M parameters. More efficient than pure 3D ResNet while maintaining
+    ~11.5M backbone parameters. More efficient than pure 3D ResNet while maintaining
     good spatiotemporal modeling. Uses 3D convolutions in early layers
     and 2D convolutions in later layers.
 

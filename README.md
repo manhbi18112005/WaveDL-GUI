@@ -71,7 +71,7 @@ Train on datasets larger than RAM:
 
 **🧠 Models? We've Got Options**
 
-38 architectures, ready to go:
+57 architectures, ready to go:
 - CNNs, ResNets, ViTs, EfficientNets...
 - All adapted for regression
 - [Add your own](#adding-custom-models) in one line
@@ -156,7 +156,7 @@ Deploy models anywhere:
 #### From PyPI (recommended for all users)
 
 ```bash
-pip install wavedl
+pip install --upgrade wavedl
 ```
 
 This installs everything you need: training, inference, HPO, ONNX export.
@@ -312,22 +312,10 @@ WaveDL/
 │       ├── hpo.py                # Hyperparameter optimization
 │       ├── hpc.py                # HPC distributed training launcher
 │       │
-│       ├── models/               # Model architectures (38 variants)
+│       ├── models/               # Model Zoo (57 architectures)
 │       │   ├── registry.py       # Model factory (@register_model)
 │       │   ├── base.py           # Abstract base class
-│       │   ├── cnn.py            # Baseline CNN (1D/2D/3D)
-│       │   ├── resnet.py         # ResNet-18/34/50 (1D/2D/3D)
-│       │   ├── resnet3d.py       # ResNet3D-18, MC3-18 (3D only)
-│       │   ├── tcn.py            # TCN (1D only)
-│       │   ├── efficientnet.py   # EfficientNet-B0/B1/B2 (2D)
-│       │   ├── efficientnetv2.py # EfficientNetV2-S/M/L (2D)
-│       │   ├── mobilenetv3.py    # MobileNetV3-Small/Large (2D)
-│       │   ├── regnet.py         # RegNetY variants (2D)
-│       │   ├── swin.py           # Swin Transformer (2D)
-│       │   ├── vit.py            # Vision Transformer (1D/2D)
-│       │   ├── convnext.py       # ConvNeXt (1D/2D/3D)
-│       │   ├── densenet.py       # DenseNet-121/169 (1D/2D/3D)
-│       │   └── unet.py           # U-Net Regression
+│       │   └── ...               # See "Available Models" section
 │       │
 │       └── utils/                # Utilities
 │           ├── data.py           # Memory-mapped data pipeline
@@ -342,7 +330,7 @@ WaveDL/
 ├── configs/                      # YAML config templates
 ├── examples/                     # Ready-to-run examples
 ├── notebooks/                    # Jupyter notebooks
-├── unit_tests/                   # Pytest test suite (903 tests)
+├── unit_tests/                   # Pytest test suite
 │
 ├── pyproject.toml                # Package config, dependencies
 ├── CHANGELOG.md                  # Version history
@@ -365,71 +353,96 @@ WaveDL/
 > ```
 
 <details>
-<summary><b>Available Models</b> — 38 architectures</summary>
+<summary><b>Available Models</b> — 57 architectures</summary>
 
-| Model | Params | Dim |
-|-------|--------|-----|
+| Model | Backbone Params | Dim |
+|-------|-----------------|-----|
 | **CNN** — Convolutional Neural Network |||
-| `cnn` | 1.7M | 1D/2D/3D |
+| `cnn` | 1.6M | 1D/2D/3D |
 | **ResNet** — Residual Network |||
-| `resnet18` | 11.4M | 1D/2D/3D |
-| `resnet34` | 21.5M | 1D/2D/3D |
-| `resnet50` | 24.6M | 1D/2D/3D |
-| `resnet18_pretrained` ⭐ | 11.4M | 2D |
-| `resnet50_pretrained` ⭐ | 24.6M | 2D |
+| `resnet18` | 11.2M | 1D/2D/3D |
+| `resnet34` | 21.3M | 1D/2D/3D |
+| `resnet50` | 23.5M | 1D/2D/3D |
+| `resnet18_pretrained` ⭐ | 11.2M | 2D |
+| `resnet50_pretrained` ⭐ | 23.5M | 2D |
 | **ResNet3D** — 3D Residual Network |||
-| `resnet3d_18` | 33.6M | 3D |
-| `mc3_18` — Mixed Convolution 3D | 11.9M | 3D |
+| `resnet3d_18` | 33.2M | 3D |
+| `mc3_18` — Mixed Convolution 3D | 11.5M | 3D |
 | **TCN** — Temporal Convolutional Network |||
-| `tcn_small` | 1.0M | 1D |
-| `tcn` | 7.0M | 1D |
-| `tcn_large` | 10.2M | 1D |
+| `tcn_small` | 0.9M | 1D |
+| `tcn` | 6.9M | 1D |
+| `tcn_large` | 10.0M | 1D |
 | **EfficientNet** — Efficient Neural Network |||
-| `efficientnet_b0` ⭐ | 4.7M | 2D |
-| `efficientnet_b1` ⭐ | 7.2M | 2D |
-| `efficientnet_b2` ⭐ | 8.4M | 2D |
+| `efficientnet_b0` ⭐ | 4.0M | 2D |
+| `efficientnet_b1` ⭐ | 6.5M | 2D |
+| `efficientnet_b2` ⭐ | 7.7M | 2D |
 | **EfficientNetV2** — Efficient Neural Network V2 |||
-| `efficientnet_v2_s` ⭐ | 21.0M | 2D |
-| `efficientnet_v2_m` ⭐ | 53.6M | 2D |
-| `efficientnet_v2_l` ⭐ | 118.0M | 2D |
+| `efficientnet_v2_s` ⭐ | 20.2M | 2D |
+| `efficientnet_v2_m` ⭐ | 52.9M | 2D |
+| `efficientnet_v2_l` ⭐ | 117.2M | 2D |
 | **MobileNetV3** — Mobile Neural Network V3 |||
-| `mobilenet_v3_small` ⭐ | 1.1M | 2D |
-| `mobilenet_v3_large` ⭐ | 3.2M | 2D |
+| `mobilenet_v3_small` ⭐ | 0.9M | 2D |
+| `mobilenet_v3_large` ⭐ | 3.0M | 2D |
 | **RegNet** — Regularized Network |||
-| `regnet_y_400mf` ⭐ | 4.0M | 2D |
-| `regnet_y_800mf` ⭐ | 5.8M | 2D |
-| `regnet_y_1_6gf` ⭐ | 10.5M | 2D |
-| `regnet_y_3_2gf` ⭐ | 18.3M | 2D |
-| `regnet_y_8gf` ⭐ | 37.9M | 2D |
+| `regnet_y_400mf` ⭐ | 3.9M | 2D |
+| `regnet_y_800mf` ⭐ | 5.7M | 2D |
+| `regnet_y_1_6gf` ⭐ | 10.3M | 2D |
+| `regnet_y_3_2gf` ⭐ | 17.9M | 2D |
+| `regnet_y_8gf` ⭐ | 37.4M | 2D |
 | **Swin** — Shifted Window Transformer |||
-| `swin_t` ⭐ | 28.0M | 2D |
-| `swin_s` ⭐ | 49.4M | 2D |
-| `swin_b` ⭐ | 87.4M | 2D |
+| `swin_t` ⭐ | 27.5M | 2D |
+| `swin_s` ⭐ | 48.8M | 2D |
+| `swin_b` ⭐ | 86.7M | 2D |
 | **ConvNeXt** — Convolutional Next |||
-| `convnext_tiny` | 28.2M | 1D/2D/3D |
-| `convnext_small` | 49.8M | 1D/2D/3D |
-| `convnext_base` | 88.1M | 1D/2D/3D |
-| `convnext_tiny_pretrained` ⭐ | 28.2M | 2D |
+| `convnext_tiny` | 27.8M | 1D/2D/3D |
+| `convnext_small` | 49.5M | 1D/2D/3D |
+| `convnext_base` | 87.6M | 1D/2D/3D |
+| `convnext_tiny_pretrained` ⭐ | 27.8M | 2D |
 | **DenseNet** — Densely Connected Network |||
-| `densenet121` | 7.5M | 1D/2D/3D |
-| `densenet169` | 13.3M | 1D/2D/3D |
-| `densenet121_pretrained` ⭐ | 7.5M | 2D |
+| `densenet121` | 7.0M | 1D/2D/3D |
+| `densenet169` | 12.5M | 1D/2D/3D |
+| `densenet121_pretrained` ⭐ | 7.0M | 2D |
 | **ViT** — Vision Transformer |||
-| `vit_tiny` | 5.5M | 1D/2D |
-| `vit_small` | 21.6M | 1D/2D |
-| `vit_base` | 85.6M | 1D/2D |
+| `vit_tiny` | 5.4M | 1D/2D |
+| `vit_small` | 21.4M | 1D/2D |
+| `vit_base` | 85.3M | 1D/2D |
+| **ConvNeXt V2** — ConvNeXt with GRN |||
+| `convnext_v2_tiny` | 27.9M | 1D/2D/3D |
+| `convnext_v2_small` | 49.6M | 1D/2D/3D |
+| `convnext_v2_base` | 87.7M | 1D/2D/3D |
+| `convnext_v2_tiny_pretrained` ⭐ | 27.9M | 2D |
+| **Mamba** — State Space Model |||
+| `mamba_1d` | 3.4M | 1D |
+| **Vision Mamba (ViM)** — 2D Mamba |||
+| `vim_tiny` | 6.6M | 2D |
+| `vim_small` | 51.1M | 2D |
+| `vim_base` | 201.4M | 2D |
+| **MaxViT** — Multi-Axis ViT |||
+| `maxvit_tiny` ⭐ | 30.1M | 2D |
+| `maxvit_small` ⭐ | 67.6M | 2D |
+| `maxvit_base` ⭐ | 119.1M | 2D |
+| **FastViT** — Fast Hybrid CNN-ViT |||
+| `fastvit_t8` ⭐ | 4.0M | 2D |
+| `fastvit_t12` ⭐ | 6.8M | 2D |
+| `fastvit_s12` ⭐ | 8.8M | 2D |
+| `fastvit_sa12` ⭐ | 10.9M | 2D |
+| **CAFormer** — MetaFormer with Attention |||
+| `caformer_s18` ⭐ | 26.3M | 2D |
+| `caformer_s36` ⭐ | 39.2M | 2D |
+| `caformer_m36` ⭐ | 56.9M | 2D |
+| `poolformer_s12` ⭐ | 11.9M | 2D |
 | **U-Net** — U-shaped Network |||
-| `unet_regression` | 31.1M | 1D/2D/3D |
+| `unet_regression` | 31.0M | 1D/2D/3D |
+
 
 ⭐ = **Pretrained on ImageNet** (recommended for smaller datasets). Weights are downloaded automatically on first use.
 - **Cache location**: `~/.cache/torch/hub/checkpoints/` (or `./.torch_cache/` on HPC if home is not writable)
-- **Size**: ~20–350 MB per model depending on architecture
 - **Train from scratch**: Use `--no_pretrained` to disable pretrained weights
 
 **💡 HPC Users**: If compute nodes block internet, pre-download weights on the login node:
 
 ```bash
-# Run once on login node (with internet) — downloads ALL pretrained weights (~1.5 GB total)
+# Run once on login node (with internet) — downloads ALL pretrained weights
 python -c "
 import os
 os.environ['TORCH_HOME'] = '.torch_cache'  # Match WaveDL's HPC cache location
@@ -437,7 +450,7 @@ os.environ['TORCH_HOME'] = '.torch_cache'  # Match WaveDL's HPC cache location
 from torchvision import models as m
 from torchvision.models import video as v
 
-# Model name -> Weights class mapping
+# === TorchVision Models ===
 weights = {
     'resnet18': m.ResNet18_Weights, 'resnet50': m.ResNet50_Weights,
     'efficientnet_b0': m.EfficientNet_B0_Weights, 'efficientnet_b1': m.EfficientNet_B1_Weights,
@@ -455,6 +468,20 @@ for name, w in weights.items():
 # 3D video models
 v.r3d_18(weights=v.R3D_18_Weights.DEFAULT); print('✓ r3d_18')
 v.mc3_18(weights=v.MC3_18_Weights.DEFAULT); print('✓ mc3_18')
+
+# === Timm Models (MaxViT, FastViT, CAFormer, ConvNeXt V2) ===
+import timm
+
+timm_models = [
+    'maxvit_tiny_tf_224.in1k', 'maxvit_small_tf_224.in1k', 'maxvit_base_tf_224.in1k',
+    'fastvit_t8.apple_in1k', 'fastvit_t12.apple_in1k', 'fastvit_s12.apple_in1k', 'fastvit_sa12.apple_in1k',
+    'caformer_s18.sail_in1k', 'caformer_s36.sail_in22k_ft_in1k', 'caformer_m36.sail_in22k_ft_in1k',
+    'poolformer_s12.sail_in1k',
+    'convnextv2_tiny.fcmae_ft_in1k',
+]
+for name in timm_models:
+    timm.create_model(name, pretrained=True); print(f'✓ {name}')
+
 print('\\n✓ All pretrained weights cached!')
 "
 ```

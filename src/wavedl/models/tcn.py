@@ -296,7 +296,7 @@ class TCN(TCNBase):
     """
     TCN: Standard Temporal Convolutional Network.
 
-    ~7.0M parameters. 8 temporal blocks with channels [64→128→256→256→512→512→512→512].
+    ~6.9M backbone parameters. 8 temporal blocks with channels [64→128→256→256→512→512→512→512].
     Receptive field: 511 samples with kernel_size=3.
 
     Recommended for:
@@ -338,7 +338,7 @@ class TCNSmall(TCNBase):
     """
     TCN-Small: Lightweight variant for quick experiments.
 
-    ~1.0M parameters. 6 temporal blocks with channels [32→64→128→128→256→256].
+    ~0.9M backbone parameters. 6 temporal blocks with channels [32→64→128→128→256→256].
     Receptive field: 127 samples with kernel_size=3.
 
     Recommended for:
@@ -376,7 +376,7 @@ class TCNLarge(TCNBase):
     """
     TCN-Large: High-capacity variant for complex patterns.
 
-    ~10.2M parameters. 10 temporal blocks with channels [64→128→256→256→512→512→512→512→512→512].
+    ~10.0M backbone parameters. 10 temporal blocks with channels [64→128→256→256→512→512→512→512→512→512].
     Receptive field: 2047 samples with kernel_size=3.
 
     Recommended for:
