@@ -54,6 +54,9 @@ repos:
       - id: detect-private-key
       # Validate Python AST
       - id: check-ast
+      # Fix mixed line endings (CRLF → LF)
+      - id: mixed-line-ending
+        args: [--fix=lf]
 
   # ---------------------------------------------------------------------------
   # Clean Cache Directories (Cross-platform Python)
