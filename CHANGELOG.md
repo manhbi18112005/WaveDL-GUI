@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **MaxViT**: Auto-resize input to compatible size (divisible by 28) for arbitrary input dimensions
 - **Mamba/Vim**: Replaced O(L) sequential for-loop with vectorized parallel scan (~100x faster, fixes infinite hang with `--compile`)
-- **Tests**: Fixed 3 ONNX tests always skipped (was checking for `onnxscript` instead of `onnx`)
+- **Dependencies**: Added `onnxscript` (required by `torch.onnx.export` in PyTorch 2.1+)
 
 ## [1.6.0] - 2026-01-29
 

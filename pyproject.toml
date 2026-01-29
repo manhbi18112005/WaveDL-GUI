@@ -71,6 +71,7 @@ dependencies = [
     # ONNX export
     "onnx>=1.14.0",
     "onnxruntime>=1.15.0",
+    "onnxscript>=0.1.0",  # Required by torch.onnx.export in PyTorch 2.1+
     # torch.compile backend (Linux only)
     "triton>=2.0.0; sys_platform == 'linux'",
 ]
