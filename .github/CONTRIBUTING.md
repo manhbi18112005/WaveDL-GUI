@@ -75,10 +75,10 @@ pre-commit run --all-files
 Run the full unit test suite before submitting any changes:
 
 ```bash
-# Run all tests (704 tests, ~3 minutes)
+# Run all tests (including slow tests)
 pytest unit_tests/ -v
 
-# Run fast tests only (~300 tests, ~5 seconds)
+# Run fast tests only (only few seconds)
 pytest unit_tests/ -v -m "not slow"
 ```
 

@@ -29,6 +29,7 @@ Author: Ductho Le (ductho.le@outlook.com)
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from wavedl.models._timm_utils import build_regression_head
 from wavedl.models.base import BaseModel
@@ -54,7 +55,15 @@ class MaxViTBase(BaseModel):
 
     Multi-axis attention with local block and global grid attention.
     2D only due to attention structure.
+
+    Note:
+        MaxViT requires input dimensions divisible by 28 (4x stem downsample × 7 window).
+        This implementation automatically resizes inputs to the nearest compatible size.
     """
+
+    # MaxViT stem downsamples by 4x, then requires divisibility by 7 (window size)
+    # So original input must be divisible by 4 * 7 = 28
+    _DIVISOR = 28
 
     def __init__(
         self,
@@ -75,6 +84,9 @@ class MaxViTBase(BaseModel):
         self.freeze_backbone = freeze_backbone
         self.model_name = model_name
 
+        # Compute compatible input size for MaxViT attention windows
+        self._target_size = self._compute_compatible_size(in_shape)
+
         # Try to load from timm
         try:
             import timm
@@ -85,9 +97,9 @@ class MaxViTBase(BaseModel):
                 num_classes=0,  # Remove classifier
             )
 
-            # Get feature dimension
+            # Get feature dimension using compatible size
             with torch.no_grad():
-                dummy = torch.zeros(1, 3, *in_shape)
+                dummy = torch.zeros(1, 3, *self._target_size)
                 features = self.backbone(dummy)
                 in_features = features.shape[-1]
 
@@ -164,7 +176,36 @@ class MaxViTBase(BaseModel):
         for param in self.backbone.parameters():
             param.requires_grad = False
 
+    def _compute_compatible_size(self, in_shape: tuple[int, int]) -> tuple[int, int]:
+        """
+        Compute the nearest input size compatible with MaxViT attention windows.
+
+        MaxViT requires input dimensions divisible by 28 (4x stem downsample × 7 window).
+        This rounds up to the nearest compatible size.
+
+        Args:
+            in_shape: Original (H, W) input shape
+
+        Returns:
+            Compatible (H, W) shape divisible by 28
+        """
+        import math
+
+        h, w = in_shape
+        target_h = math.ceil(h / self._DIVISOR) * self._DIVISOR
+        target_w = math.ceil(w / self._DIVISOR) * self._DIVISOR
+        return (target_h, target_w)
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # Resize input to compatible size if needed
+        _, _, h, w = x.shape
+        if (h, w) != self._target_size:
+            x = F.interpolate(
+                x,
+                size=self._target_size,
+                mode="bilinear",
+                align_corners=False,
+            )
         features = self.backbone(x)
         return self.head(features)
 

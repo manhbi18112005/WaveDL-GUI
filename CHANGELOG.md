@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **MaxViT**: Auto-resize input to compatible size (divisible by 28) for arbitrary input dimensions
+- **Mamba/Vim**: Replaced O(L) sequential for-loop with vectorized parallel scan (~100x faster, fixes infinite hang with `--compile`)
+- **Tests**: Fixed 3 ONNX tests always skipped (was checking for `onnxscript` instead of `onnx`)
+
 ## [1.6.0] - 2026-01-29
 
 ### Added

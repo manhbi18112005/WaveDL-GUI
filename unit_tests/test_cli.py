@@ -28,11 +28,11 @@ from torch import nn
 
 # Check for optional ONNX dependencies
 try:
-    import onnxscript  # noqa: F401
+    import onnx  # noqa: F401
 
-    HAS_ONNXSCRIPT = True
+    HAS_ONNX = True
 except ImportError:
-    HAS_ONNXSCRIPT = False
+    HAS_ONNX = False
 
 
 # ==============================================================================
@@ -824,7 +824,7 @@ class TestPrintResults:
         assert "MAE" in captured.out
 
 
-@pytest.mark.skipif(not HAS_ONNXSCRIPT, reason="onnxscript not installed")
+@pytest.mark.skipif(not HAS_ONNX, reason="onnx not installed")
 class TestONNXExport:
     """Tests for ONNX export functionality."""
 
