@@ -236,3 +236,131 @@ def adapt_input_channels(
         return new_conv
     else:
         raise NotImplementedError(f"Unsupported layer type: {type(conv_layer)}")
+
+
+def adapt_first_conv_for_single_channel(
+    module: nn.Module,
+    conv_path: str,
+    pretrained: bool = True,
+) -> None:
+    """
+    Adapt the first convolutional layer of a pretrained model for single-channel input.
+
+    This is a convenience function for torchvision-style models where the path
+    to the first conv layer is known. It modifies the model in-place.
+
+    For pretrained models, the RGB weights are averaged to create grayscale weights,
+    which provides a reasonable initialization for single-channel inputs.
+
+    Args:
+        module: The model or submodule containing the conv layer
+        conv_path: Dot-separated path to the conv layer (e.g., "conv1", "features.0.0")
+        pretrained: Whether to adapt pretrained weights by averaging RGB channels
+
+    Example:
+        >>> # For torchvision ResNet
+        >>> adapt_first_conv_for_single_channel(
+        ...     model.backbone, "conv1", pretrained=True
+        ... )
+        >>> # For torchvision ConvNeXt
+        >>> adapt_first_conv_for_single_channel(
+        ...     model.backbone, "features.0.0", pretrained=True
+        ... )
+        >>> # For torchvision DenseNet
+        >>> adapt_first_conv_for_single_channel(
+        ...     model.backbone, "features.conv0", pretrained=True
+        ... )
+    """
+    # Navigate to parent and get the conv layer
+    parts = conv_path.split(".")
+    parent = module
+    for part in parts[:-1]:
+        if part.isdigit():
+            parent = parent[int(part)]
+        else:
+            parent = getattr(parent, part)
+
+    # Get the final attribute name and the old conv
+    final_attr = parts[-1]
+    if final_attr.isdigit():
+        old_conv = parent[int(final_attr)]
+    else:
+        old_conv = getattr(parent, final_attr)
+
+    # Create and set the new conv
+    new_conv = adapt_input_channels(old_conv, new_in_channels=1, pretrained=pretrained)
+
+    if final_attr.isdigit():
+        parent[int(final_attr)] = new_conv
+    else:
+        setattr(parent, final_attr, new_conv)
+
+
+def find_and_adapt_input_convs(
+    backbone: nn.Module,
+    pretrained: bool = True,
+    adapt_all: bool = False,
+) -> int:
+    """
+    Find and adapt Conv2d layers with 3 input channels for single-channel input.
+
+    This is useful for timm-style models where the exact path to the first
+    conv layer may vary or where multiple layers need adaptation.
+
+    Args:
+        backbone: The backbone model to adapt
+        pretrained: Whether to adapt pretrained weights by averaging RGB channels
+        adapt_all: If True, adapt all Conv2d layers with 3 input channels.
+                   If False (default), only adapt the first one found.
+
+    Returns:
+        Number of layers adapted
+
+    Example:
+        >>> # For timm models (adapt first conv only)
+        >>> count = find_and_adapt_input_convs(model.backbone, pretrained=True)
+        >>> # For models with multiple input convs (e.g., FastViT)
+        >>> count = find_and_adapt_input_convs(
+        ...     model.backbone, pretrained=True, adapt_all=True
+        ... )
+    """
+    adapted_count = 0
+
+    for name, module in backbone.named_modules():
+        if not hasattr(module, "in_channels") or module.in_channels != 3:
+            continue
+
+        # Check if this is a wrapper with inner .conv attribute
+        if hasattr(module, "conv") and isinstance(module.conv, nn.Conv2d):
+            old_conv = module.conv
+            module.conv = adapt_input_channels(
+                old_conv, new_in_channels=1, pretrained=pretrained
+            )
+            adapted_count += 1
+
+        elif isinstance(module, nn.Conv2d):
+            # Direct Conv2d - need to replace it in parent
+            parts = name.split(".")
+            parent = backbone
+            for part in parts[:-1]:
+                if part.isdigit():
+                    parent = parent[int(part)]
+                else:
+                    parent = getattr(parent, part)
+
+            child_name = parts[-1]
+            new_conv = adapt_input_channels(
+                module, new_in_channels=1, pretrained=pretrained
+            )
+
+            if child_name.isdigit():
+                parent[int(child_name)] = new_conv
+            else:
+                setattr(parent, child_name, new_conv)
+
+            adapted_count += 1
+
+        if not adapt_all and adapted_count > 0:
+            break
+
+    return adapted_count

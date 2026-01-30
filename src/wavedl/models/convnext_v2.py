@@ -31,19 +31,16 @@ from typing import Any
 import torch
 import torch.nn as nn
 
-from wavedl.models._timm_utils import (
+from wavedl.models._pretrained_utils import (
     LayerNormNd,
     build_regression_head,
     get_conv_layer,
     get_grn_layer,
     get_pool_layer,
 )
-from wavedl.models.base import BaseModel
+from wavedl.models.base import BaseModel, SpatialShape
 from wavedl.models.registry import register_model
 
-
-# Type alias for spatial shapes
-SpatialShape = tuple[int] | tuple[int, int] | tuple[int, int, int]
 
 __all__ = [
     "ConvNeXtV2Base",
@@ -469,24 +466,11 @@ class ConvNeXtV2TinyPretrained(BaseModel):
 
     def _adapt_input_channels(self):
         """Adapt first conv layer for single-channel input."""
-        old_conv = self.backbone.features[0][0]
-        new_conv = nn.Conv2d(
-            1,
-            old_conv.out_channels,
-            kernel_size=old_conv.kernel_size,
-            stride=old_conv.stride,
-            padding=old_conv.padding,
-            bias=old_conv.bias is not None,
+        from wavedl.models._pretrained_utils import adapt_first_conv_for_single_channel
+
+        adapt_first_conv_for_single_channel(
+            self.backbone, "features.0.0", pretrained=self.pretrained
         )
-
-        if self.pretrained:
-            with torch.no_grad():
-                # Average RGB weights for grayscale
-                new_conv.weight.copy_(old_conv.weight.mean(dim=1, keepdim=True))
-                if old_conv.bias is not None:
-                    new_conv.bias.copy_(old_conv.bias)
-
-        self.backbone.features[0][0] = new_conv
 
     def _freeze_backbone(self):
         """Freeze all backbone parameters except classifier."""

@@ -5,12 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.6.1] - 2026-01-30
+
+### Added
+- **Models**: 12 new architectures (57 → 69 total):
+  - **UniRepLKNet** (tiny/small/base): Large-kernel ConvNet with 31×31 kernels for long-range wave correlations. Dimension-agnostic (1D/2D/3D). Custom implementation, no pretrained weights.
+  - **EfficientViT** (m0-m2, b0-b3, l1-l2): Memory-efficient ViT with cascaded group attention. 9 variants from 2.1M to 60.5M params. ImageNet pretrained via timm. 2D only.
+
+### Changed
+- **Refactoring**: Consolidated `SpatialShape` type alias into `base.py` (was duplicated in 8 files)
+- **Refactoring**: Consolidated GroupNorm helpers (`_get_num_groups`, `_find_group_count`, `_compute_num_groups`) into single `compute_num_groups()` in `base.py`
+- **Refactoring**: Renamed `_timm_utils.py` → `_pretrained_utils.py` (now handles both torchvision and timm models)
+- **Refactoring**: Extracted pretrained model channel adaptation into shared utilities:
+  - `adapt_first_conv_for_single_channel()`: For torchvision models with known paths
+  - `find_and_adapt_input_convs()`: For timm models with dynamic layer discovery
 
 ### Fixed
 - **MaxViT**: Auto-resize input to compatible size (divisible by 28) for arbitrary input dimensions
 - **Mamba/Vim**: Replaced O(L) sequential for-loop with vectorized parallel scan (~100x faster, fixes infinite hang with `--compile`)
 - **Dependencies**: Added `onnxscript` (required by `torch.onnx.export` in PyTorch 2.1+)
+- **HPC Cache**: Pre-download script now uses exact weight versions, preventing redundant downloads
 
 ## [1.6.0] - 2026-01-29
 
@@ -329,7 +343,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Example configurations and training scripts
 - MIT License and citation file
 
-[Unreleased]: https://github.com/ductho-le/WaveDL/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/ductho-le/WaveDL/compare/v1.6.1...HEAD
+[1.6.1]: https://github.com/ductho-le/WaveDL/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/ductho-le/WaveDL/compare/v1.5.7...v1.6.0
 [1.5.7]: https://github.com/ductho-le/WaveDL/compare/v1.5.6...v1.5.7
 [1.5.6]: https://github.com/ductho-le/WaveDL/compare/v1.5.5...v1.5.6

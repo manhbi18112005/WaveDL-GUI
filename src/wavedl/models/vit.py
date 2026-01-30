@@ -27,12 +27,12 @@ from typing import Any
 import torch
 import torch.nn as nn
 
-from wavedl.models.base import BaseModel
+from wavedl.models.base import BaseModel, SpatialShape1D, SpatialShape2D
 from wavedl.models.registry import register_model
 
 
-# Type alias for spatial shapes
-SpatialShape = tuple[int] | tuple[int, int]
+# ViT supports 1D and 2D only
+SpatialShape = SpatialShape1D | SpatialShape2D
 
 
 class PatchEmbed(nn.Module):

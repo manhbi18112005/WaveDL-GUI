@@ -34,12 +34,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from wavedl.models.base import BaseModel
+from wavedl.models.base import BaseModel, SpatialShape1D, SpatialShape2D
 from wavedl.models.registry import register_model
 
 
-# Type aliases
-SpatialShape = tuple[int] | tuple[int, int]
+# Type alias for Mamba models (1D and 2D only)
+SpatialShape = SpatialShape1D | SpatialShape2D
 
 __all__ = [
     "Mamba1D",

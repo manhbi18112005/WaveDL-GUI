@@ -26,12 +26,8 @@ from typing import Any
 import torch
 import torch.nn as nn
 
-from wavedl.models.base import BaseModel
+from wavedl.models.base import BaseModel, SpatialShape
 from wavedl.models.registry import register_model
-
-
-# Type alias for spatial shapes
-SpatialShape = tuple[int] | tuple[int, int] | tuple[int, int, int]
 
 
 def _get_layers(dim: int):
@@ -374,20 +370,11 @@ class DenseNet121Pretrained(BaseModel):
         )
 
         # Modify first conv for single-channel input
-        old_conv = self.backbone.features.conv0
-        self.backbone.features.conv0 = nn.Conv2d(
-            1,
-            old_conv.out_channels,
-            kernel_size=old_conv.kernel_size,
-            stride=old_conv.stride,
-            padding=old_conv.padding,
-            bias=False,
+        from wavedl.models._pretrained_utils import adapt_first_conv_for_single_channel
+
+        adapt_first_conv_for_single_channel(
+            self.backbone, "features.conv0", pretrained=pretrained
         )
-        if pretrained:
-            with torch.no_grad():
-                self.backbone.features.conv0.weight = nn.Parameter(
-                    old_conv.weight.mean(dim=1, keepdim=True)
-                )
 
         if freeze_backbone:
             self._freeze_backbone()

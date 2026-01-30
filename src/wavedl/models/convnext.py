@@ -28,12 +28,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from wavedl.models.base import BaseModel
+from wavedl.models.base import BaseModel, SpatialShape
 from wavedl.models.registry import register_model
-
-
-# Type alias for spatial shapes
-SpatialShape = tuple[int] | tuple[int, int] | tuple[int, int, int]
 
 
 def _get_conv_layer(dim: int) -> type[nn.Module]:
@@ -468,20 +464,11 @@ class ConvNeXtTinyPretrained(BaseModel):
         )
 
         # Modify first conv for single-channel input
-        old_conv = self.backbone.features[0][0]
-        self.backbone.features[0][0] = nn.Conv2d(
-            1,
-            old_conv.out_channels,
-            kernel_size=old_conv.kernel_size,
-            stride=old_conv.stride,
-            padding=old_conv.padding,
-            bias=old_conv.bias is not None,
+        from wavedl.models._pretrained_utils import adapt_first_conv_for_single_channel
+
+        adapt_first_conv_for_single_channel(
+            self.backbone, "features.0.0", pretrained=pretrained
         )
-        if pretrained:
-            with torch.no_grad():
-                self.backbone.features[0][0].weight = nn.Parameter(
-                    old_conv.weight.mean(dim=1, keepdim=True)
-                )
 
         if freeze_backbone:
             self._freeze_backbone()

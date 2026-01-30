@@ -27,12 +27,8 @@ from typing import Any
 import torch
 import torch.nn as nn
 
-from wavedl.models.base import BaseModel
+from wavedl.models.base import BaseModel, SpatialShape, compute_num_groups
 from wavedl.models.registry import register_model
-
-
-# Type alias for spatial shapes
-SpatialShape = tuple[int] | tuple[int, int] | tuple[int, int, int]
 
 
 def _get_conv_layers(
@@ -47,36 +43,6 @@ def _get_conv_layers(
         return nn.Conv3d, nn.MaxPool3d, nn.AdaptiveAvgPool3d
     else:
         raise ValueError(f"Unsupported dimensionality: {dim}D. Supported: 1D, 2D, 3D.")
-
-
-def _get_num_groups(num_channels: int, preferred_groups: int = 32) -> int:
-    """
-    Get valid num_groups for GroupNorm that divides num_channels evenly.
-
-    Args:
-        num_channels: Number of channels to normalize
-        preferred_groups: Preferred number of groups (default: 32)
-
-    Returns:
-        Valid num_groups that divides num_channels
-
-    Raises:
-        ValueError: If no valid divisor found (shouldn't happen with power-of-2 channels)
-    """
-    # Try preferred groups first, then decrease
-    for groups in [preferred_groups, 16, 8, 4, 2, 1]:
-        if groups <= num_channels and num_channels % groups == 0:
-            return groups
-
-    # Fallback: find any valid divisor
-    for groups in range(min(32, num_channels), 0, -1):
-        if num_channels % groups == 0:
-            return groups
-
-    raise ValueError(
-        f"Cannot find valid num_groups for {num_channels} channels. "
-        f"Consider using base_width that is a power of 2 (e.g., 32, 64, 128)."
-    )
 
 
 class BasicBlock(nn.Module):
@@ -107,12 +73,12 @@ class BasicBlock(nn.Module):
             padding=1,
             bias=False,
         )
-        self.gn1 = nn.GroupNorm(_get_num_groups(out_channels), out_channels)
+        self.gn1 = nn.GroupNorm(compute_num_groups(out_channels), out_channels)
         self.relu = nn.ReLU(inplace=True)
         self.conv2 = Conv(
             out_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False
         )
-        self.gn2 = nn.GroupNorm(_get_num_groups(out_channels), out_channels)
+        self.gn2 = nn.GroupNorm(compute_num_groups(out_channels), out_channels)
         self.downsample = downsample
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -155,7 +121,7 @@ class Bottleneck(nn.Module):
 
         # 1x1 reduce
         self.conv1 = Conv(in_channels, out_channels, kernel_size=1, bias=False)
-        self.gn1 = nn.GroupNorm(_get_num_groups(out_channels), out_channels)
+        self.gn1 = nn.GroupNorm(compute_num_groups(out_channels), out_channels)
 
         # 3x3 conv
         self.conv2 = Conv(
@@ -166,14 +132,16 @@ class Bottleneck(nn.Module):
             padding=1,
             bias=False,
         )
-        self.gn2 = nn.GroupNorm(_get_num_groups(out_channels), out_channels)
+        self.gn2 = nn.GroupNorm(compute_num_groups(out_channels), out_channels)
 
         # 1x1 expand
         self.conv3 = Conv(
             out_channels, out_channels * self.expansion, kernel_size=1, bias=False
         )
         expanded_channels = out_channels * self.expansion
-        self.gn3 = nn.GroupNorm(_get_num_groups(expanded_channels), expanded_channels)
+        self.gn3 = nn.GroupNorm(
+            compute_num_groups(expanded_channels), expanded_channels
+        )
 
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
@@ -229,7 +197,7 @@ class ResNetBase(BaseModel):
 
         # Stem: 7x7 conv (or equivalent for 1D/3D)
         self.conv1 = Conv(1, base_width, kernel_size=7, stride=2, padding=3, bias=False)
-        self.gn1 = nn.GroupNorm(_get_num_groups(base_width), base_width)
+        self.gn1 = nn.GroupNorm(compute_num_groups(base_width), base_width)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = MaxPool(kernel_size=3, stride=2, padding=1)
 
@@ -275,7 +243,7 @@ class ResNetBase(BaseModel):
                     bias=False,
                 ),
                 nn.GroupNorm(
-                    _get_num_groups(out_channels * block.expansion),
+                    compute_num_groups(out_channels * block.expansion),
                     out_channels * block.expansion,
                 ),
             )
@@ -495,21 +463,11 @@ class PretrainedResNetBase(BaseModel):
 
         # Modify first conv for single-channel input
         # Original: Conv2d(3, 64, ...) → New: Conv2d(1, 64, ...)
-        old_conv = self.backbone.conv1
-        self.backbone.conv1 = nn.Conv2d(
-            1,
-            old_conv.out_channels,
-            kernel_size=old_conv.kernel_size,
-            stride=old_conv.stride,
-            padding=old_conv.padding,
-            bias=False,
+        from wavedl.models._pretrained_utils import adapt_first_conv_for_single_channel
+
+        adapt_first_conv_for_single_channel(
+            self.backbone, "conv1", pretrained=pretrained
         )
-        # Initialize new conv with mean of pretrained weights
-        if pretrained:
-            with torch.no_grad():
-                self.backbone.conv1.weight = nn.Parameter(
-                    old_conv.weight.mean(dim=1, keepdim=True)
-                )
 
         # Optionally freeze backbone
         if freeze_backbone:

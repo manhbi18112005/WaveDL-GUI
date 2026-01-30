@@ -29,9 +29,8 @@ Author: Ductho Le (ductho.le@outlook.com)
 """
 
 import torch
-import torch.nn as nn
 
-from wavedl.models._timm_utils import build_regression_head
+from wavedl.models._pretrained_utils import build_regression_head
 from wavedl.models.base import BaseModel
 from wavedl.models.registry import register_model
 
@@ -114,26 +113,11 @@ class FastViTBase(BaseModel):
         """Adapt all conv layers with 3 input channels for single-channel input."""
         # FastViT may have multiple modules with 3 input channels (e.g., conv_kxk, conv_scale)
         # We need to adapt all of them
-        adapted_count = 0
+        from wavedl.models._pretrained_utils import find_and_adapt_input_convs
 
-        for name, module in self.backbone.named_modules():
-            if hasattr(module, "in_channels") and module.in_channels == 3:
-                # Check if this is a wrapper (e.g., ConvNormAct) with inner .conv
-                if hasattr(module, "conv") and isinstance(module.conv, nn.Conv2d):
-                    # Adapt the inner conv layer
-                    old_conv = module.conv
-                    module.conv = self._make_new_conv(old_conv)
-                    adapted_count += 1
-                elif isinstance(module, nn.Conv2d):
-                    # Direct Conv2d - replace it
-                    parts = name.split(".")
-                    parent = self.backbone
-                    for part in parts[:-1]:
-                        parent = getattr(parent, part)
-                    child_name = parts[-1]
-                    new_conv = self._make_new_conv(module)
-                    setattr(parent, child_name, new_conv)
-                    adapted_count += 1
+        adapted_count = find_and_adapt_input_convs(
+            self.backbone, pretrained=self.pretrained, adapt_all=True
+        )
 
         if adapted_count == 0:
             import warnings
@@ -141,23 +125,6 @@ class FastViTBase(BaseModel):
             warnings.warn(
                 "Could not adapt FastViT input channels. Model may fail.", stacklevel=2
             )
-
-    def _make_new_conv(self, old_conv: nn.Conv2d) -> nn.Conv2d:
-        """Create new conv layer with 1 input channel."""
-        new_conv = nn.Conv2d(
-            1,
-            old_conv.out_channels,
-            kernel_size=old_conv.kernel_size,
-            stride=old_conv.stride,
-            padding=old_conv.padding,
-            bias=old_conv.bias is not None,
-        )
-        if self.pretrained:
-            with torch.no_grad():
-                new_conv.weight.copy_(old_conv.weight.mean(dim=1, keepdim=True))
-                if old_conv.bias is not None:
-                    new_conv.bias.copy_(old_conv.bias)
-        return new_conv
 
     def _freeze_backbone(self):
         """Freeze backbone parameters."""

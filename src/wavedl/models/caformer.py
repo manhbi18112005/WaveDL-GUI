@@ -33,7 +33,7 @@ Author: Ductho Le (ductho.le@outlook.com)
 import torch
 import torch.nn as nn
 
-from wavedl.models._timm_utils import build_regression_head
+from wavedl.models._pretrained_utils import build_regression_head
 from wavedl.models.base import BaseModel
 from wavedl.models.registry import register_model
 

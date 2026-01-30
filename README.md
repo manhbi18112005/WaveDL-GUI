@@ -71,7 +71,7 @@ Train on datasets larger than RAM:
 
 **🧠 Models? We've Got Options**
 
-57 architectures, ready to go:
+69 architectures, ready to go:
 - CNNs, ResNets, ViTs, EfficientNets...
 - All adapted for regression
 - [Add your own](#adding-custom-models) in one line
@@ -312,7 +312,7 @@ WaveDL/
 │       ├── hpo.py                # Hyperparameter optimization
 │       ├── hpc.py                # HPC distributed training launcher
 │       │
-│       ├── models/               # Model Zoo (57 architectures)
+│       ├── models/               # Model Zoo (69 architectures)
 │       │   ├── registry.py       # Model factory (@register_model)
 │       │   ├── base.py           # Abstract base class
 │       │   └── ...               # See "Available Models" section
@@ -353,10 +353,11 @@ WaveDL/
 > ```
 
 <details>
-<summary><b>Available Models</b> — 57 architectures</summary>
+<summary><b>Available Models</b> — 69 architectures</summary>
 
 | Model | Backbone Params | Dim |
 |-------|-----------------|-----|
+| **── Classic CNNs ──** |||
 | **CNN** — Convolutional Neural Network |||
 | `cnn` | 1.6M | 1D/2D/3D |
 | **ResNet** — Residual Network |||
@@ -365,13 +366,14 @@ WaveDL/
 | `resnet50` | 23.5M | 1D/2D/3D |
 | `resnet18_pretrained` ⭐ | 11.2M | 2D |
 | `resnet50_pretrained` ⭐ | 23.5M | 2D |
-| **ResNet3D** — 3D Residual Network |||
-| `resnet3d_18` | 33.2M | 3D |
-| `mc3_18` — Mixed Convolution 3D | 11.5M | 3D |
-| **TCN** — Temporal Convolutional Network |||
-| `tcn_small` | 0.9M | 1D |
-| `tcn` | 6.9M | 1D |
-| `tcn_large` | 10.0M | 1D |
+| **DenseNet** — Densely Connected Network |||
+| `densenet121` | 7.0M | 1D/2D/3D |
+| `densenet169` | 12.5M | 1D/2D/3D |
+| `densenet121_pretrained` ⭐ | 7.0M | 2D |
+| **── Efficient/Mobile CNNs ──** |||
+| **MobileNetV3** — Mobile Neural Network V3 |||
+| `mobilenet_v3_small` ⭐ | 0.9M | 2D |
+| `mobilenet_v3_large` ⭐ | 3.0M | 2D |
 | **EfficientNet** — Efficient Neural Network |||
 | `efficientnet_b0` ⭐ | 4.0M | 2D |
 | `efficientnet_b1` ⭐ | 6.5M | 2D |
@@ -380,47 +382,41 @@ WaveDL/
 | `efficientnet_v2_s` ⭐ | 20.2M | 2D |
 | `efficientnet_v2_m` ⭐ | 52.9M | 2D |
 | `efficientnet_v2_l` ⭐ | 117.2M | 2D |
-| **MobileNetV3** — Mobile Neural Network V3 |||
-| `mobilenet_v3_small` ⭐ | 0.9M | 2D |
-| `mobilenet_v3_large` ⭐ | 3.0M | 2D |
 | **RegNet** — Regularized Network |||
 | `regnet_y_400mf` ⭐ | 3.9M | 2D |
 | `regnet_y_800mf` ⭐ | 5.7M | 2D |
 | `regnet_y_1_6gf` ⭐ | 10.3M | 2D |
 | `regnet_y_3_2gf` ⭐ | 17.9M | 2D |
 | `regnet_y_8gf` ⭐ | 37.4M | 2D |
-| **Swin** — Shifted Window Transformer |||
-| `swin_t` ⭐ | 27.5M | 2D |
-| `swin_s` ⭐ | 48.8M | 2D |
-| `swin_b` ⭐ | 86.7M | 2D |
+| **── Modern CNNs ──** |||
 | **ConvNeXt** — Convolutional Next |||
 | `convnext_tiny` | 27.8M | 1D/2D/3D |
 | `convnext_small` | 49.5M | 1D/2D/3D |
 | `convnext_base` | 87.6M | 1D/2D/3D |
 | `convnext_tiny_pretrained` ⭐ | 27.8M | 2D |
-| **DenseNet** — Densely Connected Network |||
-| `densenet121` | 7.0M | 1D/2D/3D |
-| `densenet169` | 12.5M | 1D/2D/3D |
-| `densenet121_pretrained` ⭐ | 7.0M | 2D |
-| **ViT** — Vision Transformer |||
-| `vit_tiny` | 5.4M | 1D/2D |
-| `vit_small` | 21.4M | 1D/2D |
-| `vit_base` | 85.3M | 1D/2D |
 | **ConvNeXt V2** — ConvNeXt with GRN |||
 | `convnext_v2_tiny` | 27.9M | 1D/2D/3D |
 | `convnext_v2_small` | 49.6M | 1D/2D/3D |
 | `convnext_v2_base` | 87.7M | 1D/2D/3D |
 | `convnext_v2_tiny_pretrained` ⭐ | 27.9M | 2D |
-| **Mamba** — State Space Model |||
-| `mamba_1d` | 3.4M | 1D |
-| **Vision Mamba (ViM)** — 2D Mamba |||
-| `vim_tiny` | 6.6M | 2D |
-| `vim_small` | 51.1M | 2D |
-| `vim_base` | 201.4M | 2D |
+| **UniRepLKNet** — Large-Kernel ConvNet |||
+| `unireplknet_tiny` | 30.8M | 1D/2D/3D |
+| `unireplknet_small` | 56.0M | 1D/2D/3D |
+| `unireplknet_base` | 97.6M | 1D/2D/3D |
+| **── Vision Transformers ──** |||
+| **ViT** — Vision Transformer |||
+| `vit_tiny` | 5.4M | 1D/2D |
+| `vit_small` | 21.4M | 1D/2D |
+| `vit_base` | 85.3M | 1D/2D |
+| **Swin** — Shifted Window Transformer |||
+| `swin_t` ⭐ | 27.5M | 2D |
+| `swin_s` ⭐ | 48.8M | 2D |
+| `swin_b` ⭐ | 86.7M | 2D |
 | **MaxViT** — Multi-Axis ViT |||
 | `maxvit_tiny` ⭐ | 30.1M | 2D |
 | `maxvit_small` ⭐ | 67.6M | 2D |
 | `maxvit_base` ⭐ | 119.1M | 2D |
+| **── Hybrid CNN-Transformer ──** |||
 | **FastViT** — Fast Hybrid CNN-ViT |||
 | `fastvit_t8` ⭐ | 4.0M | 2D |
 | `fastvit_t12` ⭐ | 6.8M | 2D |
@@ -431,6 +427,31 @@ WaveDL/
 | `caformer_s36` ⭐ | 39.2M | 2D |
 | `caformer_m36` ⭐ | 56.9M | 2D |
 | `poolformer_s12` ⭐ | 11.9M | 2D |
+| **EfficientViT** — Memory-Efficient ViT |||
+| `efficientvit_m0` ⭐ | 2.2M | 2D |
+| `efficientvit_m1` ⭐ | 2.6M | 2D |
+| `efficientvit_m2` ⭐ | 3.8M | 2D |
+| `efficientvit_b0` ⭐ | 2.1M | 2D |
+| `efficientvit_b1` ⭐ | 7.5M | 2D |
+| `efficientvit_b2` ⭐ | 21.8M | 2D |
+| `efficientvit_b3` ⭐ | 46.1M | 2D |
+| `efficientvit_l1` ⭐ | 49.5M | 2D |
+| `efficientvit_l2` ⭐ | 60.5M | 2D |
+| **── State Space Models ──** |||
+| **Mamba** — State Space Model |||
+| `mamba_1d` | 3.4M | 1D |
+| **Vision Mamba (ViM)** — 2D Mamba |||
+| `vim_tiny` | 6.6M | 2D |
+| `vim_small` | 51.1M | 2D |
+| `vim_base` | 201.4M | 2D |
+| **── Specialized Architectures ──** |||
+| **TCN** — Temporal Convolutional Network |||
+| `tcn_small` | 0.9M | 1D |
+| `tcn` | 6.9M | 1D |
+| `tcn_large` | 10.0M | 1D |
+| **ResNet3D** — 3D Residual Network |||
+| `resnet3d_18` | 33.2M | 3D |
+| `mc3_18` — Mixed Convolution 3D | 11.5M | 3D |
 | **U-Net** — U-shaped Network |||
 | `unet_regression` | 31.0M | 1D/2D/3D |
 
@@ -450,34 +471,52 @@ os.environ['TORCH_HOME'] = '.torch_cache'  # Match WaveDL's HPC cache location
 from torchvision import models as m
 from torchvision.models import video as v
 
-# === TorchVision Models ===
-weights = {
-    'resnet18': m.ResNet18_Weights, 'resnet50': m.ResNet50_Weights,
-    'efficientnet_b0': m.EfficientNet_B0_Weights, 'efficientnet_b1': m.EfficientNet_B1_Weights,
-    'efficientnet_b2': m.EfficientNet_B2_Weights, 'efficientnet_v2_s': m.EfficientNet_V2_S_Weights,
-    'efficientnet_v2_m': m.EfficientNet_V2_M_Weights, 'efficientnet_v2_l': m.EfficientNet_V2_L_Weights,
-    'mobilenet_v3_small': m.MobileNet_V3_Small_Weights, 'mobilenet_v3_large': m.MobileNet_V3_Large_Weights,
-    'regnet_y_400mf': m.RegNet_Y_400MF_Weights, 'regnet_y_800mf': m.RegNet_Y_800MF_Weights,
-    'regnet_y_1_6gf': m.RegNet_Y_1_6GF_Weights, 'regnet_y_3_2gf': m.RegNet_Y_3_2GF_Weights,
-    'regnet_y_8gf': m.RegNet_Y_8GF_Weights, 'swin_t': m.Swin_T_Weights, 'swin_s': m.Swin_S_Weights,
-    'swin_b': m.Swin_B_Weights, 'convnext_tiny': m.ConvNeXt_Tiny_Weights, 'densenet121': m.DenseNet121_Weights,
-}
-for name, w in weights.items():
-    getattr(m, name)(weights=w.DEFAULT); print(f'✓ {name}')
+# === TorchVision Models (use IMAGENET1K_V1 to match WaveDL) ===
+models = [
+    ('resnet18', m.ResNet18_Weights.IMAGENET1K_V1),
+    ('resnet50', m.ResNet50_Weights.IMAGENET1K_V1),
+    ('efficientnet_b0', m.EfficientNet_B0_Weights.IMAGENET1K_V1),
+    ('efficientnet_b1', m.EfficientNet_B1_Weights.IMAGENET1K_V1),
+    ('efficientnet_b2', m.EfficientNet_B2_Weights.IMAGENET1K_V1),
+    ('efficientnet_v2_s', m.EfficientNet_V2_S_Weights.IMAGENET1K_V1),
+    ('efficientnet_v2_m', m.EfficientNet_V2_M_Weights.IMAGENET1K_V1),
+    ('efficientnet_v2_l', m.EfficientNet_V2_L_Weights.IMAGENET1K_V1),
+    ('mobilenet_v3_small', m.MobileNet_V3_Small_Weights.IMAGENET1K_V1),
+    ('mobilenet_v3_large', m.MobileNet_V3_Large_Weights.IMAGENET1K_V1),
+    ('regnet_y_400mf', m.RegNet_Y_400MF_Weights.IMAGENET1K_V1),
+    ('regnet_y_800mf', m.RegNet_Y_800MF_Weights.IMAGENET1K_V1),
+    ('regnet_y_1_6gf', m.RegNet_Y_1_6GF_Weights.IMAGENET1K_V1),
+    ('regnet_y_3_2gf', m.RegNet_Y_3_2GF_Weights.IMAGENET1K_V1),
+    ('regnet_y_8gf', m.RegNet_Y_8GF_Weights.IMAGENET1K_V1),
+    ('swin_t', m.Swin_T_Weights.IMAGENET1K_V1),
+    ('swin_s', m.Swin_S_Weights.IMAGENET1K_V1),
+    ('swin_b', m.Swin_B_Weights.IMAGENET1K_V1),
+    ('convnext_tiny', m.ConvNeXt_Tiny_Weights.IMAGENET1K_V1),
+    ('densenet121', m.DenseNet121_Weights.IMAGENET1K_V1),
+]
+for name, w in models:
+    getattr(m, name)(weights=w); print(f'✓ {name}')
 
 # 3D video models
-v.r3d_18(weights=v.R3D_18_Weights.DEFAULT); print('✓ r3d_18')
-v.mc3_18(weights=v.MC3_18_Weights.DEFAULT); print('✓ mc3_18')
+v.r3d_18(weights=v.R3D_18_Weights.KINETICS400_V1); print('✓ r3d_18')
+v.mc3_18(weights=v.MC3_18_Weights.KINETICS400_V1); print('✓ mc3_18')
 
 # === Timm Models (MaxViT, FastViT, CAFormer, ConvNeXt V2) ===
 import timm
 
 timm_models = [
-    'maxvit_tiny_tf_224.in1k', 'maxvit_small_tf_224.in1k', 'maxvit_base_tf_224.in1k',
-    'fastvit_t8.apple_in1k', 'fastvit_t12.apple_in1k', 'fastvit_s12.apple_in1k', 'fastvit_sa12.apple_in1k',
-    'caformer_s18.sail_in1k', 'caformer_s36.sail_in22k_ft_in1k', 'caformer_m36.sail_in22k_ft_in1k',
-    'poolformer_s12.sail_in1k',
-    'convnextv2_tiny.fcmae_ft_in1k',
+    # MaxViT (no suffix - timm resolves to default)
+    'maxvit_tiny_tf_224', 'maxvit_small_tf_224', 'maxvit_base_tf_224',
+    # FastViT (no suffix)
+    'fastvit_t8', 'fastvit_t12', 'fastvit_s12', 'fastvit_sa12',
+    # CAFormer/PoolFormer (no suffix)
+    'caformer_s18', 'caformer_s36', 'caformer_m36', 'poolformer_s12',
+    # ConvNeXt V2 (no suffix)
+    'convnextv2_tiny',
+    # EfficientViT (no suffix)
+    'efficientvit_m0', 'efficientvit_m1', 'efficientvit_m2',
+    'efficientvit_b0', 'efficientvit_b1', 'efficientvit_b2', 'efficientvit_b3',
+    'efficientvit_l1', 'efficientvit_l2',
 ]
 for name in timm_models:
     timm.create_model(name, pretrained=True); print(f'✓ {name}')

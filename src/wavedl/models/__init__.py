@@ -80,8 +80,24 @@ from .vit import ViTBase_, ViTSmall, ViTTiny
 # Optional timm-based models (imported conditionally)
 try:
     from .caformer import CaFormerS18, CaFormerS36, PoolFormerS12
+    from .efficientvit import (
+        EfficientViTB0,
+        EfficientViTB1,
+        EfficientViTB2,
+        EfficientViTB3,
+        EfficientViTL1,
+        EfficientViTL2,
+        EfficientViTM0,
+        EfficientViTM1,
+        EfficientViTM2,
+    )
     from .fastvit import FastViTS12, FastViTSA12, FastViTT8, FastViTT12
     from .maxvit import MaxViTBaseLarge, MaxViTSmall, MaxViTTiny
+    from .unireplknet import (
+        UniRepLKNetBaseLarge,
+        UniRepLKNetSmall,
+        UniRepLKNetTiny,
+    )
 
     _HAS_TIMM_MODELS = True
 except ImportError:
@@ -148,6 +164,15 @@ if _HAS_TIMM_MODELS:
         [
             "CaFormerS18",
             "CaFormerS36",
+            "EfficientViTB0",
+            "EfficientViTB1",
+            "EfficientViTB2",
+            "EfficientViTB3",
+            "EfficientViTL1",
+            "EfficientViTL2",
+            "EfficientViTM0",
+            "EfficientViTM1",
+            "EfficientViTM2",
             "FastViTS12",
             "FastViTSA12",
             "FastViTT8",
@@ -156,5 +181,8 @@ if _HAS_TIMM_MODELS:
             "MaxViTSmall",
             "MaxViTTiny",
             "PoolFormerS12",
+            "UniRepLKNetBaseLarge",
+            "UniRepLKNetSmall",
+            "UniRepLKNetTiny",
         ]
     )

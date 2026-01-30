@@ -15,6 +15,54 @@ import torch
 import torch.nn as nn
 
 
+# =============================================================================
+# TYPE ALIASES
+# =============================================================================
+
+# Spatial shape type aliases for model input dimensions
+SpatialShape1D = tuple[int]
+SpatialShape2D = tuple[int, int]
+SpatialShape3D = tuple[int, int, int]
+SpatialShape = SpatialShape1D | SpatialShape2D | SpatialShape3D
+
+
+# =============================================================================
+# UTILITY FUNCTIONS
+# =============================================================================
+
+
+def compute_num_groups(num_channels: int, preferred_groups: int = 32) -> int:
+    """
+    Compute valid num_groups for GroupNorm that divides num_channels evenly.
+
+    GroupNorm requires num_channels to be divisible by num_groups. This function
+    finds the largest valid divisor up to preferred_groups.
+
+    Args:
+        num_channels: Number of channels to normalize (must be positive)
+        preferred_groups: Preferred number of groups (default: 32)
+
+    Returns:
+        Valid num_groups that satisfies num_channels % num_groups == 0
+
+    Example:
+        >>> compute_num_groups(64)  # Returns 32
+        >>> compute_num_groups(48)  # Returns 16 (48 % 32 != 0)
+        >>> compute_num_groups(7)  # Returns 1 (prime number)
+    """
+    # Try preferred groups first, then common divisors
+    for groups in [preferred_groups, 16, 8, 4, 2, 1]:
+        if groups <= num_channels and num_channels % groups == 0:
+            return groups
+
+    # Fallback: find any valid divisor (always returns at least 1)
+    for groups in range(min(32, num_channels), 0, -1):
+        if num_channels % groups == 0:
+            return groups
+
+    return 1  # Always valid
+
+
 class BaseModel(nn.Module, ABC):
     """
     Abstract base class for all regression models.

@@ -22,12 +22,8 @@ from typing import Any
 import torch
 import torch.nn as nn
 
-from wavedl.models.base import BaseModel
+from wavedl.models.base import BaseModel, SpatialShape
 from wavedl.models.registry import register_model
-
-
-# Type alias for spatial shapes
-SpatialShape = tuple[int] | tuple[int, int] | tuple[int, int, int]
 
 
 def _get_layers(dim: int):
