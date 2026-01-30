@@ -66,6 +66,8 @@ MODEL_DIMS = {
     "fastvit": [2],
     "caformer": [2],
     "poolformer": [2],
+    "efficientvit": [2],
+    "unireplknet": [1, 2],
 }
 
 DEFAULT_DIMS = [2]
@@ -101,7 +103,7 @@ def get_test_config(model_name: str, dim: int | None = None) -> tuple:
     model_lower = model_name.lower()
 
     # Models requiring larger input sizes (timm models with window attention)
-    large_input_models = ["maxvit", "fastvit", "caformer", "poolformer"]
+    large_input_models = ["maxvit", "fastvit", "caformer", "poolformer", "efficientvit"]
     needs_large_input = any(model_lower.startswith(p) for p in large_input_models)
 
     if dim == 1:
@@ -387,7 +389,7 @@ class TestModelRegistry:
 
     def test_list_models(self):
         models = list_models()
-        assert len(models) >= 57  # At least 57 models
+        assert len(models) >= 69  # At least 69 models
         assert "cnn" in models
         assert "resnet18" in models
         # Check new models
@@ -396,6 +398,10 @@ class TestModelRegistry:
         assert "caformer_s18" in models
         assert "convnext_v2_tiny" in models
         assert "mamba_1d" in models
+        # v1.6.1 models
+        assert "efficientvit_m0" in models
+        assert "efficientvit_b0" in models
+        assert "unireplknet_tiny" in models
 
     def test_build_model(self):
         model = build_model("cnn", in_shape=(256,), out_size=3)
