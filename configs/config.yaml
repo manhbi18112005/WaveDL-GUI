@@ -4,29 +4,57 @@
 # Copy and modify for your experiments. CLI arguments override any values.
 #
 # Usage:
-#   accelerate launch -m wavedl.train --config configs/config.yaml
-#   accelerate launch -m wavedl.train --config configs/config.yaml --lr 5e-4
+#   wavedl-train --config configs/config.yaml
+#   wavedl-train --config configs/config.yaml --lr 5e-4
 
 # =============================================================================
 # MODEL
 # =============================================================================
-model: cnn                    # 38 architectures available:
+model: cnn                    # 69 architectures available:
+                              #
+                              # ── Classic CNNs ──
                               # CNN:       cnn
                               # ResNet:    resnet18, resnet34, resnet50,
                               #            resnet18_pretrained, resnet50_pretrained
-                              # ResNet3D:  resnet3d_18, mc3_18
-                              # TCN:       tcn_small, tcn, tcn_large
+                              # DenseNet:  densenet121, densenet169, densenet121_pretrained
+                              #
+                              # ── Efficient/Mobile CNNs ──
+                              # MobileNetV3: mobilenet_v3_small, mobilenet_v3_large
                               # EfficientNet: efficientnet_b0, efficientnet_b1, efficientnet_b2
                               # EfficientNetV2: efficientnet_v2_s, efficientnet_v2_m, efficientnet_v2_l
-                              # MobileNetV3: mobilenet_v3_small, mobilenet_v3_large
                               # RegNet:    regnet_y_400mf, regnet_y_800mf, regnet_y_1_6gf,
                               #            regnet_y_3_2gf, regnet_y_8gf
-                              # Swin:      swin_t, swin_s, swin_b
-                              # ViT:       vit_tiny, vit_small, vit_base
+                              #
+                              # ── Modern CNNs ──
                               # ConvNeXt:  convnext_tiny, convnext_small, convnext_base,
                               #            convnext_tiny_pretrained
-                              # DenseNet:  densenet121, densenet169, densenet121_pretrained
+                              # ConvNeXt V2: convnext_v2_tiny, convnext_v2_small, convnext_v2_base,
+                              #              convnext_v2_tiny_pretrained
+                              # UniRepLKNet: unireplknet_tiny, unireplknet_small, unireplknet_base
+                              #
+                              # ── Vision Transformers ──
+                              # ViT:       vit_tiny, vit_small, vit_base
+                              # Swin:      swin_t, swin_s, swin_b
+                              # MaxViT:    maxvit_tiny, maxvit_small, maxvit_base
+                              #
+                              # ── Hybrid CNN-Transformer ──
+                              # FastViT:   fastvit_t8, fastvit_t12, fastvit_s12, fastvit_sa12
+                              # CAFormer:  caformer_s18, caformer_s36, caformer_m36, poolformer_s12
+                              # EfficientViT: efficientvit_m0, efficientvit_m1, efficientvit_m2,
+                              #               efficientvit_b0, efficientvit_b1, efficientvit_b2,
+                              #               efficientvit_b3, efficientvit_l1, efficientvit_l2
+                              #
+                              # ── State Space Models ──
+                              # Mamba:     mamba_1d
+                              # Vision Mamba: vim_tiny, vim_small, vim_base
+                              #
+                              # ── Specialized Architectures ──
+                              # TCN:       tcn_small, tcn, tcn_large
+                              # ResNet3D:  resnet3d_18, mc3_18
                               # U-Net:     unet_regression
+
+pretrained: true              # Use ImageNet pretrained weights (for supported models)
+                              # Set to false to train from scratch
 
 # =============================================================================
 # TRAINING HYPERPARAMETERS
@@ -78,14 +106,14 @@ cv_bins: 10                   # Number of bins for stratification
 # data_path: train_data.npz   # Required - path to training data
 # output_dir: ./experiments   # Output directory for checkpoints/logs
 # resume: null                # Path to checkpoint to resume from
-# save_every: 50               # Save checkpoint every N epochs (0 = disabled)
+# save_every: 50              # Save checkpoint every N epochs (0 = disabled)
 # fresh: false                # Start fresh, ignore existing checkpoints
 workers: -1                   # DataLoader workers (-1 = auto-detect)
 seed: 2025                    # Random seed for reproducibility
 deterministic: false          # Deterministic mode for exact reproducibility (slower)
 cache_validate: sha256        # Cache validation: sha256 (full), fast (partial), size (quick)
 # single_channel: false       # Confirm data is single-channel (for shallow 3D volumes)
-# import_modules: []           # Python modules/files to import for custom models
+# import_modules: []          # Python modules/files to import for custom models
                               # Supports: module names (my_model) or file paths (./my_model.py)
 
 # =============================================================================
@@ -98,7 +126,7 @@ compile: false                # torch.compile() for faster training (PyTorch 2.0
 # LOGGING & MONITORING
 # =============================================================================
 # wandb: false                # Enable Weights & Biases logging
-# wandb_watch: false           # Enable W&B gradient watching (adds overhead, useful for debugging)
+# wandb_watch: false          # Enable W&B gradient watching (adds overhead, useful for debugging)
 # project_name: DL-Training   # W&B project name
 # run_name: null              # W&B run name (auto-generated if null)
 
@@ -115,5 +143,6 @@ compile: false                # torch.compile() for faster training (PyTorch 2.0
 #
 # Expression syntax:
 #   Variables: y0, y1, ... (outputs), x[0], x[1], ... (inputs)
+#   Aggregates: x_mean, x_sum, x_max, x_min, x_std
 #   Operators: +, -, *, /, **, >, <, >=, <=, ==
 #   Functions: sin, cos, exp, log, sqrt, sigmoid, softplus, tanh, relu, abs

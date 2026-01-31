@@ -11,6 +11,9 @@
 # Development folder (private roadmap, notes)
 .dev/
 
+# Unpublished models (waiting for paper submission)
+src/wavedl/models/ratenet.py
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

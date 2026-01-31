@@ -225,8 +225,6 @@ accelerate launch --num_machines 2 --main_process_ip <ip> -m wavedl.train --mode
 
 ### Testing & Inference
 
-After training, use `wavedl-test` to evaluate your model on test data:
-
 ```bash
 # Basic inference
 wavedl-test --checkpoint <checkpoint_folder> --data_path <test_data>
