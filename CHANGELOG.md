@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.2] - 2026-01-30
+
+### Added
+- **CLI**: Unified `wavedl-train` command that works on both local machines and HPC clusters
+  - Auto-detects environment (SLURM, PBS, LSF, SGE, Cobalt)
+  - HPC: Uses local caching (CWD), offline WandB
+  - Local: Uses standard cache locations (`~/.cache`)
+  - Fast `--list_models` flag (no accelerate overhead)
+  - `wavedl-hpc` kept as backwards-compatible alias
+
+### Changed
+- **CLI**: Renamed `hpc.py` → `launcher.py` (clearer purpose for universal launcher)
+- **Documentation**: All README examples now use `wavedl-train` instead of `accelerate launch`
+
 ## [1.6.1] - 2026-01-30
 
 ### Added
@@ -343,7 +357,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Example configurations and training scripts
 - MIT License and citation file
 
-[Unreleased]: https://github.com/ductho-le/WaveDL/compare/v1.6.1...HEAD
+[Unreleased]: https://github.com/ductho-le/WaveDL/compare/v1.6.2...HEAD
+[1.6.2]: https://github.com/ductho-le/WaveDL/compare/v1.6.1...v1.6.2
 [1.6.1]: https://github.com/ductho-le/WaveDL/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/ductho-le/WaveDL/compare/v1.5.7...v1.6.0
 [1.5.7]: https://github.com/ductho-le/WaveDL/compare/v1.5.6...v1.5.7

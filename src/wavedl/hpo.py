@@ -440,7 +440,7 @@ Examples:
     print("\n" + "=" * 60)
     print("TO TRAIN WITH BEST PARAMETERS:")
     print("=" * 60)
-    cmd_parts = ["accelerate launch -m wavedl.train"]
+    cmd_parts = ["wavedl-train"]
     cmd_parts.append(f"--data_path {args.data_path}")
     for key, value in study.best_params.items():
         cmd_parts.append(f"--{key} {value}")

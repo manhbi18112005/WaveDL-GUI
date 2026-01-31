@@ -1,12 +1,21 @@
 #!/usr/bin/env python
 """
-WaveDL HPC Training Launcher.
+WaveDL Training Launcher.
 
-This module provides a Python-based HPC training launcher that wraps accelerate
-for distributed training on High-Performance Computing clusters.
+This module provides a universal training launcher that wraps accelerate
+for distributed training. It works seamlessly on both:
+- Local machines (uses standard cache locations)
+- HPC clusters (uses local caching, offline WandB)
+
+The environment is auto-detected based on scheduler variables (SLURM, PBS, etc.)
+and home directory writability.
 
 Usage:
-    wavedl-hpc --model cnn --data_path train.npz --num_gpus 4
+    # Local machine or HPC - same command!
+    wavedl-train --model cnn --data_path train.npz --output_dir results
+
+    # Multi-GPU is automatic (uses all available GPUs)
+    wavedl-train --model resnet18 --data_path train.npz --num_gpus 4
 
 Example SLURM script:
     #!/bin/bash
@@ -14,7 +23,7 @@ Example SLURM script:
     #SBATCH --gpus-per-node=4
     #SBATCH --time=12:00:00
 
-    wavedl-hpc --model cnn --data_path /scratch/data.npz --compile
+    wavedl-train --model cnn --data_path /scratch/data.npz --compile
 
 Author: Ductho Le (ductho.le@outlook.com)
 """
@@ -53,78 +62,138 @@ def detect_gpus() -> int:
     return 1
 
 
-def setup_hpc_environment() -> None:
-    """Configure environment variables for HPC systems.
+def is_hpc_environment() -> bool:
+    """Detect if running on an HPC cluster.
 
-    Handles restricted home directories (e.g., Compute Canada) and
-    offline logging configurations. Always uses CWD-based TORCH_HOME
-    since compute nodes typically lack internet access.
+    Checks for:
+    1. Common HPC scheduler environment variables (SLURM, PBS, LSF, SGE, Cobalt)
+    2. Non-writable home directory (common on HPC systems)
+
+    Returns:
+        True if HPC environment detected, False otherwise.
     """
-    # Use CWD for cache base since HPC compute nodes typically lack internet
-    cache_base = os.getcwd()
+    # Check for common HPC scheduler environment variables
+    hpc_indicators = [
+        "SLURM_JOB_ID",  # SLURM
+        "PBS_JOBID",  # PBS/Torque
+        "LSB_JOBID",  # LSF
+        "SGE_TASK_ID",  # Sun Grid Engine
+        "COBALT_JOBID",  # Cobalt
+    ]
+    if any(var in os.environ for var in hpc_indicators):
+        return True
 
-    # TORCH_HOME always set to CWD - compute nodes need pre-cached weights
-    os.environ.setdefault("TORCH_HOME", f"{cache_base}/.torch_cache")
-    Path(os.environ["TORCH_HOME"]).mkdir(parents=True, exist_ok=True)
-
-    # Triton/Inductor caches - prevents permission errors with --compile
-    # These MUST be set before any torch.compile calls
-    os.environ.setdefault("TRITON_CACHE_DIR", f"{cache_base}/.triton_cache")
-    os.environ.setdefault("TORCHINDUCTOR_CACHE_DIR", f"{cache_base}/.inductor_cache")
-    Path(os.environ["TRITON_CACHE_DIR"]).mkdir(parents=True, exist_ok=True)
-    Path(os.environ["TORCHINDUCTOR_CACHE_DIR"]).mkdir(parents=True, exist_ok=True)
-
-    # Check if home is writable for other caches
+    # Check if home directory is not writable (common on HPC)
     home = os.path.expanduser("~")
-    home_writable = os.access(home, os.W_OK)
+    return not os.access(home, os.W_OK)
 
-    # Other caches only if home is not writable
-    if not home_writable:
-        os.environ.setdefault("MPLCONFIGDIR", f"{cache_base}/.matplotlib")
-        os.environ.setdefault("FONTCONFIG_CACHE", f"{cache_base}/.fontconfig")
-        os.environ.setdefault("XDG_CACHE_HOME", f"{cache_base}/.cache")
 
-        # Ensure directories exist
-        for env_var in [
-            "MPLCONFIGDIR",
-            "FONTCONFIG_CACHE",
-            "XDG_CACHE_HOME",
-        ]:
-            Path(os.environ[env_var]).mkdir(parents=True, exist_ok=True)
+def setup_environment() -> None:
+    """Configure environment for HPC or local machine.
 
-    # WandB configuration (offline by default for HPC)
-    os.environ.setdefault("WANDB_MODE", "offline")
-    os.environ.setdefault("WANDB_DIR", f"{cache_base}/.wandb")
-    os.environ.setdefault("WANDB_CACHE_DIR", f"{cache_base}/.wandb_cache")
-    os.environ.setdefault("WANDB_CONFIG_DIR", f"{cache_base}/.wandb_config")
+    Automatically detects the environment and configures accordingly:
+    - HPC: Uses CWD-based caching, offline WandB (compute nodes lack internet)
+    - Local: Uses standard cache locations (~/.cache), doesn't override WandB
+    """
+    is_hpc = is_hpc_environment()
 
-    # Suppress non-critical warnings
+    if is_hpc:
+        # HPC: use CWD-based caching (compute nodes lack internet)
+        cache_base = os.getcwd()
+
+        # TORCH_HOME set to CWD - compute nodes need pre-cached weights
+        os.environ.setdefault("TORCH_HOME", f"{cache_base}/.torch_cache")
+        Path(os.environ["TORCH_HOME"]).mkdir(parents=True, exist_ok=True)
+
+        # Triton/Inductor caches - prevents permission errors with --compile
+        os.environ.setdefault("TRITON_CACHE_DIR", f"{cache_base}/.triton_cache")
+        os.environ.setdefault(
+            "TORCHINDUCTOR_CACHE_DIR", f"{cache_base}/.inductor_cache"
+        )
+        Path(os.environ["TRITON_CACHE_DIR"]).mkdir(parents=True, exist_ok=True)
+        Path(os.environ["TORCHINDUCTOR_CACHE_DIR"]).mkdir(parents=True, exist_ok=True)
+
+        # Check if home is writable for other caches
+        home = os.path.expanduser("~")
+        home_writable = os.access(home, os.W_OK)
+
+        # Other caches only if home is not writable
+        if not home_writable:
+            os.environ.setdefault("MPLCONFIGDIR", f"{cache_base}/.matplotlib")
+            os.environ.setdefault("FONTCONFIG_CACHE", f"{cache_base}/.fontconfig")
+            os.environ.setdefault("XDG_CACHE_HOME", f"{cache_base}/.cache")
+
+            for env_var in [
+                "MPLCONFIGDIR",
+                "FONTCONFIG_CACHE",
+                "XDG_CACHE_HOME",
+            ]:
+                Path(os.environ[env_var]).mkdir(parents=True, exist_ok=True)
+
+        # WandB configuration (offline by default for HPC)
+        os.environ.setdefault("WANDB_MODE", "offline")
+        os.environ.setdefault("WANDB_DIR", f"{cache_base}/.wandb")
+        os.environ.setdefault("WANDB_CACHE_DIR", f"{cache_base}/.wandb_cache")
+        os.environ.setdefault("WANDB_CONFIG_DIR", f"{cache_base}/.wandb_config")
+
+        print("🖥️  HPC environment detected - using local caching")
+    else:
+        # Local machine: use standard locations, don't override user settings
+        # TORCH_HOME defaults to ~/.cache/torch (PyTorch default)
+        # WANDB_MODE defaults to online (WandB default)
+        print("💻 Local environment detected - using standard cache locations")
+
+    # Suppress non-critical warnings (both environments)
     os.environ.setdefault(
         "PYTHONWARNINGS",
         "ignore::UserWarning,ignore::FutureWarning,ignore::DeprecationWarning",
     )
 
 
+def handle_fast_path_args() -> int | None:
+    """Handle utility flags that don't need accelerate launch.
+
+    Returns:
+        Exit code if handled (0 for success), None if should continue to full launch.
+    """
+    # --list_models: print models and exit immediately
+    if "--list_models" in sys.argv:
+        from wavedl.models import list_models
+
+        print("Available models:")
+        for name in list_models():
+            print(f"  {name}")
+        return 0
+
+    return None  # Continue to full launch
+
+
 def parse_args() -> tuple[argparse.Namespace, list[str]]:
-    """Parse HPC-specific arguments, pass remaining to wavedl.train."""
+    """Parse launcher-specific arguments, pass remaining to wavedl.train."""
     parser = argparse.ArgumentParser(
-        description="WaveDL HPC Training Launcher",
+        description="WaveDL Training Launcher (works on local machines and HPC clusters)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Basic training with auto-detected GPUs
-  wavedl-hpc --model cnn --data_path train.npz --epochs 100
+  # Basic training (auto-detects GPUs and environment)
+  wavedl-train --model cnn --data_path train.npz --output_dir results
 
-  # Specify GPU count and mixed precision
-  wavedl-hpc --model cnn --data_path train.npz --num_gpus 4 --mixed_precision bf16
+  # Specify GPU count explicitly
+  wavedl-train --model cnn --data_path train.npz --num_gpus 4
 
   # Full configuration
-  wavedl-hpc --model resnet18 --data_path train.npz --num_gpus 8 \\
-             --batch_size 256 --lr 1e-3 --compile --output_dir ./results
+  wavedl-train --model resnet18 --data_path train.npz --batch_size 256 \\
+               --lr 1e-3 --epochs 100 --compile --output_dir ./results
 
-Environment Variables:
-  WANDB_MODE          WandB mode: offline|online (default: offline)
-  SLURM_TMPDIR        Temp directory for HPC systems
+  # List available models
+  wavedl-train --list_models
+
+Environment Detection:
+  The launcher automatically detects your environment:
+  - HPC (SLURM, PBS, etc.): Uses local caching, offline WandB
+  - Local machine: Uses standard cache locations (~/.cache)
+
+For full training options, see: python -m wavedl.train --help
 """,
     )
 
@@ -204,7 +273,7 @@ def print_summary(
         print("Common issues:")
         print("  - Missing data file (check --data_path)")
         print("  - Insufficient GPU memory (reduce --batch_size)")
-        print("  - Invalid model name (run: python train.py --list_models)")
+        print("  - Invalid model name (run: wavedl-train --list_models)")
         print()
 
     print("=" * 40)
@@ -212,12 +281,17 @@ def print_summary(
 
 
 def main() -> int:
-    """Main entry point for wavedl-hpc command."""
+    """Main entry point for wavedl-train command."""
+    # Fast path for utility flags (avoid accelerate launch overhead)
+    exit_code = handle_fast_path_args()
+    if exit_code is not None:
+        return exit_code
+
     # Parse arguments
     args, train_args = parse_args()
 
-    # Setup HPC environment
-    setup_hpc_environment()
+    # Setup environment (smart detection)
+    setup_environment()
 
     # Check if wavedl package is importable
     try:

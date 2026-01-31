@@ -3,10 +3,9 @@ Unit Tests for CLI Entry Points
 ===============================
 
 Consolidated tests for all CLI entry points in WaveDL:
-    - wavedl-train (wavedl.train)
+    - wavedl-train (wavedl.launcher)
     - wavedl-test (wavedl.test)
     - wavedl-hpo (wavedl.hpo)
-    - wavedl-hpc (wavedl.hpc)
 
 **Tested Components**:
     - Argument parsing and validation
@@ -463,21 +462,21 @@ class TestHPOIntegration:
 
 
 # ==============================================================================
-# HPC MODULE TESTS (wavedl.hpc)
+# LAUNCHER MODULE TESTS (wavedl.launcher)
 # ==============================================================================
 class TestHPCDetectGPUs:
     """Tests for GPU auto-detection functionality."""
 
     def test_no_nvidia_smi(self):
         """Test fallback when nvidia-smi is not available."""
-        from wavedl.hpc import detect_gpus
+        from wavedl.launcher import detect_gpus
 
         with patch("shutil.which", return_value=None):
             assert detect_gpus() == 1
 
     def test_nvidia_smi_success(self):
         """Test successful GPU detection."""
-        from wavedl.hpc import detect_gpus
+        from wavedl.launcher import detect_gpus
 
         mock_result = MagicMock()
         mock_result.stdout = "GPU 0: A100\nGPU 1: A100\nGPU 2: A100\n"
@@ -492,7 +491,7 @@ class TestHPCDetectGPUs:
         """Test fallback when nvidia-smi fails."""
         import subprocess
 
-        from wavedl.hpc import detect_gpus
+        from wavedl.launcher import detect_gpus
 
         with (
             patch("shutil.which", return_value="/usr/bin/nvidia-smi"),
@@ -509,7 +508,7 @@ class TestHPCEnvironment:
 
     def test_sets_default_env_vars(self):
         """Test that default environment variables are set when home is not writable."""
-        from wavedl.hpc import setup_hpc_environment
+        from wavedl.launcher import setup_environment
 
         env_vars = ["MPLCONFIGDIR", "WANDB_MODE", "WANDB_DIR"]
         original = {v: os.environ.pop(v, None) for v in env_vars}
@@ -517,7 +516,7 @@ class TestHPCEnvironment:
         try:
             # Mock home directory as non-writable (simulates HPC environment)
             with patch("os.access", return_value=False):
-                setup_hpc_environment()
+                setup_environment()
                 assert "MPLCONFIGDIR" in os.environ
                 assert os.environ["WANDB_MODE"] == "offline"
         finally:
@@ -533,7 +532,7 @@ class TestHPCParseArgs:
 
     def test_default_values(self):
         """Test default argument values."""
-        from wavedl.hpc import parse_args
+        from wavedl.launcher import parse_args
 
         with patch.object(sys, "argv", ["wavedl-hpc"]):
             args, remaining = parse_args()
@@ -545,7 +544,7 @@ class TestHPCParseArgs:
 
     def test_passthrough_args(self):
         """Test that unknown args are passed through to train.py."""
-        from wavedl.hpc import parse_args
+        from wavedl.launcher import parse_args
 
         with patch.object(
             sys,
@@ -564,7 +563,7 @@ class TestHPCPrintSummary:
 
     def test_success_message(self, capsys):
         """Test success summary output."""
-        from wavedl.hpc import print_summary
+        from wavedl.launcher import print_summary
 
         print_summary(
             exit_code=0,
@@ -579,7 +578,7 @@ class TestHPCPrintSummary:
 
     def test_failure_message(self, capsys):
         """Test failure summary output."""
-        from wavedl.hpc import print_summary
+        from wavedl.launcher import print_summary
 
         print_summary(
             exit_code=1,
@@ -593,7 +592,7 @@ class TestHPCPrintSummary:
 
     def test_success_without_wandb(self, capsys):
         """Test success message when wandb is disabled."""
-        from wavedl.hpc import print_summary
+        from wavedl.launcher import print_summary
 
         print_summary(
             exit_code=0,

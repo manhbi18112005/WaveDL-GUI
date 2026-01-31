@@ -12,25 +12,22 @@ A modular training framework for wave-based inverse problems and regression:
   6. Deep Observability: WandB integration with scatter analysis
 
 Usage:
-    # Recommended: Using the HPC launcher (handles accelerate configuration)
-    wavedl-hpc --model cnn --batch_size 128 --mixed_precision bf16 --wandb
-
-    # Or direct training module (use --precision, not --mixed_precision)
-    accelerate launch -m wavedl.train --model cnn --batch_size 128 --precision bf16
+    # Recommended: Universal training command (works on local machines and HPC)
+    wavedl-train --model cnn --batch_size 128 --compile
 
     # Multi-GPU with explicit config
-    wavedl-hpc --num_gpus 4 --mixed_precision bf16 --model cnn --wandb
+    wavedl-train --num_gpus 4 --model cnn --output_dir results
 
     # Resume from checkpoint
-    accelerate launch -m wavedl.train --model cnn --resume best_checkpoint --wandb
+    wavedl-train --model cnn --output_dir results  # auto-resumes if interrupted
 
     # List available models
     wavedl-train --list_models
 
 Note:
-    - wavedl-hpc: Uses --mixed_precision (passed to accelerate launch)
-    - wavedl.train: Uses --precision (internal module flag)
-    Both control the same behavior; use the appropriate flag for your entry point.
+    wavedl-train automatically detects your environment:
+    - HPC clusters (SLURM, PBS, etc.): Uses local caching, offline WandB
+    - Local machines: Uses standard cache locations (~/.cache)
 
 Author: Ductho Le (ductho.le@outlook.com)
 """
@@ -429,7 +426,7 @@ def parse_args() -> argparse.Namespace:
         choices=["bf16", "fp16", "no"],
         help="Mixed precision mode",
     )
-    # Alias for consistency with wavedl-hpc (--mixed_precision)
+    # Alias for consistency with wavedl-train (--mixed_precision is passed to accelerate)
     parser.add_argument(
         "--mixed_precision",
         dest="precision",

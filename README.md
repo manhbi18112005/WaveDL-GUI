@@ -177,66 +177,74 @@ pip install -e .
 > [!TIP]
 > In all examples below, replace `<...>` placeholders with your values. See [Configuration](#️-configuration) for defaults and options.
 
-#### Option 1: Using wavedl-hpc (Recommended for HPC)
-
-The `wavedl-hpc` command automatically configures the environment for HPC systems:
+### Training
 
 ```bash
-# Basic training (auto-detects available GPUs)
-wavedl-hpc --model <model_name> --data_path <train_data> --batch_size <number> --output_dir <output_folder>
+# Basic training (auto-detects GPUs and environment)
+wavedl-train --model <model_name> --data_path <train_data> --output_dir <output_folder>
 
 # Detailed configuration
-wavedl-hpc --model <model_name> --data_path <train_data> --batch_size <number> \
+wavedl-train --model <model_name> --data_path <train_data> --batch_size <number> \
   --lr <number> --epochs <number> --patience <number> --compile --output_dir <output_folder>
 
-# Specify GPU count explicitly
-wavedl-hpc --num_gpus 4 --model cnn --data_path train.npz --output_dir results
-```
-
-#### Option 2: Direct Accelerate Launch
-
-```bash
-# Local - auto-detects GPUs
-accelerate launch -m wavedl.train --model <model_name> --data_path <train_data> --batch_size <number> --output_dir <output_folder>
+# Multi-GPU is automatic (uses all available GPUs)
+# Override with --num_gpus if needed
+wavedl-train --model cnn --data_path train.npz --num_gpus 4 --output_dir results
 
 # Resume training (automatic - just re-run with same output_dir)
-# Manual resume from specific checkpoint:
-accelerate launch -m wavedl.train --model <model_name> --data_path <train_data> --resume <checkpoint_folder> --output_dir <output_folder>
+wavedl-train --model <model_name> --data_path <train_data> --output_dir <output_folder>
 
 # Force fresh start (ignores existing checkpoints)
-accelerate launch -m wavedl.train --model <model_name> --data_path <train_data> --output_dir <output_folder> --fresh
+wavedl-train --model <model_name> --data_path <train_data> --output_dir <output_folder> --fresh
 
 # List available models
 wavedl-train --list_models
 ```
 
-> [!TIP]
-> **Auto-Resume**: If training crashes or is interrupted, simply re-run with the same `--output_dir`. The framework automatically detects incomplete training and resumes from the last checkpoint. Use `--fresh` to force a fresh start.
+> [!NOTE]
+> `wavedl-train` automatically detects your environment:
+> - **HPC clusters** (SLURM, PBS, etc.): Uses local caching, offline WandB
+> - **Local machines**: Uses standard cache locations (~/.cache)
 >
-> **GPU Auto-Detection**: `wavedl-hpc` automatically detects available GPUs using `nvidia-smi`. Use `--num_gpus` to override.
+> **Auto-Resume**: If training crashes or is interrupted, simply re-run with the same `--output_dir`. The framework automatically detects incomplete training and resumes from the last checkpoint.
+
+<details>
+<summary><b>Advanced: Direct Accelerate Launch</b></summary>
+
+For fine-grained control over distributed training, you can use `accelerate launch` directly:
+
+```bash
+# Custom accelerate configuration
+accelerate launch -m wavedl.train --model <model_name> --data_path <train_data> --output_dir <output_folder>
+
+# Multi-node training
+accelerate launch --num_machines 2 --main_process_ip <ip> -m wavedl.train --model cnn --data_path train.npz
+```
+
+</details>
 
 ### Testing & Inference
 
-After training, use `wavedl.test` to evaluate your model on test data:
+After training, use `wavedl-test` to evaluate your model on test data:
 
 ```bash
 # Basic inference
-python -m wavedl.test --checkpoint <checkpoint_folder> --data_path <test_data>
+wavedl-test --checkpoint <checkpoint_folder> --data_path <test_data>
 
 # With visualization, CSV export, and multiple file formats
-python -m wavedl.test --checkpoint <checkpoint_folder> --data_path <test_data> \
+wavedl-test --checkpoint <checkpoint_folder> --data_path <test_data> \
   --plot --plot_format png pdf --save_predictions --output_dir <output_folder>
 
 # With custom parameter names
-python -m wavedl.test --checkpoint <checkpoint_folder> --data_path <test_data> \
+wavedl-test --checkpoint <checkpoint_folder> --data_path <test_data> \
   --param_names '$p_1$' '$p_2$' '$p_3$' --plot
 
 # Export model to ONNX for deployment (LabVIEW, MATLAB, C++, etc.)
-python -m wavedl.test --checkpoint <checkpoint_folder> --data_path <test_data> \
+wavedl-test --checkpoint <checkpoint_folder> --data_path <test_data> \
   --export onnx --export_path <output_file.onnx>
 
 # For 3D volumes with small depth (e.g., 8×128×128), override auto-detection
-python -m wavedl.test --checkpoint <checkpoint_folder> --data_path <test_data> \
+wavedl-test --checkpoint <checkpoint_folder> --data_path <test_data> \
   --input_channels 1
 ```
 
@@ -247,7 +255,7 @@ python -m wavedl.test --checkpoint <checkpoint_folder> --data_path <test_data> \
 - **Format** (with `--plot_format`): Supported formats: `png` (default), `pdf` (vector), `svg` (vector), `eps` (LaTeX), `tiff`, `jpg`, `ps`
 
 > [!NOTE]
-> `wavedl.test` auto-detects the model architecture from checkpoint metadata. If unavailable, it falls back to folder name parsing. Use `--model` to override if needed.
+> `wavedl-test` auto-detects the model architecture from checkpoint metadata. If unavailable, it falls back to folder name parsing. Use `--model` to override if needed.
 
 ### Adding Custom Models
 
@@ -291,7 +299,7 @@ class MyModel(BaseModel):
 **Step 2: Train**
 
 ```bash
-wavedl-hpc --import my_model.py --model my_model --data_path train.npz
+wavedl-train --import my_model.py --model my_model --data_path train.npz
 ```
 
 WaveDL handles everything else: training loop, logging, checkpoints, multi-GPU, early stopping, etc.
@@ -307,10 +315,10 @@ WaveDL/
 ├── src/
 │   └── wavedl/                   # Main package (namespaced)
 │       ├── __init__.py           # Package init with __version__
-│       ├── train.py              # Training entry point
+│       ├── train.py              # Training script
 │       ├── test.py               # Testing & inference script
 │       ├── hpo.py                # Hyperparameter optimization
-│       ├── hpc.py                # HPC distributed training launcher
+│       ├── launcher.py           # Training launcher (wavedl-train)
 │       │
 │       ├── models/               # Model Zoo (69 architectures)
 │       │   ├── registry.py       # Model factory (@register_model)
@@ -341,16 +349,7 @@ WaveDL/
 ## ⚙️ Configuration
 
 > [!NOTE]
-> All configuration options below work with **both** `wavedl-hpc` and direct `accelerate launch`. The wrapper script passes all arguments directly to `train.py`.
->
-> **Examples:**
-> ```bash
-> # Using wavedl-hpc
-> wavedl-hpc --model cnn --batch_size 256 --lr 5e-4 --compile
->
-> # Using accelerate launch directly
-> accelerate launch -m wavedl.train --model cnn --batch_size 256 --lr 5e-4 --compile
-> ```
+> All configuration options below work with `wavedl-train`. The wrapper script passes all arguments directly to `train.py`.
 
 <details>
 <summary><b>Available Models</b> — 69 architectures</summary>
@@ -594,7 +593,7 @@ WaveDL automatically enables performance optimizations for modern GPUs:
 </details>
 
 <details>
-<summary><b>HPC CLI Arguments (wavedl-hpc)</b></summary>
+<summary><b>Distributed Training Arguments</b></summary>
 
 | Argument | Default | Description |
 |----------|---------|-------------|
@@ -626,10 +625,10 @@ WaveDL automatically enables performance optimizations for modern GPUs:
 **Example:**
 ```bash
 # Use Huber loss for noisy NDE data
-accelerate launch -m wavedl.train --model cnn --loss huber --huber_delta 0.5
+wavedl-train --model cnn --loss huber --huber_delta 0.5
 
 # Weighted MSE: prioritize thickness (first target)
-accelerate launch -m wavedl.train --model cnn --loss weighted_mse --loss_weights "2.0,1.0,1.0"
+wavedl-train --model cnn --loss weighted_mse --loss_weights "2.0,1.0,1.0"
 ```
 
 </details>
@@ -649,10 +648,10 @@ accelerate launch -m wavedl.train --model cnn --loss weighted_mse --loss_weights
 **Example:**
 ```bash
 # SGD with Nesterov momentum (often better generalization)
-accelerate launch -m wavedl.train --model cnn --optimizer sgd --lr 0.01 --momentum 0.9 --nesterov
+wavedl-train --model cnn --optimizer sgd --lr 0.01 --momentum 0.9 --nesterov
 
 # RAdam for more stable training
-accelerate launch -m wavedl.train --model cnn --optimizer radam --lr 1e-3
+wavedl-train --model cnn --optimizer radam --lr 1e-3
 ```
 
 </details>
@@ -674,13 +673,13 @@ accelerate launch -m wavedl.train --model cnn --optimizer radam --lr 1e-3
 **Example:**
 ```bash
 # Cosine annealing for 1000 epochs
-accelerate launch -m wavedl.train --model cnn --scheduler cosine --epochs 1000 --min_lr 1e-7
+wavedl-train --model cnn --scheduler cosine --epochs 1000 --min_lr 1e-7
 
 # OneCycleLR for super-convergence
-accelerate launch -m wavedl.train --model cnn --scheduler onecycle --lr 1e-2 --epochs 50
+wavedl-train --model cnn --scheduler onecycle --lr 1e-2 --epochs 50
 
 # MultiStep with custom milestones
-accelerate launch -m wavedl.train --model cnn --scheduler multistep --milestones "100,200,300"
+wavedl-train --model cnn --scheduler multistep --milestones "100,200,300"
 ```
 
 </details>
@@ -691,16 +690,14 @@ accelerate launch -m wavedl.train --model cnn --scheduler multistep --milestones
 For robust model evaluation, simply add the `--cv` flag:
 
 ```bash
-# 5-fold cross-validation (works with both methods!)
-wavedl-hpc --model cnn --cv 5 --data_path train_data.npz
-# OR
-accelerate launch -m wavedl.train --model cnn --cv 5 --data_path train_data.npz
+# 5-fold cross-validation
+wavedl-train --model cnn --cv 5 --data_path train_data.npz
 
 # Stratified CV (recommended for unbalanced data)
-wavedl-hpc --model cnn --cv 5 --cv_stratify --loss huber --epochs 100
+wavedl-train --model cnn --cv 5 --cv_stratify --loss huber --epochs 100
 
 # Full configuration
-wavedl-hpc --model cnn --cv 5 --cv_stratify \
+wavedl-train --model cnn --cv 5 --cv_stratify \
     --loss huber --optimizer adamw --scheduler cosine \
     --output_dir ./cv_results
 ```
@@ -725,10 +722,10 @@ Use YAML files for reproducible experiments. CLI arguments can override any conf
 
 ```bash
 # Use a config file
-accelerate launch -m wavedl.train --config configs/config.yaml --data_path train.npz
+wavedl-train --config configs/config.yaml --data_path train.npz
 
 # Override specific values from config
-accelerate launch -m wavedl.train --config configs/config.yaml --lr 5e-4 --epochs 500
+wavedl-train --config configs/config.yaml --lr 5e-4 --epochs 500
 ```
 
 **Example config (`configs/config.yaml`):**
@@ -881,7 +878,7 @@ wavedl-hpo --data_path train.npz --models cnn --n_trials 50 --quick
 
 After HPO completes, it prints the optimal command:
 ```bash
-accelerate launch -m wavedl.train --data_path train.npz --model cnn --lr 3.2e-4 --batch_size 128 ...
+wavedl-train --data_path train.npz --model cnn --lr 3.2e-4 --batch_size 128 ...
 ```
 
 ---
@@ -1074,12 +1071,12 @@ The `examples/` folder contains a **complete, ready-to-run example** for **mater
 
 ```bash
 # Run inference on the example data
-python -m wavedl.test --checkpoint ./examples/elasticity_prediction/best_checkpoint \
+wavedl-test --checkpoint ./examples/elasticity_prediction/best_checkpoint \
   --data_path ./examples/elasticity_prediction/Test_data_100.mat \
   --plot --save_predictions --output_dir ./examples/elasticity_prediction/test_results
 
 # Export to ONNX (already included as model.onnx)
-python -m wavedl.test --checkpoint ./examples/elasticity_prediction/best_checkpoint \
+wavedl-test --checkpoint ./examples/elasticity_prediction/best_checkpoint \
   --data_path ./examples/elasticity_prediction/Test_data_100.mat \
   --export onnx --export_path ./examples/elasticity_prediction/model.onnx
 ```
