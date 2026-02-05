@@ -984,7 +984,15 @@ def load_test_data(
                 f"Available keys depend on file format. Original error: {e}"
             ) from e
 
-        # Legitimate fallback: no explicit output_key, outputs just not present
+        # Also fail-fast if explicit input_key was provided but not found
+        # This prevents silently loading a different tensor when user mistyped key
+        if input_key is not None:
+            raise KeyError(
+                f"Explicit --input_key '{input_key}' not found in file. "
+                f"Original error: {e}"
+            ) from e
+
+        # Legitimate fallback: no explicit keys, outputs just not present
         if format == "npz":
             # First pass to find keys
             with np.load(path, allow_pickle=False) as probe:
@@ -1524,21 +1532,43 @@ def prepare_data(
 
             logger.info("   ✔ Cache creation complete, synchronizing ranks...")
         else:
-            # NON-MAIN RANKS: Wait for cache creation
-            # Log that we're waiting (helps with debugging)
+            # NON-MAIN RANKS: Wait for cache creation with timeout
+            # Use monotonic clock (immune to system clock changes)
             import time
 
-            wait_start = time.time()
+            wait_start = time.monotonic()
+
+            # Robust env parsing with guards for invalid/non-positive values
+            DEFAULT_CACHE_TIMEOUT = 3600  # 1 hour default
+            try:
+                env_timeout = os.environ.get("WAVEDL_CACHE_TIMEOUT", "")
+                CACHE_TIMEOUT = (
+                    int(env_timeout) if env_timeout else DEFAULT_CACHE_TIMEOUT
+                )
+                if CACHE_TIMEOUT <= 0:
+                    CACHE_TIMEOUT = DEFAULT_CACHE_TIMEOUT
+            except ValueError:
+                CACHE_TIMEOUT = DEFAULT_CACHE_TIMEOUT
+
             while not (
                 os.path.exists(CACHE_FILE)
                 and os.path.exists(SCALER_FILE)
                 and os.path.exists(META_FILE)
             ):
                 time.sleep(5)  # Check every 5 seconds
-                elapsed = time.time() - wait_start
+                elapsed = time.monotonic() - wait_start
+
+                if elapsed > CACHE_TIMEOUT:
+                    raise RuntimeError(
+                        f"[Rank {accelerator.process_index}] Timeout waiting for cache "
+                        f"files after {CACHE_TIMEOUT}s. Rank 0 may have failed during "
+                        f"cache generation. Check rank 0 logs for errors."
+                    )
+
                 if elapsed > 60 and int(elapsed) % 60 < 5:  # Log every ~minute
                     logger.info(
-                        f"   [Rank {accelerator.process_index}] Waiting for cache creation... ({int(elapsed)}s)"
+                        f"   [Rank {accelerator.process_index}] Waiting for cache "
+                        f"creation... ({int(elapsed)}s / {CACHE_TIMEOUT}s max)"
                     )
             # Small delay to ensure files are fully written
             time.sleep(2)

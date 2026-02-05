@@ -166,11 +166,11 @@ This installs everything you need: training, inference, HPO, ONNX export.
 ```bash
 git clone https://github.com/ductho-le/WaveDL.git
 cd WaveDL
-pip install -e .
+pip install -e ".[dev]"
 ```
 
 > [!NOTE]
-> Python 3.11+ required. For development setup, see [CONTRIBUTING.md](.github/CONTRIBUTING.md).
+> Python 3.11+ required. For contributor setup (pre-commit hooks), see [CONTRIBUTING.md](.github/CONTRIBUTING.md).
 
 ### Quick Start
 

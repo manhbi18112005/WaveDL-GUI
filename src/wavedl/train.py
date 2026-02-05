@@ -1266,10 +1266,10 @@ def main():
                         os.path.join(args.output_dir, "best_model_weights.pth"),
                     )
 
-                    # Copy scaler to checkpoint for portability
+                    # Copy scaler to checkpoint for portability (always overwrite to stay current)
                     scaler_src = os.path.join(args.output_dir, "scaler.pkl")
                     scaler_dst = os.path.join(ckpt_dir, "scaler.pkl")
-                    if os.path.exists(scaler_src) and not os.path.exists(scaler_dst):
+                    if os.path.exists(scaler_src):
                         shutil.copy2(scaler_src, scaler_dst)
 
                     logger.info(

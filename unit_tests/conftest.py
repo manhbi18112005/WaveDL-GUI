@@ -12,6 +12,7 @@ Author: Ductho Le (ductho.le@outlook.com)
 """
 
 import os
+import pickle
 import shutil
 import sys
 import tempfile
@@ -297,3 +298,43 @@ def sample_predictions():
     y_pred = y_true + noise  # High correlation with small noise
 
     return y_true, y_pred
+
+
+@pytest.fixture
+def temp_checkpoint_dir_safetensors(temp_dir, mock_scaler):
+    """Create a checkpoint directory with ONLY model.safetensors (no .bin fallback).
+
+    Used to test behavior when safetensors library is not installed.
+    """
+    checkpoint_dir = os.path.join(temp_dir, "best_checkpoint")
+    os.makedirs(checkpoint_dir, exist_ok=True)
+
+    # Create a simple model state dict
+    state_dict = {
+        "layer.weight": np.random.randn(10, 64).astype(np.float32),
+        "layer.bias": np.random.randn(10).astype(np.float32),
+    }
+
+    # Save as .safetensors format (just a placeholder file for testing)
+    # We use a torch .bin file with .safetensors extension to simulate the scenario
+    import torch
+
+    torch.save(state_dict, os.path.join(checkpoint_dir, "model.safetensors"))
+
+    # Copy scaler
+    scaler_dst = os.path.join(checkpoint_dir, "scaler.pkl")
+    with open(scaler_dst, "wb") as f:
+        pickle.dump(mock_scaler, f)
+
+    # Create training metadata
+    meta = {
+        "epoch": 10,
+        "best_val_loss": 0.01,
+        "model_name": "cnn",
+        "in_shape": (64, 64),
+        "out_dim": 5,
+    }
+    with open(os.path.join(checkpoint_dir, "training_meta.pkl"), "wb") as f:
+        pickle.dump(meta, f)
+
+    return checkpoint_dir

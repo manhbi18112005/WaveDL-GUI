@@ -22,7 +22,7 @@ source venv/bin/activate  # Linux/Mac
 # or: venv\Scripts\activate  # Windows
 
 # Install in editable mode with dev dependencies
-pip install -e .
+pip install -e ".[dev]"
 
 # Install pre-commit hooks (required for contributors)
 pre-commit install

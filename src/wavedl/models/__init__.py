@@ -79,7 +79,7 @@ from .vit import ViTBase_, ViTSmall, ViTTiny
 
 # Optional RATENet (unpublished, may be gitignored)
 try:
-    from .ratenet import RATENet, RATENetLite, RATENetTiny
+    from .ratenet import RATENet, RATENetLite, RATENetTiny, RATENetV2
 
     _HAS_RATENET = True
 except ImportError:
@@ -120,6 +120,7 @@ __all__ = [
     "MC3_18",
     "MODEL_REGISTRY",
     "TCN",
+    # Classes (uppercase first, alphabetically)
     "BaseModel",
     "ConvNeXtBase_",
     "ConvNeXtSmall",
@@ -161,6 +162,7 @@ __all__ = [
     "VimBase",
     "VimSmall",
     "VimTiny",
+    # Functions (lowercase, alphabetically)
     "build_model",
     "get_model",
     "list_models",
@@ -203,5 +205,6 @@ if _HAS_RATENET:
             "RATENet",
             "RATENetLite",
             "RATENetTiny",
+            "RATENetV2",
         ]
     )

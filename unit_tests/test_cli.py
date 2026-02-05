@@ -16,6 +16,7 @@ Author: Ductho Le (ductho.le@outlook.com)
 """
 
 import os
+import pickle
 import sys
 from unittest.mock import MagicMock, patch
 
@@ -909,3 +910,76 @@ class TestLoadDataForInference:
 
         assert X_loaded.shape == (10, 1, 32, 32)
         assert y_loaded is None
+
+
+# ==============================================================================
+# SAFETENSORS HANDLING TESTS
+# ==============================================================================
+class TestSafetensorsHandling:
+    """Tests for safetensors checkpoint loading behavior."""
+
+    def test_safetensors_unavailable_gives_helpful_error(
+        self, temp_checkpoint_dir_safetensors
+    ):
+        """Test that helpful ImportError is raised when safetensors unavailable."""
+        import wavedl.test as test_module
+
+        # Mock HAS_SAFETENSORS to False to simulate safetensors not installed
+        with (
+            patch.object(test_module, "HAS_SAFETENSORS", False),
+            pytest.raises(ImportError, match="safetensors"),
+        ):
+            test_module.load_checkpoint(
+                temp_checkpoint_dir_safetensors,
+                in_shape=(64, 64),
+                out_size=5,
+                model_name="cnn",
+            )
+
+
+# ==============================================================================
+# SCALER PORTABILITY TESTS
+# ==============================================================================
+class TestScalerPortability:
+    """Tests for scaler checkpoint portability."""
+
+    def test_scaler_overwrite_on_retrain(self, temp_dir):
+        """Test that scaler is overwritten (not stale) when saving best checkpoint.
+
+        Simulates retrain scenario where:
+        1. Initial training creates checkpoint with scaler v1
+        2. Retraining in same dir creates new scaler v2
+        3. New best checkpoint should have scaler v2, not stale v1
+        """
+        import shutil
+
+        # Setup directories
+        output_dir = temp_dir
+        ckpt_dir = os.path.join(temp_dir, "best_checkpoint")
+        os.makedirs(ckpt_dir, exist_ok=True)
+
+        # Create "old" scaler in checkpoint (simulates previous training)
+        old_scaler = {"version": 1, "mean": 0.0, "std": 1.0}
+        with open(os.path.join(ckpt_dir, "scaler.pkl"), "wb") as f:
+            pickle.dump(old_scaler, f)
+
+        # Create "new" scaler in output_dir (simulates new training run)
+        new_scaler = {"version": 2, "mean": 0.5, "std": 2.0}
+        with open(os.path.join(output_dir, "scaler.pkl"), "wb") as f:
+            pickle.dump(new_scaler, f)
+
+        # Simulate the scaler copy logic from train.py (FIXED version)
+        scaler_src = os.path.join(output_dir, "scaler.pkl")
+        scaler_dst = os.path.join(ckpt_dir, "scaler.pkl")
+        if os.path.exists(scaler_src):
+            shutil.copy2(scaler_src, scaler_dst)
+
+        # Verify the checkpoint now has the NEW scaler, not stale old one
+        with open(os.path.join(ckpt_dir, "scaler.pkl"), "rb") as f:
+            loaded_scaler = pickle.load(f)
+
+        assert loaded_scaler["version"] == 2, (
+            "Scaler in checkpoint should be overwritten with latest version"
+        )
+        assert loaded_scaler["mean"] == 0.5
+        assert loaded_scaler["std"] == 2.0

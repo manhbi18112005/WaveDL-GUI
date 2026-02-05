@@ -398,6 +398,14 @@ def load_checkpoint(
 
     if HAS_SAFETENSORS and weight_path.suffix == ".safetensors":
         state_dict = load_safetensors(str(weight_path))
+    elif weight_path.suffix == ".safetensors":
+        # Safetensors file exists but library not installed
+        raise ImportError(
+            f"Checkpoint uses safetensors format ({weight_path.name}) but "
+            f"'safetensors' package is not installed. Install it with:\n"
+            f"    pip install safetensors\n"
+            f"Or convert the checkpoint to PyTorch format (model.bin)."
+        )
     else:
         state_dict = torch.load(weight_path, map_location="cpu", weights_only=True)
 

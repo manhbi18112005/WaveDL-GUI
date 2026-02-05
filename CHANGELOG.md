@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.3] - 2026-02-05
+
+### Fixed
+- **Data**: Explicit `--input_key` now raises `KeyError` if not found (previously silently fell back to auto-detection, risking wrong data load)
+- **DDP**: Non-main ranks now timeout after 1 hour (configurable via `WAVEDL_CACHE_TIMEOUT`) instead of waiting indefinitely for cache files
+- **DDP**: Cache wait uses `time.monotonic()` for robustness against system clock changes
+- **Inference**: Clear `ImportError` with install instructions when `.safetensors` checkpoint exists but library not installed
+- **Training**: Scaler now always copied to checkpoint (previously skipped if destination existed, causing stale scaler on retrain)
+- **Documentation**: `CONTRIBUTING.md` setup now includes `[dev]` extras for pre-commit and ruff
+
+### Added
+- **Tests**: 6 new tests covering explicit key validation, safetensors error handling, and scaler portability
+
 ## [1.6.2] - 2026-01-30
 
 ### Added
@@ -357,7 +370,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Example configurations and training scripts
 - MIT License and citation file
 
-[Unreleased]: https://github.com/ductho-le/WaveDL/compare/v1.6.2...HEAD
+[Unreleased]: https://github.com/ductho-le/WaveDL/compare/v1.6.3...HEAD
+[1.6.3]: https://github.com/ductho-le/WaveDL/compare/v1.6.2...v1.6.3
 [1.6.2]: https://github.com/ductho-le/WaveDL/compare/v1.6.1...v1.6.2
 [1.6.1]: https://github.com/ductho-le/WaveDL/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/ductho-le/WaveDL/compare/v1.5.7...v1.6.0

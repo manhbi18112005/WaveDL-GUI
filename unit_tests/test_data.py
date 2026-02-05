@@ -999,3 +999,78 @@ class TestInputChannelsOverride:
 
         # Heuristic: dim 1 > 16, so add channel
         assert X_loaded.shape == (10, 1, 32, 32, 32)
+
+
+# ==============================================================================
+# EXPLICIT KEY VALIDATION TESTS
+# ==============================================================================
+class TestExplicitKeyValidation:
+    """Tests for explicit --input_key and --output_key validation.
+
+    These tests ensure that when users provide explicit key names that
+    don't exist, the code raises helpful errors instead of silently
+    falling back to auto-detected keys (which could load wrong data).
+    """
+
+    def test_explicit_input_key_not_found_raises(self, temp_dir):
+        """Verify that an explicit --input_key that doesn't exist raises KeyError."""
+        X = np.random.randn(10, 32, 32).astype(np.float32)
+        y = np.random.randn(10, 3).astype(np.float32)
+
+        path = os.path.join(temp_dir, "data.npz")
+        np.savez(path, input_test=X, output_test=y)
+
+        # User provides mistyped key - should fail, not silently use 'input_test'
+        with pytest.raises(KeyError, match=r"Explicit --input_key.*not found"):
+            load_test_data(path, input_key="typo_input_key")
+
+    def test_explicit_input_key_works_when_present(self, temp_dir):
+        """Verify that a valid explicit --input_key loads correctly."""
+        X = np.random.randn(10, 32, 32).astype(np.float32)
+        y = np.random.randn(10, 3).astype(np.float32)
+
+        path = os.path.join(temp_dir, "data.npz")
+        np.savez(path, my_custom_input=X, my_custom_output=y)
+
+        # Explicit key that exists should work
+        X_loaded, y_loaded = load_test_data(
+            path, input_key="my_custom_input", output_key="my_custom_output"
+        )
+
+        assert X_loaded.shape[0] == 10
+        assert y_loaded.shape == (10, 3)
+
+    def test_explicit_output_key_not_found_raises(self, temp_dir):
+        """Verify that an explicit --output_key that doesn't exist raises KeyError.
+
+        This is a regression test to ensure the existing output_key strictness
+        is preserved even after adding input_key strictness.
+        """
+        X = np.random.randn(10, 32, 32).astype(np.float32)
+        y = np.random.randn(10, 3).astype(np.float32)
+
+        path = os.path.join(temp_dir, "data.npz")
+        np.savez(path, input_test=X, output_test=y)
+
+        # User provides mistyped output_key - should fail with clear error
+        with pytest.raises(KeyError, match=r"Explicit --output_key.*not found"):
+            load_test_data(path, output_key="typo_output_key")
+
+    def test_fallback_without_explicit_keys_works(self, temp_dir):
+        """Verify that outputs-missing fallback still works when no explicit keys provided.
+
+        This is a regression test to ensure the new strict validation
+        doesn't break the legitimate fallback for inference-only mode
+        (when test data has inputs but no ground truth outputs).
+        """
+        # Create file with only inputs (inference-only scenario)
+        X = np.random.randn(10, 32, 32).astype(np.float32)
+
+        path = os.path.join(temp_dir, "inference_only.npz")
+        np.savez(path, input_test=X)
+
+        # Without explicit keys, should fall back to inference-only mode
+        X_loaded, y_loaded = load_test_data(path)
+
+        assert X_loaded.shape[0] == 10
+        assert y_loaded is None  # No outputs available
