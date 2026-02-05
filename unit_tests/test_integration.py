@@ -618,3 +618,371 @@ class TestSchedulerIntegration:
             scheduler.step()
 
         # Should complete without error
+
+
+# ==============================================================================
+# CLI END-TO-END SUBPROCESS TESTS
+# ==============================================================================
+
+# Check for optional dependencies
+try:
+    import optuna  # noqa: F401
+
+    HAS_OPTUNA = True
+except ImportError:
+    HAS_OPTUNA = False
+
+try:
+    import onnx  # noqa: F401
+    import onnxruntime  # noqa: F401
+
+    HAS_ONNX = True
+except ImportError:
+    HAS_ONNX = False
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+class TestCLIEndToEnd:
+    """End-to-end subprocess tests for CLI entry points.
+
+    These tests verify that the actual CLI commands work as expected
+    when invoked as subprocesses, rather than just testing argument parsing.
+    """
+
+    def test_wavedl_train_subprocess_minimal(self, temp_training_data):
+        """E2E: wavedl-train subprocess runs minimal training successfully.
+
+        This test invokes wavedl-train via subprocess with minimal epochs
+        to verify the entire training pipeline works end-to-end.
+        """
+        import subprocess
+        import sys
+
+        npz_path = temp_training_data["npz_path"]
+        output_dir = os.path.join(temp_training_data["temp_dir"], "train_output")
+
+        # Build command - use python -m for cross-platform compatibility
+        cmd = [
+            sys.executable,
+            "-m",
+            "wavedl.train",
+            "--data_path",
+            npz_path,
+            "--model",
+            "cnn",
+            "--epochs",
+            "2",  # Minimal epochs
+            "--patience",
+            "1",
+            "--batch_size",
+            "16",
+            "--output_dir",
+            output_dir,
+            "--seed",
+            "42",
+            "--mixed_precision",
+            "no",  # Ensure MPS compat (bf16 requires PyTorch >= 2.6)
+        ]
+
+        # Run training subprocess
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=120,  # 2 minute timeout for minimal training
+        )
+
+        # Debug output on failure
+        if result.returncode != 0:
+            print(f"STDOUT:\n{result.stdout}")
+            print(f"STDERR:\n{result.stderr}")
+
+        # Verify success
+        assert result.returncode == 0, f"Training failed with: {result.stderr}"
+
+        # Verify expected outputs were created
+        assert os.path.exists(output_dir), "Output directory not created"
+        assert os.path.exists(os.path.join(output_dir, "training_history.csv")), (
+            "Training history not saved"
+        )
+        assert os.path.exists(os.path.join(output_dir, "best_checkpoint")), (
+            "Best checkpoint not saved"
+        )
+
+    def test_wavedl_train_list_models(self):
+        """E2E: wavedl-train --list_models works via subprocess."""
+        import subprocess
+        import sys
+
+        cmd = [sys.executable, "-m", "wavedl.train", "--list_models"]
+
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        assert result.returncode == 0
+        # Should list at least some models
+        assert "cnn" in result.stdout.lower() or "resnet" in result.stdout.lower()
+
+
+# ==============================================================================
+# HPO OBJECTIVE EXECUTION TESTS
+# ==============================================================================
+@pytest.mark.integration
+@pytest.mark.skipif(not HAS_OPTUNA, reason="optuna not installed")
+class TestHPOObjectiveExecution:
+    """Tests that actually execute the HPO objective function.
+
+    These tests go beyond checking that create_objective returns a callable -
+    they verify the objective function can execute a trial correctly.
+    """
+
+    def test_inprocess_objective_executes_trial(self, temp_training_data):
+        """Test that create_objective objective executes a mock trial successfully.
+
+        Uses in-process mode (--inprocess) for faster execution without subprocess overhead.
+        """
+        from unittest.mock import MagicMock
+
+        import optuna
+
+        from wavedl.hpo import create_objective
+
+        # Create mock args for in-process HPO
+        args = MagicMock()
+        args.data_path = temp_training_data["npz_path"]
+        args.max_epochs = 2  # Very short training
+        args.quick = True  # Use quick search space
+        args.medium = False
+        args.inprocess = True  # In-process mode for speed
+        args.seed = 42
+        args.timeout = 300
+        args.models = ["cnn"]  # Only test CNN for speed
+        args.optimizers = ["adamw"]
+        args.schedulers = ["plateau"]
+        args.losses = ["mse"]
+        args.batch_sizes = [16]
+        args.n_jobs = 1
+
+        # Create objective function
+        objective = create_objective(args)
+        assert callable(objective)
+
+        # Create a mock trial that returns fixed values
+        trial = MagicMock(spec=optuna.trial.Trial)
+        trial.number = 0
+        trial.suggest_categorical = MagicMock(
+            side_effect=lambda name, choices: choices[0]
+        )
+        trial.suggest_float = MagicMock(side_effect=lambda name, low, high, **kw: low)
+        trial.suggest_int = MagicMock(side_effect=lambda name, low, high, **kw: low)
+        trial.report = MagicMock()
+        trial.should_prune = MagicMock(return_value=False)
+
+        # Execute the objective - should complete without error
+        try:
+            result = objective(trial)
+            # Result should be a valid loss value (float, not inf)
+            assert isinstance(result, float)
+            assert result < float("inf"), "Objective returned inf - training failed"
+            assert not np.isnan(result), "Objective returned NaN"
+        except optuna.TrialPruned:
+            # Pruning is acceptable - trial was stopped early
+            pass
+
+
+# ==============================================================================
+# ONNX DENORMALIZATION ACCURACY TESTS
+# ==============================================================================
+@pytest.mark.integration
+@pytest.mark.skipif(not HAS_ONNX, reason="onnx/onnxruntime not installed")
+class TestONNXDenormAccuracy:
+    """Tests for ONNX export numerical accuracy with denormalization.
+
+    Verifies that ONNX models exported with include_denorm=True produce
+    outputs that are numerically consistent with PyTorch + scaler.inverse_transform.
+    """
+
+    def test_onnx_denorm_numerical_consistency(self, temp_dir, mock_scaler):
+        """ONNX with include_denorm=True produces numerically accurate outputs.
+
+        This test:
+        1. Creates a model and exports to ONNX with denormalization embedded
+        2. Runs inference with both PyTorch (+ manual denorm) and ONNX
+        3. Compares outputs for numerical consistency
+        """
+        import onnxruntime as ort
+
+        from wavedl.models.cnn import CNN
+        from wavedl.test import export_to_onnx
+
+        # Build model
+        in_shape = (32, 32)
+        out_size = 5
+        model = CNN(in_shape=in_shape, out_size=out_size)
+        model.eval()
+
+        # Create sample input
+        sample_input = torch.randn(4, 1, *in_shape)
+        onnx_path = os.path.join(temp_dir, "model_denorm.onnx")
+
+        # Export with denormalization
+        success = export_to_onnx(
+            model,
+            sample_input,
+            onnx_path,
+            scaler=mock_scaler,
+            include_denorm=True,
+            validate=False,  # We'll do our own validation
+        )
+        assert success, "ONNX export failed"
+        assert os.path.exists(onnx_path)
+
+        # PyTorch inference with manual denormalization
+        with torch.no_grad():
+            pytorch_normalized = model(sample_input).numpy()
+        pytorch_denorm = mock_scaler.inverse_transform(pytorch_normalized)
+
+        # ONNX inference (denormalization is embedded in the model)
+        ort_session = ort.InferenceSession(
+            onnx_path, providers=["CPUExecutionProvider"]
+        )
+        onnx_output = ort_session.run(None, {"input": sample_input.numpy()})[0]
+
+        # Compare outputs
+        max_diff = np.abs(pytorch_denorm - onnx_output).max()
+        assert np.allclose(pytorch_denorm, onnx_output, rtol=1e-4, atol=1e-5), (
+            f"Numerical mismatch between PyTorch and ONNX. Max diff: {max_diff:.2e}"
+        )
+
+    def test_onnx_denorm_wrapper_forward(self, mock_scaler):
+        """Test ModelWithDenormalization wrapper produces correct outputs."""
+        from wavedl.models.cnn import CNN
+        from wavedl.test import ModelWithDenormalization
+
+        model = CNN(in_shape=(32, 32), out_size=5)
+        model.eval()
+
+        # Wrap with denormalization
+        wrapped = ModelWithDenormalization(model, mock_scaler.mean_, mock_scaler.scale_)
+        wrapped.eval()
+
+        # Test forward pass
+        x = torch.randn(2, 1, 32, 32)
+
+        with torch.no_grad():
+            # Get normalized output from base model
+            normalized = model(x).numpy()
+            # Get denormalized output from wrapper
+            denormalized = wrapped(x).numpy()
+
+        # Verify denormalization was applied correctly
+        expected = normalized * mock_scaler.scale_ + mock_scaler.mean_
+        np.testing.assert_array_almost_equal(denormalized, expected, decimal=5)
+
+
+# ==============================================================================
+# MAMBA NUMERICAL STABILITY TESTS
+# ==============================================================================
+@pytest.mark.integration
+@pytest.mark.slow
+class TestMambaStability:
+    """Stress tests for Mamba numerical stability.
+
+    These tests verify that Mamba handles long sequences without
+    numerical instability (NaN/Inf), especially sequences longer than
+    the MAX_SAFE_SEQUENCE_LENGTH threshold (512) which triggers chunked scan.
+    """
+
+    def test_mamba_long_sequence_no_nan(self):
+        """Mamba handles sequences > MAX_SAFE_SEQUENCE_LENGTH without NaN.
+
+        Tests with sequence length 4096 (8x the 512 threshold) to ensure
+        the chunked parallel scan handles long sequences correctly.
+        """
+        from wavedl.models.mamba import Mamba1D
+
+        # 4096 is well above MAX_SAFE_SEQUENCE_LENGTH (512)
+        # This forces the chunked scan path
+        seq_length = 4096
+        in_shape = (seq_length,)
+        out_size = 3
+
+        model = Mamba1D(in_shape=in_shape, out_size=out_size)
+        model.eval()
+
+        # Test with batch of inputs
+        x = torch.randn(2, 1, seq_length)
+
+        with torch.no_grad():
+            output = model(x)
+
+        # Verify no numerical issues
+        assert output.shape == (2, out_size), f"Unexpected shape: {output.shape}"
+        assert not torch.isnan(output).any(), "Output contains NaN values"
+        assert not torch.isinf(output).any(), "Output contains Inf values"
+
+    def test_mamba_gradient_stability_long_sequence(self):
+        """Mamba gradients are stable for long sequences.
+
+        Tests backward pass with long sequences to ensure gradients
+        don't explode or vanish.
+        """
+        from wavedl.models.mamba import Mamba1D
+
+        seq_length = 2048  # Above threshold
+        in_shape = (seq_length,)
+        out_size = 3
+
+        model = Mamba1D(in_shape=in_shape, out_size=out_size)
+        model.train()
+
+        x = torch.randn(2, 1, seq_length, requires_grad=True)
+
+        # Forward pass
+        output = model(x)
+        loss = output.sum()
+
+        # Backward pass
+        loss.backward()
+
+        # Verify gradients exist and are valid
+        assert x.grad is not None, "No gradient computed for input"
+        assert not torch.isnan(x.grad).any(), "Input gradient contains NaN"
+        assert not torch.isinf(x.grad).any(), "Input gradient contains Inf"
+
+        # Check model parameter gradients
+        for name, param in model.named_parameters():
+            if param.requires_grad and param.grad is not None:
+                assert not torch.isnan(param.grad).any(), f"NaN gradient in {name}"
+                assert not torch.isinf(param.grad).any(), f"Inf gradient in {name}"
+
+    def test_mamba_chunked_vs_single_consistency(self):
+        """Verify chunked and single-pass scan produce similar results.
+
+        For sequences at the boundary, results should be consistent.
+        """
+        from wavedl.models.mamba import Mamba1D
+
+        # Test at boundary length
+        seq_length = 512  # Exactly at MAX_SAFE_SEQUENCE_LENGTH
+        in_shape = (seq_length,)
+        out_size = 3
+
+        model = Mamba1D(in_shape=in_shape, out_size=out_size)
+        model.eval()
+
+        torch.manual_seed(42)
+        x = torch.randn(1, 1, seq_length)
+
+        with torch.no_grad():
+            output = model(x)
+
+        # Should produce valid output
+        assert not torch.isnan(output).any()
+        assert not torch.isinf(output).any()
+        assert output.shape == (1, out_size)

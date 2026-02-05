@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-02-05
+
+### Added
+- **HPO**: `--medium` search preset (balanced between `--quick` and full)
+- **HPO**: `--inprocess` mode for in-process trial execution with pruning support (faster, but no GPU memory isolation)
+- **Training**: `train_single_trial()` function for programmatic HPO integration with pruning callbacks
+- **Tests**: 368 new lines in `test_integration.py` covering CLI E2E subprocess tests, HPO objective execution, ONNX denormalization accuracy, and Mamba long-sequence stability
+- **Utils**: `setup_hpc_cache_dirs()` exported as public API for HPC environments
+
+### Changed
+- **Mamba**: Chunked parallel scan for sequences > 512 tokens (numerical stability), warning for sequences > 2048
+- **ViT**: `MultiHeadAttention` now uses `F.scaled_dot_product_attention` (PyTorch 2.0+ fused attention)
+- **CNN**: Added proper weight initialization (Kaiming for conv, Xavier for linear)
+- **Refactoring**: Consolidated `_setup_cache_dir()` into `wavedl.utils.setup_hpc_cache_dirs()`
+- **Refactoring**: Consolidated `LayerNormNd` into `_pretrained_utils.py` (removed duplicate from `convnext.py`)
+- **Refactoring**: Added `DropPath` and `freeze_backbone()` utilities to `_pretrained_utils.py`
+- **Refactoring**: Extracted `_run_train_epoch()` and `_run_validation()` helpers in `train.py`
+- **HPO**: Subprocess mode now uses `NopPruner`; in-process mode uses `MedianPruner`
+- **HPO**: Conditional args (`huber_delta`, `momentum`) always set with defaults, not `None`
+
+### Fixed
+- **Mamba**: Numerical overflow on long sequences (> 512) via chunked scan
+- **ConvNeXt V2**: Renamed misleading class names to match architecture
+- **Metrics**: Type hint `any` → `Any` in `load_checkpoint()` return type
+- **Training**: Removed redundant `MPLCONFIGDIR` setup (already handled by `setup_hpc_cache_dirs()`)
+- **ResNet3D**: Input channel adaptation uses shared `_adapt_input_channels()` utility
+- **UniRepLKNet**: Input channel adaptation uses shared utility
+- **Template**: Fixed docstring placeholder in `_template.py`
+
 ## [1.6.3] - 2026-02-05
 
 ### Fixed

@@ -136,6 +136,28 @@ class ResNet3DBase(BaseModel):
         if freeze_backbone:
             self._freeze_backbone()
 
+        # Adapt first conv for single-channel input (instead of expand in forward)
+        self._adapt_stem_for_single_channel()
+
+    def _adapt_stem_for_single_channel(self):
+        """Modify stem conv to accept 1 channel, averaging pretrained RGB weights."""
+        old_conv = self.backbone.stem[0]
+        new_conv = nn.Conv3d(
+            1,
+            old_conv.out_channels,
+            kernel_size=old_conv.kernel_size,
+            stride=old_conv.stride,
+            padding=old_conv.padding,
+            bias=old_conv.bias is not None,
+        )
+        if self.pretrained:
+            with torch.no_grad():
+                # Average RGB weights for grayscale initialization
+                new_conv.weight.copy_(old_conv.weight.mean(dim=1, keepdim=True))
+                if old_conv.bias is not None:
+                    new_conv.bias.copy_(old_conv.bias)
+        self.backbone.stem[0] = new_conv
+
     def _freeze_backbone(self):
         """Freeze all backbone parameters except the fc head."""
         for name, param in self.backbone.named_parameters():
@@ -147,15 +169,11 @@ class ResNet3DBase(BaseModel):
         Forward pass.
 
         Args:
-            x: Input tensor of shape (B, C, D, H, W) where C is 1 or 3
+            x: Input tensor of shape (B, 1, D, H, W)
 
         Returns:
             Output tensor of shape (B, out_size)
         """
-        # Expand single channel to 3 channels for pretrained weights compatibility
-        if x.size(1) == 1:
-            x = x.expand(-1, 3, -1, -1, -1)
-
         return self.backbone(x)
 
     @classmethod

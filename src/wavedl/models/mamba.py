@@ -56,6 +56,14 @@ __all__ = [
 # SELECTIVE SSM CORE (Pure PyTorch Implementation)
 # =============================================================================
 
+# Maximum sequence length for stable parallel scan without chunking
+# Beyond this, the chunked implementation is used automatically
+MAX_SAFE_SEQUENCE_LENGTH = 512
+
+# Recommended maximum for this pure-PyTorch implementation
+# For longer sequences, consider using the optimized mamba-ssm package
+MAX_RECOMMENDED_SEQUENCE_LENGTH = 2048
+
 
 class SelectiveSSM(nn.Module):
     """
@@ -64,8 +72,17 @@ class SelectiveSSM(nn.Module):
     The key innovation is making the SSM parameters (B, C, Δ) input-dependent,
     allowing the model to selectively focus on or ignore inputs.
 
-    This is a simplified pure-PyTorch implementation. For production use,
-    consider the optimized mamba-ssm package.
+    This is a pure-PyTorch implementation with chunked parallel scan for
+    numerical stability. For sequences > 2048 or production use, consider
+    the optimized mamba-ssm package with CUDA kernels.
+
+    Args:
+        d_model: Model dimension
+        d_state: SSM state dimension (default: 16)
+        d_conv: Local convolution width (default: 4)
+        expand: Expansion factor for inner dimension (default: 2)
+        chunk_size: Chunk size for parallel scan (default: 256).
+            Smaller = more stable but slower. Larger = faster but may overflow.
     """
 
     def __init__(
@@ -74,12 +91,14 @@ class SelectiveSSM(nn.Module):
         d_state: int = 16,
         d_conv: int = 4,
         expand: int = 2,
+        chunk_size: int = 256,
     ):
         super().__init__()
 
         self.d_model = d_model
         self.d_state = d_state
         self.d_inner = d_model * expand
+        self.chunk_size = chunk_size
 
         # Input projection
         self.in_proj = nn.Linear(d_model, self.d_inner * 2, bias=False)
@@ -116,6 +135,17 @@ class SelectiveSSM(nn.Module):
         """
         _B, L, _D = x.shape
 
+        # Warn for very long sequences
+        if L > MAX_RECOMMENDED_SEQUENCE_LENGTH and self.training:
+            import warnings
+
+            warnings.warn(
+                f"Sequence length {L} > {MAX_RECOMMENDED_SEQUENCE_LENGTH}. "
+                "Consider using mamba-ssm package for better performance.",
+                UserWarning,
+                stacklevel=2,
+            )
+
         # Input projection and split
         xz = self.in_proj(x)  # (B, L, 2*d_inner)
         x, z = xz.chunk(2, dim=-1)  # Each: (B, L, d_inner)
@@ -135,8 +165,11 @@ class SelectiveSSM(nn.Module):
         # Discretize A
         A = -torch.exp(self.A_log)  # (d_state,)
 
-        # Selective scan (simplified, not optimized)
-        y = self._selective_scan(x, delta, A, B_param, C_param, self.D)
+        # Use chunked scan for long sequences, direct scan for short
+        if L > MAX_SAFE_SEQUENCE_LENGTH:
+            y = self._chunked_selective_scan(x, delta, A, B_param, C_param, self.D)
+        else:
+            y = self._selective_scan_single(x, delta, A, B_param, C_param, self.D)
 
         # Gating
         y = y * F.silu(z)
@@ -144,7 +177,7 @@ class SelectiveSSM(nn.Module):
         # Output projection
         return self.out_proj(y)
 
-    def _selective_scan(
+    def _selective_scan_single(
         self,
         x: torch.Tensor,
         delta: torch.Tensor,
@@ -154,54 +187,109 @@ class SelectiveSSM(nn.Module):
         D: torch.Tensor,
     ) -> torch.Tensor:
         """
-        Vectorized selective scan using parallel associative scan.
+        Single-chunk parallel scan for short sequences (L <= MAX_SAFE_SEQUENCE_LENGTH).
 
-        This implementation avoids the sequential for-loop by computing
-        all timesteps in parallel using cumulative products and sums.
-        ~100x faster than the naive sequential implementation.
+        Uses log-space cumsum which is stable for short sequences.
         """
+        # Compute discretized A_bar: (B, L, d_inner, d_state)
+        A_bar = torch.exp(delta.unsqueeze(-1) * A)
 
-        # Compute discretized A_bar for all timesteps: (B, L, d_inner, d_state)
-        A_bar = torch.exp(delta.unsqueeze(-1) * A)  # (B, L, d_inner, d_state)
-
-        # Compute input contribution: delta * B * x for all timesteps
-        # B: (B, L, d_state), x: (B, L, d_inner), delta: (B, L, d_inner)
-        # Result: (B, L, d_inner, d_state)
+        # Input contribution: (B, L, d_inner, d_state)
         BX = delta.unsqueeze(-1) * B.unsqueeze(2) * x.unsqueeze(-1)
 
-        # Parallel scan using log-space cumulative products for numerical stability
-        # For SSM: h[t] = A_bar[t] * h[t-1] + BX[t]
-        # This is a linear recurrence that can be solved with associative scan
-
-        # Use chunked approach for memory efficiency with parallel scan
-        # Compute cumulative product of A_bar (in log space for stability)
+        # Log-space parallel scan
         log_A_bar = torch.log(A_bar.clamp(min=1e-10))
-        log_A_cumsum = torch.cumsum(log_A_bar, dim=1)  # (B, L, d_inner, d_state)
-        A_cumsum = torch.exp(log_A_cumsum)
+        log_A_cumsum = torch.cumsum(log_A_bar, dim=1)
+        A_cumsum = torch.exp(log_A_cumsum.clamp(max=80))  # Prevent overflow
 
-        # For each timestep t, we need: sum_{s=0}^{t} (prod_{k=s+1}^{t} A_bar[k]) * BX[s]
-        # = sum_{s=0}^{t} (A_cumsum[t] / A_cumsum[s]) * BX[s]
-        # = A_cumsum[t] * sum_{s=0}^{t} (BX[s] / A_cumsum[s])
-
-        # Compute BX / A_cumsum (use A_cumsum shifted by 1 for proper indexing)
-        # A_cumsum[s] represents prod_{k=0}^{s} A_bar[k], but we need prod_{k=0}^{s-1}
-        # So we shift: use A_cumsum from previous timestep
+        # Shifted cumsum for proper indexing
         A_cumsum_shifted = F.pad(A_cumsum[:, :-1], (0, 0, 0, 0, 1, 0), value=1.0)
 
-        # Weighted input: BX[s] / A_cumsum[s-1] = BX[s] * exp(-log_A_cumsum[s-1])
+        # Weighted input and cumsum
         weighted_BX = BX / A_cumsum_shifted.clamp(min=1e-10)
-
-        # Cumulative sum of weighted inputs
         weighted_BX_cumsum = torch.cumsum(weighted_BX, dim=1)
 
-        # Final state at each timestep: h[t] = A_cumsum[t] * weighted_BX_cumsum[t]
-        # But A_cumsum includes A_bar[0], so adjust
+        # Final state
         h = A_cumsum * weighted_BX_cumsum / A_bar.clamp(min=1e-10)
 
-        # Output: y = C * h + D * x
-        # h: (B, L, d_inner, d_state), C: (B, L, d_state)
-        y = (C.unsqueeze(2) * h).sum(-1) + D * x  # (B, L, d_inner)
+        # Output
+        y = (C.unsqueeze(2) * h).sum(-1) + D * x
+        return y
 
+    def _chunked_selective_scan(
+        self,
+        x: torch.Tensor,
+        delta: torch.Tensor,
+        A: torch.Tensor,
+        B: torch.Tensor,
+        C: torch.Tensor,
+        D: torch.Tensor,
+    ) -> torch.Tensor:
+        """
+        Chunked parallel scan for long sequences.
+
+        Processes in chunks of self.chunk_size, carrying state between chunks.
+        This prevents log-cumsum from growing unbounded while maintaining
+        reasonable parallelism within each chunk.
+        """
+        batch_size, seq_len, d_inner = x.shape
+        d_state = self.d_state
+        chunk_size = self.chunk_size
+
+        # Initialize output and state
+        y_chunks = []
+        h_state = torch.zeros(
+            batch_size, d_inner, d_state, device=x.device, dtype=x.dtype
+        )
+
+        # Process in chunks
+        for start in range(0, seq_len, chunk_size):
+            end = min(start + chunk_size, seq_len)
+
+            # Extract chunk
+            x_chunk = x[:, start:end]
+            delta_chunk = delta[:, start:end]
+            B_chunk = B[:, start:end]
+            C_chunk = C[:, start:end]
+
+            # Compute A_bar for chunk: (B, chunk_len, d_inner, d_state)
+            A_bar = torch.exp(delta_chunk.unsqueeze(-1) * A)
+
+            # Input contribution
+            BX = (
+                delta_chunk.unsqueeze(-1) * B_chunk.unsqueeze(2) * x_chunk.unsqueeze(-1)
+            )
+
+            # Within-chunk parallel scan (short enough to be stable)
+            log_A_bar = torch.log(A_bar.clamp(min=1e-10))
+            log_A_cumsum = torch.cumsum(log_A_bar, dim=1)
+            A_cumsum = torch.exp(log_A_cumsum.clamp(max=80))
+
+            A_cumsum_shifted = F.pad(A_cumsum[:, :-1], (0, 0, 0, 0, 1, 0), value=1.0)
+            weighted_BX = BX / A_cumsum_shifted.clamp(min=1e-10)
+            weighted_BX_cumsum = torch.cumsum(weighted_BX, dim=1)
+
+            # Chunk-internal state (without carry-over)
+            h_chunk_internal = A_cumsum * weighted_BX_cumsum / A_bar.clamp(min=1e-10)
+
+            # Add contribution from previous state
+            # h_state: (B, d_inner, d_state) -> (B, 1, d_inner, d_state)
+            # A_cumsum: (B, chunk_len, d_inner, d_state)
+            h_state_contribution = h_state.unsqueeze(1) * A_cumsum
+
+            # Total state for this chunk
+            h_chunk = h_chunk_internal + h_state_contribution
+
+            # Output for this chunk
+            y_chunk = (C_chunk.unsqueeze(2) * h_chunk).sum(-1) + D * x_chunk
+            y_chunks.append(y_chunk)
+
+            # Update carry-over state for next chunk
+            # Final state of this chunk: h_chunk[:, -1]
+            h_state = h_chunk[:, -1]
+
+        # Concatenate all chunks
+        y = torch.cat(y_chunks, dim=1)
         return y
 
 

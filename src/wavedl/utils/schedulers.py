@@ -76,7 +76,7 @@ def get_scheduler(
     # Step/MultiStep parameters
     step_size: int = 30,
     milestones: list[int] | None = None,
-    gamma: float = 0.1,
+    gamma: float = 0.99,
     # Linear warmup parameters
     warmup_epochs: int = 5,
     start_factor: float = 0.1,
@@ -100,7 +100,7 @@ def get_scheduler(
         pct_start: Percentage of cycle spent increasing LR (OneCycleLR)
         step_size: Period for StepLR
         milestones: Epochs to decay LR for MultiStepLR
-        gamma: Decay factor for step/multistep/exponential
+        gamma: Decay factor (0.1 for step/multistep, 0.99 for exponential)
         warmup_epochs: Number of warmup epochs for linear_warmup
         start_factor: Starting LR factor for warmup (LR * start_factor)
         **kwargs: Additional arguments passed to scheduler

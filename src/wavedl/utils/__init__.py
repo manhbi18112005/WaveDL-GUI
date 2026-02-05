@@ -8,25 +8,64 @@ Author: Ductho Le (ductho.le@outlook.com)
 Version: 1.0.0
 """
 
-from .config import (
+import os
+
+
+def setup_hpc_cache_dirs() -> None:
+    """
+    Configure cache directories for HPC environments with read-only home.
+
+    Auto-configures writable cache directories when home is not writable.
+    Uses current working directory as fallback - works on HPC and local machines.
+
+    Call this BEFORE importing libraries that use cache directories:
+        - torch (TORCH_HOME)
+        - matplotlib (MPLCONFIGDIR)
+        - fontconfig (FONTCONFIG_CACHE)
+
+    Example:
+        from wavedl.utils import setup_hpc_cache_dirs
+        setup_hpc_cache_dirs()  # Must be before torch/matplotlib imports
+    """
+
+    def _setup_cache_dir(env_var: str, subdir: str) -> None:
+        if env_var in os.environ:
+            return  # User already set, respect their choice
+        home = os.path.expanduser("~")
+        if os.access(home, os.W_OK):
+            return  # Home is writable, let library use defaults
+        # Home not writable - use current working directory
+        cache_path = os.path.join(os.getcwd(), f".{subdir}")
+        os.makedirs(cache_path, exist_ok=True)
+        os.environ[env_var] = cache_path
+
+    _setup_cache_dir("TORCH_HOME", "torch_cache")
+    _setup_cache_dir("MPLCONFIGDIR", "matplotlib")
+    _setup_cache_dir("FONTCONFIG_CACHE", "fontconfig")
+    _setup_cache_dir("XDG_DATA_HOME", "local/share")
+    _setup_cache_dir("XDG_STATE_HOME", "local/state")
+    _setup_cache_dir("XDG_CACHE_HOME", "cache")
+
+
+from .config import (  # noqa: E402
     create_default_config,
     load_config,
     merge_config_with_args,
     save_config,
     validate_config,
 )
-from .constraints import (
+from .constraints import (  # noqa: E402
     ExpressionConstraint,
     FileConstraint,
     PhysicsConstrainedLoss,
     build_constraints,
 )
-from .cross_validation import (
+from .cross_validation import (  # noqa: E402
     CVDataset,
     run_cross_validation,
     train_fold,
 )
-from .data import (
+from .data import (  # noqa: E402
     # Multi-format data loading
     DataSource,
     HDF5Source,
@@ -40,18 +79,18 @@ from .data import (
     memmap_worker_init_fn,
     prepare_data,
 )
-from .distributed import (
+from .distributed import (  # noqa: E402
     broadcast_early_stop,
     broadcast_value,
     sync_tensor,
 )
-from .losses import (
+from .losses import (  # noqa: E402
     LogCoshLoss,
     WeightedMSELoss,
     get_loss,
     list_losses,
 )
-from .metrics import (
+from .metrics import (  # noqa: E402
     COLORS,
     FIGURE_DPI,
     FIGURE_WIDTH_CM,
@@ -76,12 +115,12 @@ from .metrics import (
     plot_residuals,
     plot_scientific_scatter,
 )
-from .optimizers import (
+from .optimizers import (  # noqa: E402
     get_optimizer,
     get_optimizer_with_param_groups,
     list_optimizers,
 )
-from .schedulers import (
+from .schedulers import (  # noqa: E402
     get_scheduler,
     get_scheduler_with_warmup,
     is_epoch_based,
@@ -156,6 +195,7 @@ __all__ = [
     # Cross-Validation
     "run_cross_validation",
     "save_config",
+    "setup_hpc_cache_dirs",
     "sync_tensor",
     "train_fold",
     "validate_config",

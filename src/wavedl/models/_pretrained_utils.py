@@ -167,6 +167,78 @@ class LayerNormNd(nn.Module):
 
 
 # =============================================================================
+# STOCHASTIC DEPTH (DropPath)
+# =============================================================================
+
+
+class DropPath(nn.Module):
+    """
+    Stochastic Depth (drop path) regularization for residual networks.
+
+    Randomly drops entire residual branches during training. Used in modern
+    architectures like ConvNeXt, Swin Transformer, UniRepLKNet.
+
+    Args:
+        drop_prob: Probability of dropping the path (default: 0.0)
+
+    Reference:
+        Huang, G., et al. (2016). Deep Networks with Stochastic Depth.
+        https://arxiv.org/abs/1603.09382
+    """
+
+    def __init__(self, drop_prob: float = 0.0):
+        super().__init__()
+        self.drop_prob = drop_prob
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.drop_prob == 0.0 or not self.training:
+            return x
+
+        keep_prob = 1 - self.drop_prob
+        # Shape: (batch_size, 1, 1, ...) for broadcasting
+        shape = (x.shape[0],) + (1,) * (x.ndim - 1)
+        random_tensor = keep_prob + torch.rand(shape, dtype=x.dtype, device=x.device)
+        random_tensor.floor_()  # Binarize
+        return x.div(keep_prob) * random_tensor
+
+
+# =============================================================================
+# BACKBONE FREEZING UTILITIES
+# =============================================================================
+
+
+def freeze_backbone(
+    model: nn.Module,
+    exclude_patterns: list[str] | None = None,
+) -> int:
+    """
+    Freeze backbone parameters, keeping specified layers trainable.
+
+    Args:
+        model: The model whose parameters to freeze
+        exclude_patterns: List of patterns to exclude from freezing.
+            Parameters with names containing any of these patterns stay trainable.
+            Default: ["classifier", "head", "fc"]
+
+    Returns:
+        Number of parameters frozen
+
+    Example:
+        >>> freeze_backbone(model.backbone, exclude_patterns=["fc", "classifier"])
+    """
+    if exclude_patterns is None:
+        exclude_patterns = ["classifier", "head", "fc"]
+
+    frozen_count = 0
+    for name, param in model.named_parameters():
+        if not any(pattern in name for pattern in exclude_patterns):
+            param.requires_grad = False
+            frozen_count += param.numel()
+
+    return frozen_count
+
+
+# =============================================================================
 # REGRESSION HEAD BUILDERS
 # =============================================================================
 

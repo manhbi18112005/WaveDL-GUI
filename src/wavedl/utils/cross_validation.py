@@ -36,7 +36,9 @@ from torch.utils.data import DataLoader
 class CVDataset(torch.utils.data.Dataset):
     """Simple in-memory dataset for cross-validation."""
 
-    def __init__(self, X: np.ndarray, y: np.ndarray, expected_spatial_ndim: int = None):
+    def __init__(
+        self, X: np.ndarray, y: np.ndarray, expected_spatial_ndim: int | None = None
+    ):
         """
         Initialize CV dataset with explicit channel dimension handling.
 
@@ -51,6 +53,11 @@ class CVDataset(torch.utils.data.Dataset):
             - If X.ndim == expected_spatial_ndim + 1: Add channel dim (N, *spatial) -> (N, 1, *spatial)
             - If X.ndim == expected_spatial_ndim + 2: Already has channel (N, C, *spatial)
             - If expected_spatial_ndim is None: Use legacy ndim-based inference
+
+        Warning:
+            Legacy mode (expected_spatial_ndim=None) may misinterpret multichannel
+            3D data as single-channel 4D data. Always pass expected_spatial_ndim
+            explicitly for 3D volumes with >1 channel.
         """
         if expected_spatial_ndim is not None:
             # Explicit mode: use expected_spatial_ndim to determine if channel exists
@@ -100,6 +107,7 @@ def train_fold(
     device: torch.device,
     epochs: int,
     patience: int,
+    grad_clip: float,
     scaler: StandardScaler,
     logger: logging.Logger,
 ) -> dict[str, Any]:
@@ -147,7 +155,8 @@ def train_fold(
             pred = model(x)
             loss = criterion(pred, y)
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            if grad_clip > 0:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
             optimizer.step()
 
             # Per-batch LR scheduling (OneCycleLR)
@@ -289,6 +298,7 @@ def run_cross_validation(
     output_dir: str = "./cv_results",
     workers: int = 4,
     seed: int = 2025,
+    grad_clip: float = 1.0,
     logger: logging.Logger | None = None,
 ) -> dict[str, Any]:
     """
@@ -330,8 +340,10 @@ def run_cross_validation(
         )
         logger = logging.getLogger("CV-Trainer")
 
-    # Set seeds
-    np.random.seed(seed)
+    # Set seeds for reproducibility
+    # Note: sklearn KFold uses random_state parameter directly, not global numpy RNG
+    rng = np.random.default_rng(seed)  # Local RNG for any numpy operations
+    _ = rng  # Silence unused variable warning (available for future use)
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
@@ -444,6 +456,7 @@ def run_cross_validation(
             device=device,
             epochs=epochs,
             patience=patience,
+            grad_clip=grad_clip,
             scaler=scaler,
             logger=logger,
         )

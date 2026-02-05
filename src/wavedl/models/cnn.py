@@ -159,6 +159,26 @@ class CNN(BaseModel):
             nn.Linear(64, out_size),
         )
 
+        # Initialize weights
+        self._init_weights()
+
+    def _init_weights(self):
+        """Initialize weights with Kaiming for conv, Xavier for linear."""
+        for m in self.modules():
+            if isinstance(m, (nn.Conv1d, nn.Conv2d, nn.Conv3d)):
+                nn.init.kaiming_normal_(
+                    m.weight, mode="fan_out", nonlinearity="leaky_relu"
+                )
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+            elif isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+            elif isinstance(m, (nn.GroupNorm, nn.LayerNorm)):
+                nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
+
     def _make_conv_block(
         self, in_channels: int, out_channels: int, dropout: float = 0.0
     ) -> nn.Sequential:

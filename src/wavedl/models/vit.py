@@ -150,17 +150,22 @@ class PatchEmbed(nn.Module):
 
 
 class MultiHeadAttention(nn.Module):
-    """Multi-head self-attention mechanism."""
+    """
+    Multi-head self-attention mechanism.
+
+    Uses F.scaled_dot_product_attention (PyTorch 2.0+) for efficient,
+    fused attention with automatic Flash Attention support when available.
+    """
 
     def __init__(self, embed_dim: int, num_heads: int, dropout: float = 0.0):
         super().__init__()
         self.num_heads = num_heads
         self.head_dim = embed_dim // num_heads
-        self.scale = self.head_dim**-0.5
+        self.dropout_p = dropout
 
         self.qkv = nn.Linear(embed_dim, embed_dim * 3, bias=True)
         self.proj = nn.Linear(embed_dim, embed_dim)
-        self.dropout = nn.Dropout(dropout)
+        self.proj_dropout = nn.Dropout(dropout)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, N, C = x.shape
@@ -169,13 +174,18 @@ class MultiHeadAttention(nn.Module):
         qkv = qkv.permute(2, 0, 3, 1, 4)  # (3, B, heads, N, head_dim)
         q, k, v = qkv[0], qkv[1], qkv[2]
 
-        attn = (q @ k.transpose(-2, -1)) * self.scale
-        attn = attn.softmax(dim=-1)
-        attn = self.dropout(attn)
+        # Use fused SDPA (PyTorch 2.0+) for efficiency + Flash Attention
+        x = torch.nn.functional.scaled_dot_product_attention(
+            q,
+            k,
+            v,
+            dropout_p=self.dropout_p if self.training else 0.0,
+            is_causal=False,
+        )
 
-        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
+        x = x.transpose(1, 2).reshape(B, N, C)
         x = self.proj(x)
-        x = self.dropout(x)
+        x = self.proj_dropout(x)
         return x
 
 

@@ -41,30 +41,11 @@ from __future__ import annotations
 # Uses current working directory as fallback - works on HPC and local machines.
 import os
 
-
-def _setup_cache_dir(env_var: str, subdir: str) -> None:
-    """Set cache directory to CWD if home is not writable."""
-    if env_var in os.environ:
-        return  # User already set, respect their choice
-
-    # Check if home is writable
-    home = os.path.expanduser("~")
-    if os.access(home, os.W_OK):
-        return  # Home is writable, let library use defaults
-
-    # Home not writable - use current working directory
-    cache_path = os.path.join(os.getcwd(), f".{subdir}")
-    os.makedirs(cache_path, exist_ok=True)
-    os.environ[env_var] = cache_path
+# Import and call HPC cache setup before any library imports
+from wavedl.utils import setup_hpc_cache_dirs
 
 
-# Configure cache directories (before any library imports)
-_setup_cache_dir("TORCH_HOME", "torch_cache")
-_setup_cache_dir("MPLCONFIGDIR", "matplotlib")
-_setup_cache_dir("FONTCONFIG_CACHE", "fontconfig")
-_setup_cache_dir("XDG_DATA_HOME", "local/share")
-_setup_cache_dir("XDG_STATE_HOME", "local/state")
-_setup_cache_dir("XDG_CACHE_HOME", "cache")
+setup_hpc_cache_dirs()
 
 
 def _setup_per_rank_compile_cache() -> None:
@@ -109,7 +90,11 @@ import shutil
 import sys
 import time
 import warnings
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+
+if TYPE_CHECKING:
+    import optuna
 
 
 # Suppress Pydantic warnings from accelerate's internal Field() usage
@@ -155,9 +140,8 @@ except ImportError:
 # ==============================================================================
 # RUNTIME CONFIGURATION (post-import)
 # ==============================================================================
-# Configure matplotlib paths for HPC systems without writable home directories
-os.environ.setdefault("MPLCONFIGDIR", os.getenv("TMPDIR", "/tmp") + "/matplotlib")
-os.environ.setdefault("FONTCONFIG_PATH", "/etc/fonts")
+# Note: matplotlib cache directory is already configured by setup_hpc_cache_dirs()
+# called at module load time. No additional MPLCONFIGDIR setup needed here.
 
 # Suppress warnings from known-noisy libraries, but preserve legitimate warnings
 # from torch/numpy about NaN, dtype, and numerical issues.
@@ -481,6 +465,488 @@ def parse_args() -> argparse.Namespace:
 
     args = parser.parse_args()
     return args, parser  # Returns (Namespace, ArgumentParser)
+
+
+# ==============================================================================
+# TRAINING HELPER FUNCTIONS
+# ==============================================================================
+def _run_train_epoch(
+    model,
+    train_dl,
+    optimizer,
+    criterion,
+    accelerator,
+    scheduler,
+    scheduler_step_per_batch: bool,
+    grad_clip: float,
+) -> tuple[float, float]:
+    """
+    Run one training epoch.
+
+    Args:
+        model: Model to train
+        train_dl: Training DataLoader
+        optimizer: Optimizer
+        criterion: Loss function (may be PhysicsConstrainedLoss)
+        accelerator: Accelerator instance
+        scheduler: LR scheduler
+        scheduler_step_per_batch: Whether to step scheduler per batch
+        grad_clip: Gradient clipping norm
+
+    Returns:
+        Tuple of (avg_train_loss, avg_grad_norm)
+    """
+    from wavedl.utils.constraints import PhysicsConstrainedLoss
+
+    model.train()
+    train_loss_sum = torch.tensor(0.0, device=accelerator.device)
+    train_samples = 0
+    grad_norm_tracker = MetricTracker()
+
+    for x, y in train_dl:
+        with accelerator.accumulate(model):
+            with accelerator.autocast():
+                pred = model(x)
+                if isinstance(criterion, PhysicsConstrainedLoss):
+                    loss = criterion(pred, y, x)
+                else:
+                    loss = criterion(pred, y)
+
+            accelerator.backward(loss)
+
+            if accelerator.sync_gradients:
+                grad_norm = accelerator.clip_grad_norm_(model.parameters(), grad_clip)
+                if grad_norm is not None:
+                    grad_norm_tracker.update(grad_norm.item())
+
+            optimizer.step()
+            optimizer.zero_grad(set_to_none=True)
+
+            if scheduler_step_per_batch:
+                scheduler.step()
+
+            train_loss_sum += loss.detach() * x.size(0)
+            train_samples += x.size(0)
+
+    # Sync across GPUs
+    train_loss_scalar = train_loss_sum.item()
+    global_loss = accelerator.reduce(
+        torch.tensor([train_loss_scalar], device=accelerator.device),
+        reduction="sum",
+    ).item()
+    global_samples = accelerator.reduce(
+        torch.tensor([train_samples], device=accelerator.device),
+        reduction="sum",
+    ).item()
+
+    return global_loss / global_samples, grad_norm_tracker.avg
+
+
+def _run_validation(
+    model,
+    val_dl,
+    criterion,
+    accelerator,
+    out_dim: int,
+    phys_scale: torch.Tensor,
+) -> tuple[float, np.ndarray, torch.Tensor, torch.Tensor]:
+    """
+    Run validation epoch.
+
+    Args:
+        model: Model in eval mode
+        val_dl: Validation DataLoader
+        criterion: Loss function
+        accelerator: Accelerator instance
+        out_dim: Number of output dimensions
+        phys_scale: Physical scale tensor for MAE computation
+
+    Returns:
+        Tuple of (avg_val_loss, avg_mae_per_param, gathered_preds, gathered_targets)
+    """
+    from wavedl.utils.constraints import PhysicsConstrainedLoss
+
+    model.eval()
+    val_loss_sum = torch.tensor(0.0, device=accelerator.device)
+    val_mae_sum = torch.zeros(out_dim, device=accelerator.device)
+    val_samples = 0
+    local_preds, local_targets = [], []
+
+    with torch.inference_mode():
+        for x, y in val_dl:
+            with accelerator.autocast():
+                pred = model(x)
+                if isinstance(criterion, PhysicsConstrainedLoss):
+                    loss = criterion(pred, y, x)
+                else:
+                    loss = criterion(pred, y)
+
+            val_loss_sum += loss.detach() * x.size(0)
+            val_samples += x.size(0)
+            val_mae_sum += torch.abs((pred - y) * phys_scale).sum(dim=0)
+            local_preds.append(pred.detach().cpu())
+            local_targets.append(y.detach().cpu())
+
+    # Gather across GPUs
+    local_preds_cat = torch.cat(local_preds)
+    local_targets_cat = torch.cat(local_targets)
+
+    if accelerator.num_processes > 1:
+        gathered_preds = accelerator.gather_for_metrics(
+            local_preds_cat.to(accelerator.device)
+        ).cpu()
+        gathered_targets = accelerator.gather_for_metrics(
+            local_targets_cat.to(accelerator.device)
+        ).cpu()
+    else:
+        gathered_preds = local_preds_cat
+        gathered_targets = local_targets_cat
+
+    # Sync metrics
+    val_loss_scalar = val_loss_sum.item()
+    val_metrics = torch.cat(
+        [
+            torch.tensor([val_loss_scalar], device=accelerator.device),
+            val_mae_sum,
+        ]
+    )
+    val_metrics_sync = accelerator.reduce(val_metrics, reduction="sum")
+    total_val_samples = accelerator.reduce(
+        torch.tensor([val_samples], device=accelerator.device),
+        reduction="sum",
+    ).item()
+
+    avg_val_loss = val_metrics_sync[0].item() / total_val_samples
+    avg_mae_per_param = (val_metrics_sync[1:] / total_val_samples).float().cpu().numpy()
+
+    return avg_val_loss, avg_mae_per_param, gathered_preds, gathered_targets
+
+
+def _save_best_checkpoint(
+    accelerator,
+    model,
+    args,
+    epoch: int,
+    best_val_loss: float,
+    in_shape: tuple,
+    out_dim: int,
+    scaler,
+    logger,
+) -> None:
+    """
+    Save best checkpoint with metadata.
+
+    Args:
+        accelerator: Accelerator instance
+        model: Model to save
+        args: Command-line arguments
+        epoch: Current epoch (0-indexed)
+        best_val_loss: Best validation loss
+        in_shape: Input shape
+        out_dim: Output dimension
+        scaler: StandardScaler for targets
+        logger: Logger instance
+    """
+    ckpt_dir = os.path.join(args.output_dir, "best_checkpoint")
+    with suppress_accelerate_logging():
+        accelerator.save_state(ckpt_dir, safe_serialization=False)
+
+    if accelerator.is_main_process:
+        with open(os.path.join(ckpt_dir, "training_meta.pkl"), "wb") as f:
+            pickle.dump(
+                {
+                    "epoch": epoch + 1,
+                    "best_val_loss": best_val_loss,
+                    "patience_ctr": 0,
+                    "model_name": args.model,
+                    "in_shape": in_shape,
+                    "out_dim": out_dim,
+                },
+                f,
+            )
+
+        # Save standalone weights
+        try:
+            unwrapped = accelerator.unwrap_model(model)
+        except KeyError:
+            unwrapped = model.module if hasattr(model, "module") else model
+            if hasattr(unwrapped, "_orig_mod"):
+                unwrapped = unwrapped._orig_mod
+
+        torch.save(
+            unwrapped.state_dict(),
+            os.path.join(args.output_dir, "best_model_weights.pth"),
+        )
+
+        # Copy scaler for checkpoint portability
+        scaler_src = os.path.join(args.output_dir, "scaler.pkl")
+        scaler_dst = os.path.join(ckpt_dir, "scaler.pkl")
+        if os.path.exists(scaler_src):
+            shutil.copy2(scaler_src, scaler_dst)
+
+        logger.info(f"   💾 Best model saved (val_loss: {best_val_loss:.6f})")
+
+
+# ==============================================================================
+# IN-PROCESS HPO TRAINING FUNCTION
+# ==============================================================================
+
+
+def train_single_trial(
+    data_path: str,
+    model_name: str = "cnn",
+    lr: float = 1e-3,
+    batch_size: int = 32,
+    epochs: int = 50,
+    patience: int = 20,
+    optimizer_name: str = "adamw",
+    scheduler_name: str = "plateau",
+    loss_name: str = "mse",
+    weight_decay: float = 1e-4,
+    seed: int = 2025,
+    precision: str = "bf16",
+    workers: int = 0,
+    huber_delta: float = 1.0,
+    momentum: float = 0.9,
+    trial: optuna.trial.Trial | None = None,
+    verbose: bool = False,
+) -> dict:
+    """
+    Single-trial training function for in-process HPO.
+
+    This is a lightweight training loop designed for hyperparameter optimization
+    that supports Optuna pruning callbacks. Unlike `main()`, this avoids
+    Accelerator complexity for simpler single-GPU trials.
+
+    Args:
+        data_path: Path to training data (NPZ, HDF5, MAT)
+        model_name: Model architecture name (from registry)
+        lr: Learning rate
+        batch_size: Batch size
+        epochs: Maximum epochs
+        patience: Early stopping patience
+        optimizer_name: Optimizer name (from registry)
+        scheduler_name: Scheduler name (from registry)
+        loss_name: Loss function name (from registry)
+        weight_decay: Weight decay for optimizer
+        seed: Random seed
+        precision: Mixed precision mode ("bf16", "fp16", "no")
+        workers: DataLoader workers (0 for main process only)
+        huber_delta: Delta for Huber loss
+        momentum: Momentum for SGD optimizer
+        trial: Optuna trial for pruning callbacks (None for standalone use)
+        verbose: Print training progress
+
+    Returns:
+        dict with keys:
+            - best_val_loss: Best validation loss achieved
+            - epochs_trained: Number of epochs completed
+            - final_val_loss: Validation loss at last epoch
+            - pruned: Whether trial was pruned
+
+    Raises:
+        optuna.TrialPruned: If trial should be pruned (only when trial is provided)
+    """
+    import tempfile
+
+    import torch
+    from torch.utils.data import DataLoader, TensorDataset
+
+    from wavedl.models import build_model
+    from wavedl.utils import get_loss, get_optimizer, get_scheduler, prepare_data
+
+    # Set seed for reproducibility
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+    # Device setup
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Mixed precision setup
+    use_amp = precision != "no" and torch.cuda.is_available()
+    amp_dtype = torch.bfloat16 if precision == "bf16" else torch.float16
+    scaler = torch.amp.GradScaler("cuda", enabled=(use_amp and precision == "fp16"))
+
+    # Load and prepare data using temporary directory
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create a minimal args-like object for prepare_data
+        class Args:
+            pass
+
+        args = Args()
+        args.data_path = data_path
+        args.batch_size = batch_size
+        args.workers = workers
+        args.val_size = 0.2
+        args.cache_validate = "fast"
+        args.single_channel = False
+        args.seed = seed  # Required by prepare_data for train_test_split
+
+        # Create a dummy logger
+        class DummyLogger:
+            def info(self, msg):
+                if verbose:
+                    print(msg)
+
+            def warning(self, msg):
+                if verbose:
+                    print(f"WARNING: {msg}")
+
+            def error(self, msg):
+                print(f"ERROR: {msg}")
+
+        # Create a dummy accelerator for prepare_data compatibility
+        # Note: explicit device capture needed since class body scope differs from function scope
+        _device_for_accelerator = device
+
+        class DummyAccelerator:
+            is_main_process = True
+            device = _device_for_accelerator
+            num_processes = 1
+
+            @staticmethod
+            def wait_for_everyone():
+                pass  # No-op for single-process
+
+        train_dl, val_dl, _target_scaler, in_shape, out_dim = prepare_data(
+            args, DummyLogger(), DummyAccelerator(), cache_dir=tmpdir
+        )
+
+        # Build model
+        model = build_model(model_name, in_shape=in_shape, out_size=out_dim)
+        model = model.to(device)
+
+        # Create optimizer
+        optimizer = get_optimizer(
+            name=optimizer_name,
+            params=model.get_optimizer_groups(lr, weight_decay),
+            lr=lr,
+            weight_decay=weight_decay,
+            momentum=momentum,
+        )
+
+        # Create loss function
+        criterion = get_loss(name=loss_name, delta=huber_delta)
+        criterion = criterion.to(device)
+
+        # Create scheduler
+        scheduler = get_scheduler(
+            name=scheduler_name,
+            optimizer=optimizer,
+            epochs=epochs,
+            steps_per_epoch=len(train_dl),
+            patience=patience // 2,  # Use half patience for scheduler
+        )
+        scheduler_step_per_batch = scheduler_name == "onecycle"
+
+        # Training state
+        best_val_loss = float("inf")
+        patience_ctr = 0
+        epochs_trained = 0
+        final_val_loss = float("inf")
+
+        # Training loop
+        for epoch in range(epochs):
+            epochs_trained = epoch + 1
+
+            # === Training Phase ===
+            model.train()
+            train_loss_sum = 0.0
+            train_samples = 0
+
+            for x, y in train_dl:
+                x, y = x.to(device), y.to(device)
+
+                with torch.amp.autocast(
+                    device_type="cuda", dtype=amp_dtype, enabled=use_amp
+                ):
+                    pred = model(x)
+                    loss = criterion(pred, y)
+
+                optimizer.zero_grad(set_to_none=True)
+
+                if use_amp and precision == "fp16":
+                    scaler.scale(loss).backward()
+                    scaler.step(optimizer)
+                    scaler.update()
+                else:
+                    loss.backward()
+                    optimizer.step()
+
+                if scheduler_step_per_batch:
+                    scheduler.step()
+
+                train_loss_sum += loss.item() * x.size(0)
+                train_samples += x.size(0)
+
+            avg_train_loss = train_loss_sum / train_samples
+
+            # === Validation Phase ===
+            model.eval()
+            val_loss_sum = 0.0
+            val_samples = 0
+
+            with torch.inference_mode():
+                for x, y in val_dl:
+                    x, y = x.to(device), y.to(device)
+
+                    with torch.amp.autocast(
+                        device_type="cuda", dtype=amp_dtype, enabled=use_amp
+                    ):
+                        pred = model(x)
+                        loss = criterion(pred, y)
+
+                    val_loss_sum += loss.item() * x.size(0)
+                    val_samples += x.size(0)
+
+            avg_val_loss = val_loss_sum / val_samples
+            final_val_loss = avg_val_loss
+
+            # === Optuna Integration ===
+            if trial is not None:
+                # Report intermediate result
+                trial.report(avg_val_loss, epoch)
+
+                # Check if trial should be pruned
+                if trial.should_prune():
+                    return {
+                        "best_val_loss": best_val_loss,
+                        "epochs_trained": epochs_trained,
+                        "final_val_loss": final_val_loss,
+                        "pruned": True,
+                    }
+
+            # === Early Stopping ===
+            if avg_val_loss < best_val_loss:
+                best_val_loss = avg_val_loss
+                patience_ctr = 0
+            else:
+                patience_ctr += 1
+                if patience_ctr >= patience:
+                    if verbose:
+                        print(f"Early stopping at epoch {epoch + 1}")
+                    break
+
+            # === LR Scheduling ===
+            if not scheduler_step_per_batch:
+                if scheduler_name == "plateau":
+                    scheduler.step(avg_val_loss)
+                else:
+                    scheduler.step()
+
+            if verbose:
+                print(
+                    f"Epoch {epoch + 1}/{epochs}: "
+                    f"train_loss={avg_train_loss:.6f}, val_loss={avg_val_loss:.6f}"
+                )
+
+        return {
+            "best_val_loss": best_val_loss,
+            "epochs_trained": epochs_trained,
+            "final_val_loss": final_val_loss,
+            "pruned": False,
+        }
 
 
 # ==============================================================================

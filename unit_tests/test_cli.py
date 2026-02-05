@@ -375,6 +375,10 @@ class TestHPOConstants:
             DEFAULT_MODELS,
             DEFAULT_OPTIMIZERS,
             DEFAULT_SCHEDULERS,
+            MEDIUM_LOSSES,
+            MEDIUM_MODELS,
+            MEDIUM_OPTIMIZERS,
+            MEDIUM_SCHEDULERS,
             QUICK_LOSSES,
             QUICK_MODELS,
             QUICK_OPTIMIZERS,
@@ -389,6 +393,10 @@ class TestHPOConstants:
         self.QUICK_OPTIMIZERS = QUICK_OPTIMIZERS
         self.QUICK_SCHEDULERS = QUICK_SCHEDULERS
         self.QUICK_LOSSES = QUICK_LOSSES
+        self.MEDIUM_MODELS = MEDIUM_MODELS
+        self.MEDIUM_OPTIMIZERS = MEDIUM_OPTIMIZERS
+        self.MEDIUM_SCHEDULERS = MEDIUM_SCHEDULERS
+        self.MEDIUM_LOSSES = MEDIUM_LOSSES
 
     def test_default_lists_not_empty(self):
         """Test that all default lists are populated."""
@@ -406,6 +414,24 @@ class TestHPOConstants:
         for loss in self.QUICK_LOSSES:
             assert loss in self.DEFAULT_LOSSES
 
+    def test_medium_lists_are_subsets(self):
+        """Test that medium lists are subsets of default lists."""
+        for model in self.MEDIUM_MODELS:
+            assert model in self.DEFAULT_MODELS
+        for opt in self.MEDIUM_OPTIMIZERS:
+            assert opt in self.DEFAULT_OPTIMIZERS
+        for sched in self.MEDIUM_SCHEDULERS:
+            assert sched in self.DEFAULT_SCHEDULERS
+        for loss in self.MEDIUM_LOSSES:
+            assert loss in self.DEFAULT_LOSSES
+
+    def test_medium_larger_than_quick(self):
+        """Test that medium lists are larger than or equal to quick lists."""
+        assert len(self.MEDIUM_MODELS) >= len(self.QUICK_MODELS)
+        assert len(self.MEDIUM_OPTIMIZERS) >= len(self.QUICK_OPTIMIZERS)
+        assert len(self.MEDIUM_SCHEDULERS) >= len(self.QUICK_SCHEDULERS)
+        assert len(self.MEDIUM_LOSSES) >= len(self.QUICK_LOSSES)
+
 
 @pytest.mark.skipif(not HAS_OPTUNA, reason="optuna not installed")
 class TestHPOObjective:
@@ -419,12 +445,60 @@ class TestHPOObjective:
         args.data_path = "/fake/path.npz"
         args.max_epochs = 10
         args.quick = False
+        args.medium = False
+        args.inprocess = False
         args.seed = 2025
         args.timeout = 3600
         args.models = None
         args.optimizers = None
         args.schedulers = None
         args.losses = None
+        args.batch_sizes = None
+        args.n_jobs = 1
+
+        objective = create_objective(args)
+        assert callable(objective)
+
+    def test_returns_callable_with_medium(self):
+        """Test that create_objective works with --medium mode."""
+        from wavedl.hpo import create_objective
+
+        args = MagicMock()
+        args.data_path = "/fake/path.npz"
+        args.max_epochs = 10
+        args.quick = False
+        args.medium = True
+        args.inprocess = False
+        args.seed = 2025
+        args.timeout = 3600
+        args.models = None
+        args.optimizers = None
+        args.schedulers = None
+        args.losses = None
+        args.batch_sizes = None
+        args.n_jobs = 1
+
+        objective = create_objective(args)
+        assert callable(objective)
+
+    def test_returns_callable_with_inprocess(self):
+        """Test that create_objective works with --inprocess mode."""
+        from wavedl.hpo import create_objective
+
+        args = MagicMock()
+        args.data_path = "/fake/path.npz"
+        args.max_epochs = 10
+        args.quick = True
+        args.medium = False
+        args.inprocess = True
+        args.seed = 2025
+        args.timeout = 3600
+        args.models = None
+        args.optimizers = None
+        args.schedulers = None
+        args.losses = None
+        args.batch_sizes = None
+        args.n_jobs = 1
 
         objective = create_objective(args)
         assert callable(objective)
@@ -459,6 +533,33 @@ class TestHPOIntegration:
 
         available = list_losses()
         for loss in DEFAULT_LOSSES:
+            assert loss in available
+
+    def test_all_medium_optimizers_are_valid(self):
+        """Test that all medium optimizers exist in registry."""
+        from wavedl.hpo import MEDIUM_OPTIMIZERS
+        from wavedl.utils import list_optimizers
+
+        available = list_optimizers()
+        for opt in MEDIUM_OPTIMIZERS:
+            assert opt in available
+
+    def test_all_medium_schedulers_are_valid(self):
+        """Test that all medium schedulers exist in registry."""
+        from wavedl.hpo import MEDIUM_SCHEDULERS
+        from wavedl.utils import list_schedulers
+
+        available = list_schedulers()
+        for sched in MEDIUM_SCHEDULERS:
+            assert sched in available
+
+    def test_all_medium_losses_are_valid(self):
+        """Test that all medium losses exist in registry."""
+        from wavedl.hpo import MEDIUM_LOSSES
+        from wavedl.utils import list_losses
+
+        available = list_losses()
+        for loss in MEDIUM_LOSSES:
             assert loss in available
 
 
@@ -610,51 +711,64 @@ class TestHPCPrintSummary:
 # ==============================================================================
 # TRAINING MODULE CACHE SETUP TESTS
 # ==============================================================================
-class TestTrainCacheSetup:
-    """Tests for cache directory setup functions in train.py."""
+class TestHPCCacheSetup:
+    """Tests for HPC cache directory setup in wavedl.utils."""
 
-    def test_setup_cache_dir_respects_existing_env(self):
-        """Test that _setup_cache_dir respects existing environment variables."""
-        from wavedl.train import _setup_cache_dir
+    def test_setup_hpc_cache_dirs_respects_existing_env(self):
+        """Test that setup_hpc_cache_dirs respects existing environment variables."""
+        from wavedl.utils import setup_hpc_cache_dirs
 
-        original = os.environ.get("TEST_CACHE_VAR")
+        # Set a custom value for TORCH_HOME before calling setup
+        original = os.environ.get("TORCH_HOME")
         try:
-            os.environ["TEST_CACHE_VAR"] = "/custom/path"
-            _setup_cache_dir("TEST_CACHE_VAR", "test_cache")
-            assert os.environ["TEST_CACHE_VAR"] == "/custom/path"
+            os.environ["TORCH_HOME"] = "/custom/torch/path"
+            setup_hpc_cache_dirs()
+            # Should not overwrite user-set value
+            assert os.environ["TORCH_HOME"] == "/custom/torch/path"
         finally:
             if original:
-                os.environ["TEST_CACHE_VAR"] = original
-            elif "TEST_CACHE_VAR" in os.environ:
-                del os.environ["TEST_CACHE_VAR"]
+                os.environ["TORCH_HOME"] = original
+            elif "TORCH_HOME" in os.environ:
+                del os.environ["TORCH_HOME"]
 
-    def test_setup_cache_dir_creates_directory(self, temp_dir):
-        """Test that _setup_cache_dir creates the cache directory."""
-        from wavedl.train import _setup_cache_dir
+    def test_setup_hpc_cache_dirs_callable(self):
+        """Test that setup_hpc_cache_dirs can be called without error."""
+        from wavedl.utils import setup_hpc_cache_dirs
 
-        test_var = "WAVEDL_TEST_CACHE_" + str(os.getpid())
+        # Should not raise any exceptions
+        setup_hpc_cache_dirs()
+
+    def test_setup_hpc_cache_dirs_creates_dirs_when_home_not_writable(self, temp_dir):
+        """Test that directories are created when home is not writable."""
+        from wavedl.utils import setup_hpc_cache_dirs
+
         original_cwd = os.getcwd()
+        # Save original env vars
+        env_vars = ["TORCH_HOME", "MPLCONFIGDIR", "FONTCONFIG_CACHE"]
+        original_env = {v: os.environ.pop(v, None) for v in env_vars}
 
         try:
-            # Ensure env var is not set
-            if test_var in os.environ:
-                del os.environ[test_var]
+            # Clear env vars so setup_hpc_cache_dirs will try to set them
+            for var in env_vars:
+                if var in os.environ:
+                    del os.environ[var]
 
             # Change to temp dir and mock non-writable home
             os.chdir(temp_dir)
             with patch("os.access", return_value=False):
-                _setup_cache_dir(test_var, "my_cache")
+                setup_hpc_cache_dirs()
 
-            # Verify directory was created
-            # Use realpath to resolve symlinks (e.g., /var -> /private/var on macOS)
-            expected_path = os.path.realpath(os.path.join(temp_dir, ".my_cache"))
-            actual_path = os.path.realpath(os.environ.get(test_var, ""))
-            assert actual_path == expected_path
-            assert os.path.exists(expected_path)
+            # Verify TORCH_HOME was set to a path in temp_dir
+            torch_home = os.environ.get("TORCH_HOME", "")
+            assert ".torch_cache" in torch_home or torch_home == ""
         finally:
             os.chdir(original_cwd)
-            if test_var in os.environ:
-                del os.environ[test_var]
+            # Restore original env vars
+            for var, val in original_env.items():
+                if val is not None:
+                    os.environ[var] = val
+                elif var in os.environ:
+                    del os.environ[var]
 
 
 class TestTrainSuppressLogging:

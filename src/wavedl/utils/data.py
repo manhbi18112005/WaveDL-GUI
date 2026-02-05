@@ -798,6 +798,128 @@ def load_outputs_only(path: str, format: str = "auto") -> np.ndarray:
     return source.load_outputs_only(path)
 
 
+def _load_npz_for_test(
+    path: str,
+    input_keys: list[str],
+    output_keys: list[str],
+    explicit_input_key: str | None,
+    explicit_output_key: str | None,
+) -> tuple[np.ndarray, np.ndarray | None]:
+    """Load NPZ file for test/inference with key validation."""
+    with np.load(path, allow_pickle=False) as probe:
+        keys = list(probe.keys())
+
+    inp_key = DataSource._find_key(keys, input_keys)
+    out_key = DataSource._find_key(keys, output_keys)
+
+    # Strict validation for explicit keys
+    if explicit_input_key is not None and explicit_input_key not in keys:
+        raise KeyError(
+            f"Explicit --input_key '{explicit_input_key}' not found. Available: {keys}"
+        )
+    if inp_key is None:
+        raise KeyError(f"Input key not found. Tried: {input_keys}. Found: {keys}")
+    if explicit_output_key is not None and explicit_output_key not in keys:
+        raise KeyError(
+            f"Explicit --output_key '{explicit_output_key}' not found. Available: {keys}"
+        )
+
+    data = NPZSource._load_and_copy(path, [inp_key] + ([out_key] if out_key else []))
+    inp = data[inp_key]
+    if inp.dtype == object:
+        inp = np.array([x.toarray() if hasattr(x, "toarray") else x for x in inp])
+    outp = data[out_key] if out_key else None
+    return inp, outp
+
+
+def _load_hdf5_for_test(
+    path: str,
+    input_keys: list[str],
+    output_keys: list[str],
+    explicit_input_key: str | None,
+    explicit_output_key: str | None,
+) -> tuple[np.ndarray, np.ndarray | None]:
+    """Load HDF5 file for test/inference with key validation and OOM guard."""
+    with h5py.File(path, "r") as f:
+        keys = list(f.keys())
+        inp_key = DataSource._find_key(keys, input_keys)
+        out_key = DataSource._find_key(keys, output_keys)
+
+        # Strict validation
+        if explicit_input_key is not None and explicit_input_key not in keys:
+            raise KeyError(
+                f"Explicit --input_key '{explicit_input_key}' not found. Available: {keys}"
+            )
+        if inp_key is None:
+            raise KeyError(f"Input key not found. Tried: {input_keys}. Found: {keys}")
+        if explicit_output_key is not None and explicit_output_key not in keys:
+            raise KeyError(
+                f"Explicit --output_key '{explicit_output_key}' not found. Available: {keys}"
+            )
+
+        # OOM guard
+        n_samples = f[inp_key].shape[0]
+        if n_samples > 100000:
+            raise ValueError(
+                f"Dataset has {n_samples:,} samples. load_test_data() loads "
+                f"everything into RAM which may cause OOM. For large inference "
+                f"sets, use a DataLoader with HDF5Source.load_mmap() instead."
+            )
+
+        inp = f[inp_key][:]
+        outp = f[out_key][:] if out_key else None
+    return inp, outp
+
+
+def _load_mat_for_test(
+    path: str,
+    input_keys: list[str],
+    output_keys: list[str],
+    explicit_input_key: str | None,
+    explicit_output_key: str | None,
+) -> tuple[np.ndarray, np.ndarray | None]:
+    """Load MAT v7.3 file for test/inference with sparse support."""
+    mat_source = MATSource()
+    with h5py.File(path, "r") as f:
+        keys = list(f.keys())
+        inp_key = DataSource._find_key(keys, input_keys)
+        out_key = DataSource._find_key(keys, output_keys)
+
+        # Strict validation
+        if explicit_input_key is not None and explicit_input_key not in keys:
+            raise KeyError(
+                f"Explicit --input_key '{explicit_input_key}' not found. Available: {keys}"
+            )
+        if inp_key is None:
+            raise KeyError(f"Input key not found. Tried: {input_keys}. Found: {keys}")
+        if explicit_output_key is not None and explicit_output_key not in keys:
+            raise KeyError(
+                f"Explicit --output_key '{explicit_output_key}' not found. Available: {keys}"
+            )
+
+        # OOM guard
+        n_samples = f[inp_key].shape[-1]  # MAT is transposed
+        if n_samples > 100000:
+            raise ValueError(
+                f"Dataset has {n_samples:,} samples. load_test_data() loads "
+                f"everything into RAM which may cause OOM. For large inference "
+                f"sets, use a DataLoader with MATSource.load_mmap() instead."
+            )
+
+        inp = mat_source._load_dataset(f, inp_key)
+        outp = None
+        if out_key:
+            outp = mat_source._load_dataset(f, out_key)
+            # Handle MATLAB transpose
+            num_samples = inp.shape[0]
+            if outp.ndim == 2:
+                if (outp.shape[0] == 1 and outp.shape[1] == num_samples) or (
+                    outp.shape[1] == 1 and outp.shape[0] != num_samples
+                ):
+                    outp = outp.T
+    return inp, outp
+
+
 def load_test_data(
     path: str,
     format: str = "auto",
@@ -865,112 +987,17 @@ def load_test_data(
     # We detect keys first to ensure input_test/output_test are used when present
     try:
         if format == "npz":
-            with np.load(path, allow_pickle=False) as probe:
-                keys = list(probe.keys())
-            inp_key = DataSource._find_key(keys, custom_input_keys)
-            out_key = DataSource._find_key(keys, custom_output_keys)
-            # Strict validation: if user explicitly specified input_key, it must exist exactly
-            if input_key is not None and input_key not in keys:
-                raise KeyError(
-                    f"Explicit --input_key '{input_key}' not found. "
-                    f"Available keys: {keys}"
-                )
-            if inp_key is None:
-                raise KeyError(
-                    f"Input key not found. Tried: {custom_input_keys}. Found: {keys}"
-                )
-            # Strict validation: if user explicitly specified output_key, it must exist exactly
-            if output_key is not None and output_key not in keys:
-                raise KeyError(
-                    f"Explicit --output_key '{output_key}' not found. "
-                    f"Available keys: {keys}"
-                )
-            data = NPZSource._load_and_copy(
-                path, [inp_key] + ([out_key] if out_key else [])
+            inp, outp = _load_npz_for_test(
+                path, custom_input_keys, custom_output_keys, input_key, output_key
             )
-            inp = data[inp_key]
-            if inp.dtype == object:
-                inp = np.array(
-                    [x.toarray() if hasattr(x, "toarray") else x for x in inp]
-                )
-            outp = data[out_key] if out_key else None
         elif format == "hdf5":
-            with h5py.File(path, "r") as f:
-                keys = list(f.keys())
-                inp_key = DataSource._find_key(keys, custom_input_keys)
-                out_key = DataSource._find_key(keys, custom_output_keys)
-                # Strict validation: if user explicitly specified input_key, it must exist exactly
-                if input_key is not None and input_key not in keys:
-                    raise KeyError(
-                        f"Explicit --input_key '{input_key}' not found. "
-                        f"Available keys: {keys}"
-                    )
-                if inp_key is None:
-                    raise KeyError(
-                        f"Input key not found. Tried: {custom_input_keys}. Found: {keys}"
-                    )
-                # Strict validation: if user explicitly specified output_key, it must exist exactly
-                if output_key is not None and output_key not in keys:
-                    raise KeyError(
-                        f"Explicit --output_key '{output_key}' not found. "
-                        f"Available keys: {keys}"
-                    )
-                # OOM guard: warn if dataset is very large
-                n_samples = f[inp_key].shape[0]
-                if n_samples > 100000:
-                    raise ValueError(
-                        f"Dataset has {n_samples:,} samples. load_test_data() loads "
-                        f"everything into RAM which may cause OOM. For large inference "
-                        f"sets, use a DataLoader with HDF5Source.load_mmap() instead."
-                    )
-                inp = f[inp_key][:]
-                outp = f[out_key][:] if out_key else None
+            inp, outp = _load_hdf5_for_test(
+                path, custom_input_keys, custom_output_keys, input_key, output_key
+            )
         elif format == "mat":
-            mat_source = MATSource()
-            with h5py.File(path, "r") as f:
-                keys = list(f.keys())
-                inp_key = DataSource._find_key(keys, custom_input_keys)
-                out_key = DataSource._find_key(keys, custom_output_keys)
-                # Strict validation: if user explicitly specified input_key, it must exist exactly
-                if input_key is not None and input_key not in keys:
-                    raise KeyError(
-                        f"Explicit --input_key '{input_key}' not found. "
-                        f"Available keys: {keys}"
-                    )
-                if inp_key is None:
-                    raise KeyError(
-                        f"Input key not found. Tried: {custom_input_keys}. Found: {keys}"
-                    )
-                # Strict validation: if user explicitly specified output_key, it must exist exactly
-                if output_key is not None and output_key not in keys:
-                    raise KeyError(
-                        f"Explicit --output_key '{output_key}' not found. "
-                        f"Available keys: {keys}"
-                    )
-                # OOM guard: warn if dataset is very large (MAT is transposed)
-                n_samples = f[inp_key].shape[-1]
-                if n_samples > 100000:
-                    raise ValueError(
-                        f"Dataset has {n_samples:,} samples. load_test_data() loads "
-                        f"everything into RAM which may cause OOM. For large inference "
-                        f"sets, use a DataLoader with MATSource.load_mmap() instead."
-                    )
-                inp = mat_source._load_dataset(f, inp_key)
-                if out_key:
-                    outp = mat_source._load_dataset(f, out_key)
-                    # Handle transposed outputs from MATLAB
-                    # Case 1: (1, N) - N samples with 1 target → transpose to (N, 1)
-                    # Case 2: (T, 1) - 1 sample with T targets → transpose to (1, T)
-                    num_samples = inp.shape[0]
-                    if outp.ndim == 2:
-                        if outp.shape[0] == 1 and outp.shape[1] == num_samples:
-                            # 1D vector: (1, N) → (N, 1)
-                            outp = outp.T
-                        elif outp.shape[1] == 1 and outp.shape[0] != num_samples:
-                            # Single sample with multiple targets: (T, 1) → (1, T)
-                            outp = outp.T
-                else:
-                    outp = None
+            inp, outp = _load_mat_for_test(
+                path, custom_input_keys, custom_output_keys, input_key, output_key
+            )
         else:
             # Fallback to default source.load() for unknown formats
             inp, outp = source.load(path)
@@ -993,80 +1020,19 @@ def load_test_data(
             ) from e
 
         # Legitimate fallback: no explicit keys, outputs just not present
+        # Re-call helpers with None for explicit keys (validation already done above)
         if format == "npz":
-            # First pass to find keys
-            with np.load(path, allow_pickle=False) as probe:
-                keys = list(probe.keys())
-            inp_key = DataSource._find_key(keys, custom_input_keys)
-            if inp_key is None:
-                raise KeyError(
-                    f"Input key not found. Tried: {custom_input_keys}. Found: {keys}"
-                )
-            out_key = DataSource._find_key(keys, custom_output_keys)
-            keys_to_probe = [inp_key] + ([out_key] if out_key else [])
-            data = NPZSource._load_and_copy(path, keys_to_probe)
-            inp = data[inp_key]
-            if inp.dtype == object:
-                inp = np.array(
-                    [x.toarray() if hasattr(x, "toarray") else x for x in inp]
-                )
-            outp = data[out_key] if out_key else None
+            inp, outp = _load_npz_for_test(
+                path, custom_input_keys, custom_output_keys, None, None
+            )
         elif format == "hdf5":
-            # HDF5: input-only loading for inference
-            with h5py.File(path, "r") as f:
-                keys = list(f.keys())
-                inp_key = DataSource._find_key(keys, custom_input_keys)
-                if inp_key is None:
-                    raise KeyError(
-                        f"Input key not found. Tried: {custom_input_keys}. Found: {keys}"
-                    )
-                # Check size - load_test_data is eager, large files should use DataLoader
-                n_samples = f[inp_key].shape[0]
-                if n_samples > 100000:
-                    raise ValueError(
-                        f"Dataset has {n_samples:,} samples. load_test_data() loads "
-                        f"everything into RAM which may cause OOM. For large inference "
-                        f"sets, use a DataLoader with HDF5Source.load_mmap() instead."
-                    )
-                inp = f[inp_key][:]
-                out_key = DataSource._find_key(keys, custom_output_keys)
-                outp = f[out_key][:] if out_key else None
+            inp, outp = _load_hdf5_for_test(
+                path, custom_input_keys, custom_output_keys, None, None
+            )
         elif format == "mat":
-            # MAT v7.3: input-only loading with proper sparse handling
-            mat_source = MATSource()
-            with h5py.File(path, "r") as f:
-                keys = list(f.keys())
-                inp_key = DataSource._find_key(keys, custom_input_keys)
-                if inp_key is None:
-                    raise KeyError(
-                        f"Input key not found. Tried: {custom_input_keys}. Found: {keys}"
-                    )
-                # Check size - load_test_data is eager, large files should use DataLoader
-                n_samples = f[inp_key].shape[-1]  # MAT is transposed
-                if n_samples > 100000:
-                    raise ValueError(
-                        f"Dataset has {n_samples:,} samples. load_test_data() loads "
-                        f"everything into RAM which may cause OOM. For large inference "
-                        f"sets, use a DataLoader with MATSource.load_mmap() instead."
-                    )
-                # Use _load_dataset for sparse support and proper transpose
-                inp = mat_source._load_dataset(f, inp_key)
-                out_key = DataSource._find_key(keys, custom_output_keys)
-                if out_key:
-                    outp = mat_source._load_dataset(f, out_key)
-                    # Handle transposed outputs from MATLAB
-                    # Case 1: (1, N) - N samples with 1 target → transpose to (N, 1)
-                    # Case 2: (T, 1) - 1 sample with T targets → transpose to (1, T)
-                    num_samples = inp.shape[0]
-                    if outp.ndim == 2:
-                        if outp.shape[0] == 1 and outp.shape[1] == num_samples:
-                            # 1D vector: (1, N) → (N, 1)
-                            outp = outp.T
-                        elif outp.shape[1] == 1 and outp.shape[0] != num_samples:
-                            # Single sample with multiple targets: (T, 1) → (1, T)
-                            outp = outp.T
-                else:
-                    outp = None
+            inp, outp = _load_mat_for_test(
+                path, custom_input_keys, custom_output_keys, None, None
+            )
         else:
             raise
 

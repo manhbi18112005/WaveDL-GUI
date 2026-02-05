@@ -33,35 +33,17 @@ Author: Ductho Le (ductho.le@outlook.com)
 # Uses current working directory as fallback - works on HPC and local machines.
 import os
 
-
-def _setup_cache_dir(env_var: str, subdir: str) -> None:
-    """Set cache directory to CWD if home is not writable."""
-    if env_var in os.environ:
-        return  # User already set, respect their choice
-
-    # Check if home is writable
-    home = os.path.expanduser("~")
-    if os.access(home, os.W_OK):
-        return  # Home is writable, let library use defaults
-
-    # Home not writable - use current working directory
-    cache_path = os.path.join(os.getcwd(), f".{subdir}")
-    os.makedirs(cache_path, exist_ok=True)
-    os.environ[env_var] = cache_path
+# Import and call HPC cache setup before any library imports
+from wavedl.utils import setup_hpc_cache_dirs
 
 
-# Configure cache directories (before any library imports)
-_setup_cache_dir("TORCH_HOME", "torch_cache")
-_setup_cache_dir("MPLCONFIGDIR", "matplotlib")
-_setup_cache_dir("FONTCONFIG_CACHE", "fontconfig")
-_setup_cache_dir("XDG_DATA_HOME", "local/share")
-_setup_cache_dir("XDG_STATE_HOME", "local/state")
-_setup_cache_dir("XDG_CACHE_HOME", "cache")
+setup_hpc_cache_dirs()
 
 import argparse  # noqa: E402
 import logging  # noqa: E402
 import pickle  # noqa: E402
 from pathlib import Path  # noqa: E402
+from typing import Any  # noqa: E402
 
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
@@ -314,7 +296,7 @@ def load_checkpoint(
     in_shape: tuple[int, ...],
     out_size: int,
     model_name: str | None = None,
-) -> tuple[nn.Module, any]:
+) -> tuple[nn.Module, Any]:
     """
     Load model and scaler from Accelerate checkpoint directory.
 

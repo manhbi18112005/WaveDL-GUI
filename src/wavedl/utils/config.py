@@ -116,13 +116,11 @@ def merge_config_with_args(
     """
     # Get parser defaults to detect which args were explicitly set by user
     if parser is not None:
-        # Safe extraction: iterate actions instead of parse_args([])
-        # This avoids failures if required arguments are added later
-        defaults = {
-            action.dest: action.default
-            for action in parser._actions
-            if action.dest != "help"
-        }
+        # Use public API to extract defaults (avoids private _actions attribute)
+        defaults = {}
+        for action in parser._option_string_actions.values():
+            if action.dest != "help":
+                defaults[action.dest] = parser.get_default(action.dest)
     else:
         # Fallback: reconstruct defaults from known patterns
         # This works because argparse stores actual values, and we compare
@@ -233,7 +231,7 @@ def validate_config(
 
     # Validate numeric ranges
     numeric_checks = {
-        "lr": (0, 1, "Learning rate should be between 0 and 1"),
+        "lr": (0, 10, "Learning rate should be between 0 and 10"),
         "epochs": (1, 100000, "Epochs should be positive"),
         "batch_size": (1, 10000, "Batch size should be positive"),
         "patience": (1, 1000, "Patience should be positive"),

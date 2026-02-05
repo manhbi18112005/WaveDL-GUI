@@ -106,8 +106,20 @@ def configure_matplotlib_style():
     )
 
 
-# Apply style on import
-configure_matplotlib_style()
+# Lazy style initialization flag
+_style_configured = False
+
+
+def _ensure_style_configured():
+    """Apply matplotlib style on first use (lazy initialization).
+
+    This avoids modifying global plt.rcParams at import time, which could
+    unexpectedly override user configurations.
+    """
+    global _style_configured
+    if not _style_configured:
+        configure_matplotlib_style()
+        _style_configured = True
 
 
 # ==============================================================================
@@ -115,10 +127,13 @@ configure_matplotlib_style()
 # ==============================================================================
 class MetricTracker:
     """
-    Tracks running averages of metrics with thread-safe accumulation.
+    Tracks running averages of metrics during training.
 
     Useful for tracking loss, accuracy, or any scalar metric across batches.
     Handles division-by-zero safely by returning 0.0 when count is zero.
+
+    Note:
+        Not thread-safe. Intended for single-threaded use within training loops.
 
     Attributes:
         val: Most recent value
@@ -341,6 +356,7 @@ def plot_scientific_scatter(
     Returns:
         Matplotlib Figure object (can be saved or logged to WandB)
     """
+    _ensure_style_configured()
     y_true, y_pred, param_names, num_params = _prepare_plot_data(
         y_true, y_pred, param_names, max_samples
     )
@@ -415,6 +431,7 @@ def plot_error_histogram(
     Returns:
         Matplotlib Figure object
     """
+    _ensure_style_configured()
     y_true, y_pred, param_names, num_params = _prepare_plot_data(
         y_true, y_pred, param_names
     )
@@ -485,6 +502,7 @@ def plot_residuals(
     Returns:
         Matplotlib Figure object
     """
+    _ensure_style_configured()
     y_true, y_pred, param_names, num_params = _prepare_plot_data(
         y_true, y_pred, param_names, max_samples
     )
@@ -552,6 +570,7 @@ def create_training_curves(
     Returns:
         Matplotlib Figure object
     """
+    _ensure_style_configured()
     epochs = [h.get("epoch", i + 1) for i, h in enumerate(history)]
 
     fig, ax1 = plt.subplots(figsize=(FIGURE_WIDTH_INCH * 0.7, FIGURE_WIDTH_INCH * 0.4))
@@ -605,8 +624,8 @@ def create_training_curves(
         if not valid_data:
             return
         vmin, vmax = min(valid_data), max(valid_data)
-        # Get decade range that covers data (ceil for min to avoid going too low)
-        log_min = int(np.ceil(np.log10(vmin)))
+        # Get decade range that covers data (floor for min to include lowest data)
+        log_min = int(np.floor(np.log10(vmin)))
         log_max = int(np.ceil(np.log10(vmax)))
         # Generate ticks at each power of 10
         ticks = [10.0**i for i in range(log_min, log_max + 1)]
@@ -691,6 +710,7 @@ def plot_bland_altman(
     Returns:
         Matplotlib Figure object
     """
+    _ensure_style_configured()
     y_true, y_pred, param_names, num_params = _prepare_plot_data(
         y_true, y_pred, param_names, max_samples
     )
@@ -764,6 +784,7 @@ def plot_qq(
     Returns:
         Matplotlib Figure object
     """
+    _ensure_style_configured()
     from scipy import stats
 
     num_params = y_true.shape[1] if y_true.ndim > 1 else 1

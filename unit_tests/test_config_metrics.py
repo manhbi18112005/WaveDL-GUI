@@ -175,7 +175,7 @@ class TestValidateConfig:
         """Test that out-of-range LR produces warning."""
         from wavedl.utils.config import validate_config
 
-        config = {"lr": 5.0}  # > 1
+        config = {"lr": 15.0}  # > 10 (new bound for OneCycleLR compatibility)
         warnings = validate_config(config)
         assert len(warnings) == 1
         assert "Learning rate" in warnings[0]

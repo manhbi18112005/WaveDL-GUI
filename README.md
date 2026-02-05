@@ -859,18 +859,24 @@ Automatically find the best training configuration using [Optuna](https://optuna
 **Run HPO:**
 
 ```bash
-# Basic HPO (auto-detects GPUs for parallel trials)
-wavedl-hpo --data_path train.npz --models cnn --n_trials 100
+# Basic HPO (50 trials, auto-detects GPUs)
+wavedl-hpo --data_path train.npz --n_trials 50
 
-# Search multiple models
-wavedl-hpo --data_path train.npz --models cnn resnet18 efficientnet_b0 --n_trials 200
+# Quick search (minimal search space, fastest)
+wavedl-hpo --data_path train.npz --n_trials 30 --quick
 
-# Quick mode (fewer parameters, faster)
-wavedl-hpo --data_path train.npz --models cnn --n_trials 50 --quick
+# Medium search (balanced between quick and full)
+wavedl-hpo --data_path train.npz --n_trials 50 --medium
+
+# Full search with specific models
+wavedl-hpo --data_path train.npz --n_trials 100 --models cnn resnet18 efficientnet_b0
+
+# In-process mode (enables pruning, faster, single-GPU)
+wavedl-hpo --data_path train.npz --n_trials 50 --inprocess
 ```
 
 > [!TIP]
-> **Auto GPU Detection**: HPO automatically detects available GPUs and runs one trial per GPU in parallel. On a 4-GPU system, 4 trials run simultaneously. Use `--n_jobs 1` to force serial execution.
+> **GPU Detection**: HPO auto-detects GPUs and runs one trial per GPU in parallel. Use `--inprocess` for single-GPU with pruning support (early stopping of bad trials).
 
 **Train with best parameters**
 
@@ -892,10 +898,23 @@ wavedl-train --data_path train.npz --model cnn --lr 3.2e-4 --batch_size 128 ...
 | Learning rate | 1e-5 → 1e-2 | (always searched) |
 | Batch size | 16, 32, 64, 128 | (always searched) |
 
-**Quick Mode** (`--quick`):
-- Uses minimal defaults: cnn + adamw + plateau + mse
-- Faster for testing your setup before running full search
-- You can still override any option with the flags above
+**Search Presets:**
+
+| Mode | Models | Optimizers | Schedulers | Use Case |
+|------|--------|------------|------------|----------|
+| Full (default) | cnn, resnet18, resnet34 | all 6 | all 8 | Production search |
+| `--medium` | cnn, resnet18 | adamw, adam, sgd | plateau, cosine, onecycle | Balanced exploration |
+| `--quick` | cnn | adamw | plateau | Fast validation |
+
+**Execution Modes:**
+
+| Mode | Flag | Pruning | GPU Memory | Best For |
+|------|------|---------|------------|----------|
+| Subprocess (default) | — | ❌ No | Isolated | Multi-GPU parallel trials |
+| In-process | `--inprocess` | ✅ Yes | Shared | Single-GPU with early stopping |
+
+> [!TIP]
+> Use `--inprocess` when running single-GPU trials. It enables MedianPruner to stop unpromising trials early, reducing total search time.
 
 ---
 
@@ -906,7 +925,9 @@ wavedl-train --data_path train.npz --model cnn --lr 3.2e-4 --batch_size 128 ...
 | `--data_path` | (required) | Training data file |
 | `--models` | 3 defaults | Models to search (specify any number) |
 | `--n_trials` | `50` | Number of trials to run |
-| `--quick` | `False` | Use minimal defaults (faster) |
+| `--quick` | `False` | Quick mode: minimal search space |
+| `--medium` | `False` | Medium mode: balanced search space |
+| `--inprocess` | `False` | Run trials in-process (enables pruning) |
 | `--optimizers` | all 6 | Optimizers to search |
 | `--schedulers` | all 8 | Schedulers to search |
 | `--losses` | all 6 | Losses to search |
@@ -915,7 +936,7 @@ wavedl-train --data_path train.npz --model cnn --lr 3.2e-4 --batch_size 128 ...
 | `--output` | `hpo_results.json` | Output file |
 
 
-> See [Available Models](#available-models) for all 38 architectures you can search.
+> See [Available Models](#available-models) for all 69 architectures you can search.
 
 </details>
 

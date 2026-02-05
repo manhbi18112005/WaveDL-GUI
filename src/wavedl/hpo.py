@@ -10,11 +10,27 @@ Usage:
     # Quick search (fewer parameters)
     wavedl-hpo --data_path train.npz --n_trials 30 --quick
 
+    # Medium search (balanced)
+    wavedl-hpo --data_path train.npz --n_trials 50 --medium
+
     # Full search with specific models
     wavedl-hpo --data_path train.npz --n_trials 100 --models cnn resnet18 efficientnet_b0
 
     # Parallel trials on multiple GPUs
     wavedl-hpo --data_path train.npz --n_trials 100 --n_jobs 4
+
+    # In-process mode (enables pruning, faster, single-GPU)
+    wavedl-hpo --data_path train.npz --n_trials 50 --inprocess
+
+Execution Modes:
+    --inprocess: Runs trials in the same Python process. Enables pruning
+                 (MedianPruner) for early stopping of unpromising trials.
+                 Faster due to no subprocess overhead, but trials share
+                 GPU memory (no isolation between trials).
+
+    Default (subprocess): Launches each trial as a separate process.
+                          Provides GPU memory isolation but prevents pruning
+                          (subprocess can't report intermediate results).
 
 Author: Ductho Le (ductho.le@outlook.com)
 """
@@ -41,10 +57,12 @@ except ImportError:
 
 DEFAULT_MODELS = ["cnn", "resnet18", "resnet34"]
 QUICK_MODELS = ["cnn"]
+MEDIUM_MODELS = ["cnn", "resnet18"]
 
 # All 6 optimizers
 DEFAULT_OPTIMIZERS = ["adamw", "adam", "sgd", "nadam", "radam", "rmsprop"]
 QUICK_OPTIMIZERS = ["adamw"]
+MEDIUM_OPTIMIZERS = ["adamw", "adam", "sgd"]
 
 # All 8 schedulers
 DEFAULT_SCHEDULERS = [
@@ -58,10 +76,12 @@ DEFAULT_SCHEDULERS = [
     "linear_warmup",
 ]
 QUICK_SCHEDULERS = ["plateau"]
+MEDIUM_SCHEDULERS = ["plateau", "cosine", "onecycle"]
 
 # All 6 losses
 DEFAULT_LOSSES = ["mse", "mae", "huber", "smooth_l1", "log_cosh", "weighted_mse"]
 QUICK_LOSSES = ["mse"]
+MEDIUM_LOSSES = ["mse", "mae", "huber"]
 
 
 # =============================================================================
@@ -70,16 +90,28 @@ QUICK_LOSSES = ["mse"]
 
 
 def create_objective(args):
-    """Create Optuna objective function with configurable search space."""
+    """Create Optuna objective function with configurable search space.
+
+    Supports two execution modes:
+    - Subprocess (default): Launches wavedl.train via subprocess. Provides GPU
+      memory isolation but prevents pruning (MedianPruner has no effect).
+    - In-process (--inprocess): Calls train_single_trial() directly. Enables
+      pruning and reduces overhead, but trials share GPU memory.
+    """
 
     def objective(trial):
-        # Select search space based on mode
+        # Select search space based on mode (quick < medium < full)
         # CLI arguments always take precedence over defaults
         if args.quick:
             models = args.models or QUICK_MODELS
             optimizers = args.optimizers or QUICK_OPTIMIZERS
             schedulers = args.schedulers or QUICK_SCHEDULERS
             losses = args.losses or QUICK_LOSSES
+        elif args.medium:
+            models = args.models or MEDIUM_MODELS
+            optimizers = args.optimizers or MEDIUM_OPTIMIZERS
+            schedulers = args.schedulers or MEDIUM_SCHEDULERS
+            losses = args.losses or MEDIUM_LOSSES
         else:
             models = args.models or DEFAULT_MODELS
             optimizers = args.optimizers or DEFAULT_OPTIMIZERS
@@ -101,13 +133,59 @@ def create_objective(args):
         if loss == "huber":
             huber_delta = trial.suggest_float("huber_delta", 0.1, 2.0)
         else:
-            huber_delta = None
+            huber_delta = 1.0  # default
 
         if optimizer == "sgd":
             momentum = trial.suggest_float("momentum", 0.8, 0.99)
         else:
-            momentum = None
+            momentum = 0.9  # default
 
+        # ==================================================================
+        # IN-PROCESS MODE: Direct function call with pruning support
+        # ==================================================================
+        if args.inprocess:
+            from wavedl.train import train_single_trial
+
+            try:
+                result = train_single_trial(
+                    data_path=args.data_path,
+                    model_name=model,
+                    lr=lr,
+                    batch_size=batch_size,
+                    epochs=args.max_epochs,
+                    patience=patience,
+                    optimizer_name=optimizer,
+                    scheduler_name=scheduler,
+                    loss_name=loss,
+                    weight_decay=weight_decay,
+                    seed=args.seed,
+                    huber_delta=huber_delta,
+                    momentum=momentum,
+                    trial=trial,  # Enable pruning via trial.report/should_prune
+                    verbose=False,
+                )
+
+                if result["pruned"]:
+                    print(
+                        f"Trial {trial.number}: Pruned at epoch {result['epochs_trained']}"
+                    )
+                    raise optuna.TrialPruned()
+
+                val_loss = result["best_val_loss"]
+                print(
+                    f"Trial {trial.number}: val_loss={val_loss:.6f} ({result['epochs_trained']} epochs)"
+                )
+                return val_loss
+
+            except optuna.TrialPruned:
+                raise  # Re-raise for Optuna to handle
+            except Exception as e:
+                print(f"Trial {trial.number}: Error - {e}")
+                return float("inf")
+
+        # ==================================================================
+        # SUBPROCESS MODE (default): GPU memory isolation, no pruning
+        # ==================================================================
         # Build command
         cmd = [
             sys.executable,
@@ -138,9 +216,9 @@ def create_objective(args):
         ]
 
         # Add conditional args
-        if huber_delta:
+        if loss == "huber":
             cmd.extend(["--huber_delta", str(huber_delta)])
-        if momentum:
+        if optimizer == "sgd":
             cmd.extend(["--momentum", str(momentum)])
 
         # Use temporary directory for trial output
@@ -285,7 +363,17 @@ Examples:
     parser.add_argument(
         "--quick",
         action="store_true",
-        help="Quick mode: search fewer parameters",
+        help="Quick mode: search fewer parameters (fastest, least thorough)",
+    )
+    parser.add_argument(
+        "--medium",
+        action="store_true",
+        help="Medium mode: balanced parameter search (between --quick and full)",
+    )
+    parser.add_argument(
+        "--inprocess",
+        action="store_true",
+        help="Run trials in-process (enables pruning, faster, but no GPU memory isolation)",
     )
     parser.add_argument(
         "--timeout",
@@ -384,14 +472,32 @@ Examples:
     print("=" * 60)
     print(f"Data: {args.data_path}")
     print(f"Trials: {args.n_trials}")
-    print(f"Mode: {'Quick' if args.quick else 'Full'}")
+    # Determine mode name for display
+    if args.quick:
+        mode_name = "Quick"
+    elif args.medium:
+        mode_name = "Medium"
+    else:
+        mode_name = "Full"
+
+    print(
+        f"Mode: {mode_name}"
+        + (" (in-process, pruning enabled)" if args.inprocess else " (subprocess)")
+    )
     print(f"Parallel jobs: {args.n_jobs}")
     print("=" * 60)
+
+    # Use MedianPruner only for in-process mode (subprocess trials can't report)
+    if args.inprocess:
+        pruner = optuna.pruners.MedianPruner(n_startup_trials=5, n_warmup_steps=10)
+    else:
+        # NopPruner for subprocess mode - pruning has no effect there
+        pruner = optuna.pruners.NopPruner()
 
     study = optuna.create_study(
         study_name=args.study_name,
         direction="minimize",
-        pruner=optuna.pruners.MedianPruner(n_startup_trials=5, n_warmup_steps=10),
+        pruner=pruner,
     )
 
     # Run optimization

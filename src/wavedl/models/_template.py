@@ -31,22 +31,23 @@ from wavedl.models.base import BaseModel
 # @register_model("my_model")
 class TemplateModel(BaseModel):
     """
-    Template Model Architecture.
+    Template Model Architecture (2D only).
 
     Replace this docstring with your model description.
     The first line will appear in --list_models output.
 
+    NOTE: This template is hardcoded for 2D inputs using Conv2d/MaxPool2d.
+    For 1D/3D support, use dimension-agnostic layer factories from
+    _pretrained_utils.py (get_conv_layer, get_pool_layer, get_norm_layer).
+
     Args:
-        in_shape: Input spatial dimensions (auto-detected from data)
-                  - 1D: (L,) for signals
-                  - 2D: (H, W) for images
-                  - 3D: (D, H, W) for volumes
+        in_shape: Input spatial dimensions as (H, W) for 2D images
         out_size: Number of regression targets (auto-detected from data)
         hidden_dim: Size of hidden layers (default: 256)
         dropout: Dropout rate (default: 0.1)
 
     Input Shape:
-        (B, 1, *in_shape) - e.g., (B, 1, 64, 64) for 2D
+        (B, 1, H, W) - 2D grayscale images
 
     Output Shape:
         (B, out_size) - Regression predictions

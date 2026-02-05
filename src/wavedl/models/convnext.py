@@ -26,77 +26,10 @@ from typing import Any
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
+from wavedl.models._pretrained_utils import LayerNormNd, get_conv_layer
 from wavedl.models.base import BaseModel, SpatialShape
 from wavedl.models.registry import register_model
-
-
-def _get_conv_layer(dim: int) -> type[nn.Module]:
-    """Get dimension-appropriate Conv class."""
-    if dim == 1:
-        return nn.Conv1d
-    elif dim == 2:
-        return nn.Conv2d
-    elif dim == 3:
-        return nn.Conv3d
-    else:
-        raise ValueError(f"Unsupported dimensionality: {dim}D")
-
-
-class LayerNormNd(nn.Module):
-    """
-    LayerNorm for N-dimensional tensors (channels-first format).
-
-    Implements channels-last LayerNorm as used in the original ConvNeXt paper.
-    Permutes data to channels-last, applies LayerNorm per-channel over spatial
-    dimensions, and permutes back to channels-first format.
-
-    This matches PyTorch's nn.LayerNorm behavior when applied to the channel
-    dimension, providing stable gradients for deep ConvNeXt networks.
-
-    References:
-        Liu, Z., et al. (2022). A ConvNet for the 2020s. CVPR 2022.
-        https://github.com/facebookresearch/ConvNeXt
-    """
-
-    def __init__(self, num_channels: int, dim: int, eps: float = 1e-6):
-        super().__init__()
-        self.dim = dim
-        self.num_channels = num_channels
-        self.weight = nn.Parameter(torch.ones(num_channels))
-        self.bias = nn.Parameter(torch.zeros(num_channels))
-        self.eps = eps
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Apply LayerNorm in channels-last format.
-
-        Args:
-            x: Input tensor in channels-first format
-               - 1D: (B, C, L)
-               - 2D: (B, C, H, W)
-               - 3D: (B, C, D, H, W)
-
-        Returns:
-            Normalized tensor in same format as input
-        """
-        if self.dim == 1:
-            # (B, C, L) -> (B, L, C) -> LayerNorm -> (B, C, L)
-            x = x.permute(0, 2, 1)
-            x = F.layer_norm(x, (self.num_channels,), self.weight, self.bias, self.eps)
-            x = x.permute(0, 2, 1)
-        elif self.dim == 2:
-            # (B, C, H, W) -> (B, H, W, C) -> LayerNorm -> (B, C, H, W)
-            x = x.permute(0, 2, 3, 1)
-            x = F.layer_norm(x, (self.num_channels,), self.weight, self.bias, self.eps)
-            x = x.permute(0, 3, 1, 2)
-        else:
-            # (B, C, D, H, W) -> (B, D, H, W, C) -> LayerNorm -> (B, C, D, H, W)
-            x = x.permute(0, 2, 3, 4, 1)
-            x = F.layer_norm(x, (self.num_channels,), self.weight, self.bias, self.eps)
-            x = x.permute(0, 4, 1, 2, 3)
-        return x
 
 
 class ConvNeXtBlock(nn.Module):
@@ -129,7 +62,7 @@ class ConvNeXtBlock(nn.Module):
     ):
         super().__init__()
         self.dim = dim
-        Conv = _get_conv_layer(dim)
+        Conv = get_conv_layer(dim)
         hidden_dim = int(channels * expansion_ratio)
 
         # Depthwise conv (7x7) - operates in channels-first
@@ -223,7 +156,7 @@ class ConvNeXtBase(BaseModel):
         self.dims = dims
         self.dropout_rate = dropout_rate
 
-        Conv = _get_conv_layer(self.dim)
+        Conv = get_conv_layer(self.dim)
 
         # Stem: Patchify with stride-4 conv (like ViT patch embedding)
         self.stem = nn.Sequential(
