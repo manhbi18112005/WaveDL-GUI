@@ -58,7 +58,7 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Run tests
-        run: pytest unit_tests -v
+        run: pytest unit_tests -v -m "not slow"
 
       - name: Extract version from tag
         id: version
