@@ -71,7 +71,7 @@ Train on datasets larger than RAM:
 
 **🧠 Models? We've Got Options**
 
-69 architectures, ready to go:
+21 architectures (69 variants), ready to go:
 - CNNs, ResNets, ViTs, EfficientNets...
 - All adapted for regression
 - [Add your own](#adding-custom-models) in one line
@@ -318,7 +318,7 @@ WaveDL/
 │       ├── hpo.py                # Hyperparameter optimization
 │       ├── launcher.py           # Training launcher (wavedl-train)
 │       │
-│       ├── models/               # Model Zoo (69 architectures)
+│       ├── models/               # Model Zoo (21 architectures, 69 variants)
 │       │   ├── registry.py       # Model factory (@register_model)
 │       │   ├── base.py           # Abstract base class
 │       │   └── ...               # See "Available Models" section
@@ -350,7 +350,7 @@ WaveDL/
 > All configuration options below work with `wavedl-train`. The wrapper script passes all arguments directly to `train.py`.
 
 <details>
-<summary><b>Available Models</b> — 69 architectures</summary>
+<summary><b>Available Models</b> — 21 architectures (69 variants)</summary>
 
 | Model | Backbone Params | Dim |
 |-------|-----------------|-----|
@@ -936,7 +936,7 @@ wavedl-train --data_path train.npz --model cnn --lr 3.2e-4 --batch_size 128 ...
 | `--output` | `hpo_results.json` | Output file |
 
 
-> See [Available Models](#available-models) for all 69 architectures you can search.
+> See [Available Models](#available-models) for all 21 architectures (69 variants) you can search.
 
 </details>
 

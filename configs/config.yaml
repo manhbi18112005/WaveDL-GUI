@@ -10,7 +10,7 @@
 # =============================================================================
 # MODEL
 # =============================================================================
-model: cnn                    # 69 architectures available:
+model: cnn                    # 21 architectures (69 variants) available:
                               #
                               # ── Classic CNNs ──
                               # CNN:       cnn
