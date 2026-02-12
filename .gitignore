@@ -11,8 +11,9 @@
 # Development folder (private roadmap, notes)
 .dev/
 
-# Unpublished models (waiting for paper submission)
+# Unpublished models
 src/wavedl/models/ratenet.py
+configs/ratenet.yaml
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -118,4 +119,4 @@ Thumbs.db
 logs/
 
 # Documentation
-docs/
+manuscript/
