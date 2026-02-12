@@ -13,6 +13,7 @@ Author: Ductho Le (ductho.le@outlook.com)
 Version: 1.0.0
 """
 
+import gc
 import json
 import logging
 import os
@@ -83,8 +84,12 @@ class CVDataset(torch.utils.data.Dataset):
                 X = X[:, np.newaxis, :, :, :]
             # ndim >= 5 assumed to already have channel dimension
 
-        self.X = torch.tensor(X, dtype=torch.float32)
-        self.y = torch.tensor(y, dtype=torch.float32)
+        # Use from_numpy to share memory (zero-copy) instead of torch.tensor
+        # which creates a full copy. Requires contiguous C-order arrays.
+        X = np.ascontiguousarray(X, dtype=np.float32)
+        y = np.ascontiguousarray(y, dtype=np.float32)
+        self.X = torch.from_numpy(X)
+        self.y = torch.from_numpy(y)
 
     def __len__(self) -> int:
         return len(self.X)
@@ -294,6 +299,13 @@ def run_cross_validation(
     loss_name: str = "mse",
     optimizer_name: str = "adamw",
     scheduler_name: str = "plateau",
+    # Scheduler config
+    scheduler_patience: int = 10,
+    scheduler_factor: float = 0.5,
+    min_lr: float = 1e-6,
+    # Optimizer config
+    betas: tuple[float, float] = (0.9, 0.999),
+    momentum: float = 0.9,
     # Output
     output_dir: str = "./cv_results",
     workers: int = 4,
@@ -348,7 +360,12 @@ def run_cross_validation(
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
 
     # Auto-detect optimal DataLoader workers if not specified (matches train.py behavior)
     if workers < 0:
@@ -418,14 +435,14 @@ def run_cross_validation(
             batch_size=batch_size,
             shuffle=True,
             num_workers=workers,
-            pin_memory=True,
+            pin_memory=device.type == "cuda",
         )
         val_loader = DataLoader(
             val_ds,
             batch_size=batch_size,
             shuffle=False,
             num_workers=workers,
-            pin_memory=True,
+            pin_memory=device.type == "cuda",
         )
 
         # Build model
@@ -435,13 +452,21 @@ def run_cross_validation(
         # Setup training components
         criterion = get_loss(loss_name)
         optimizer = get_optimizer(
-            optimizer_name, model.parameters(), lr=lr, weight_decay=weight_decay
+            optimizer_name,
+            model.parameters(),
+            lr=lr,
+            weight_decay=weight_decay,
+            betas=betas,
+            momentum=momentum,
         )
         scheduler = get_scheduler(
             scheduler_name,
             optimizer,
             epochs=epochs,
             steps_per_epoch=len(train_loader) if scheduler_name == "onecycle" else None,
+            patience=scheduler_patience,
+            factor=scheduler_factor,
+            min_lr=min_lr,
         )
 
         # Train fold
@@ -473,6 +498,15 @@ def run_cross_validation(
         torch.save(model.state_dict(), os.path.join(fold_dir, "model.pth"))
         with open(os.path.join(fold_dir, "scaler.pkl"), "wb") as f:
             pickle.dump(scaler, f)
+
+        # Explicit cleanup to prevent OOM across folds
+        del model, optimizer, scheduler, criterion
+        del train_ds, val_ds, train_loader, val_loader
+        gc.collect()
+        if device.type == "cuda":
+            torch.cuda.empty_cache()
+        elif device.type == "mps":
+            torch.mps.empty_cache()
 
     # ==============================================================================
     # AGGREGATE RESULTS

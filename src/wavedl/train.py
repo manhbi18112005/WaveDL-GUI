@@ -1088,6 +1088,9 @@ def main():
         # in_shape = spatial dimensions for model registry (channel added during training)
         in_shape = sample_shape
 
+        # Parse betas for CV (same logic as main training path)
+        cv_betas = tuple(float(x.strip()) for x in args.betas.split(","))
+
         # Run cross-validation
         try:
             run_cross_validation(
@@ -1107,9 +1110,15 @@ def main():
                 loss_name=args.loss,
                 optimizer_name=args.optimizer,
                 scheduler_name=args.scheduler,
+                scheduler_patience=args.scheduler_patience,
+                scheduler_factor=args.scheduler_factor,
+                min_lr=args.min_lr,
+                betas=cv_betas,
+                momentum=args.momentum,
                 output_dir=args.output_dir,
                 workers=args.workers,
                 seed=args.seed,
+                grad_clip=args.grad_clip,
             )
         finally:
             # Clean up file handle if HDF5/MAT

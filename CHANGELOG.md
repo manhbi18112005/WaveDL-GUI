@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Cross-validation**: MPS (Apple Silicon GPU) device support — auto-detects CUDA → MPS → CPU
+
+### Fixed
+- **Critical**: Cross-validation OOM crash (SIGKILL:9) with many folds — `CVDataset` now uses `torch.from_numpy()` (zero-copy) instead of `torch.tensor()` (full copy)
+- **Cross-validation**: Missing fold-level memory cleanup — added `gc.collect()` and `torch.cuda.empty_cache()` between folds
+- **Cross-validation**: Scheduler/optimizer args (`scheduler_patience`, `scheduler_factor`, `min_lr`, `betas`, `momentum`, `grad_clip`) were silently dropped (used wrong defaults)
+- **Cross-validation**: `pin_memory=True` on non-CUDA devices (now conditional on CUDA availability)
+
 ## [1.7.0] - 2026-02-05
 
 ### Added
