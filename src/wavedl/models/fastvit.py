@@ -86,11 +86,13 @@ class FastViTBase(BaseModel):
                 num_classes=0,  # Remove classifier
             )
 
-            # Get feature dimension
+            # Get feature dimension (eval mode to preserve pretrained BN stats)
             with torch.no_grad():
+                self.backbone.eval()
                 dummy = torch.zeros(1, 3, *in_shape)
                 features = self.backbone(dummy)
                 in_features = features.shape[-1]
+                self.backbone.train()
 
         except ImportError:
             raise ImportError(

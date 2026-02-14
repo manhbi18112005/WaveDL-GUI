@@ -145,8 +145,10 @@ except ImportError:
 
 # Suppress warnings from known-noisy libraries, but preserve legitimate warnings
 # from torch/numpy about NaN, dtype, and numerical issues.
-warnings.filterwarnings("ignore", category=FutureWarning)
-warnings.filterwarnings("ignore", category=DeprecationWarning)
+# Scope suppression to known-noisy libraries instead of blanket suppression
+for _mod in ("sklearn", "timm", "torchvision", "scipy"):
+    warnings.filterwarnings("ignore", category=FutureWarning, module=_mod)
+    warnings.filterwarnings("ignore", category=DeprecationWarning, module=_mod)
 # Pydantic v1/v2 compatibility warnings
 warnings.filterwarnings("ignore", module="pydantic")
 warnings.filterwarnings("ignore", message=".*UnsupportedFieldAttributeWarning.*")

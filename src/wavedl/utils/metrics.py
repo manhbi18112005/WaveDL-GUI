@@ -895,6 +895,8 @@ def plot_correlation_heatmap(
     Returns:
         Matplotlib Figure object
     """
+    _ensure_style_configured()
+
     from matplotlib.colors import Normalize
     from matplotlib.patches import Rectangle
 
@@ -1030,6 +1032,7 @@ def plot_relative_error(
     Returns:
         Matplotlib Figure object
     """
+    _ensure_style_configured()
     y_true, y_pred, param_names, num_params = _prepare_plot_data(
         y_true, y_pred, param_names, max_samples
     )
@@ -1097,6 +1100,7 @@ def plot_error_cdf(
     Returns:
         Matplotlib Figure object
     """
+    _ensure_style_configured()
     num_params = y_true.shape[1] if y_true.ndim > 1 else 1
 
     # Handle 1D case
@@ -1182,6 +1186,7 @@ def plot_prediction_vs_index(
     Returns:
         Matplotlib Figure object
     """
+    _ensure_style_configured()
     y_true, y_pred, param_names, num_params = _prepare_plot_data(
         y_true, y_pred, param_names, max_samples
     )
@@ -1242,6 +1247,7 @@ def plot_error_boxplot(
     Returns:
         Matplotlib Figure object
     """
+    _ensure_style_configured()
     num_params = y_true.shape[1] if y_true.ndim > 1 else 1
 
     # Handle 1D case

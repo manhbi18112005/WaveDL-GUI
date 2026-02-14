@@ -484,6 +484,8 @@ def run_inference(
         preds = model(batch_x).cpu().numpy()
         predictions.append(preds)
 
+    if not predictions:
+        return np.empty((0, 0))
     return np.vstack(predictions)
 
 
@@ -1035,11 +1037,21 @@ def main():
     inference_time = time.time() - inference_start
 
     # Calculate timing metrics
-    samples_per_sec = len(X_test) / inference_time
-    ms_per_sample = (inference_time / len(X_test)) * 1000
+    n_samples = len(X_test)
+    if n_samples > 0 and inference_time > 0:
+        samples_per_sec = n_samples / inference_time
+        ms_per_sample = (inference_time / n_samples) * 1000
+    else:
+        samples_per_sec = 0.0
+        ms_per_sample = 0.0
     logger.info(
         f"   Inference time: {inference_time:.2f}s ({ms_per_sample:.2f} ms/sample, {samples_per_sec:.1f} samples/s)"
     )
+
+    # Guard: empty dataset — nothing to evaluate or plot
+    if n_samples == 0:
+        logger.warning("No samples in test set — skipping evaluation.")
+        return
 
     # Validate scaler dimensions match predictions
     if hasattr(scaler, "scale_") and len(scaler.scale_) != y_pred_scaled.shape[1]:

@@ -386,12 +386,20 @@ def run_cross_validation(
 
     # Setup cross-validation
     if stratify:
-        # Bin targets for stratification (regression)
-        y_binned = np.digitize(
-            y[:, 0], np.percentile(y[:, 0], np.linspace(0, 100, stratify_bins + 1))
-        )
-        kfold = StratifiedKFold(n_splits=folds, shuffle=True, random_state=seed)
-        splits = list(kfold.split(X, y_binned))
+        try:
+            # Bin targets for stratification (regression)
+            y_binned = np.digitize(
+                y[:, 0], np.percentile(y[:, 0], np.linspace(0, 100, stratify_bins + 1))
+            )
+            kfold = StratifiedKFold(n_splits=folds, shuffle=True, random_state=seed)
+            splits = list(kfold.split(X, y_binned))
+        except ValueError:
+            logger.warning(
+                "⚠️  StratifiedKFold failed (too few samples per bin). "
+                "Falling back to standard KFold."
+            )
+            kfold = KFold(n_splits=folds, shuffle=True, random_state=seed)
+            splits = list(kfold.split(X))
     else:
         kfold = KFold(n_splits=folds, shuffle=True, random_state=seed)
         splits = list(kfold.split(X))

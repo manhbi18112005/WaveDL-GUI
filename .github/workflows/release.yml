@@ -31,8 +31,11 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    name: Create Release
+  # =============================================================================
+  # Test across Python versions (matrix)
+  # =============================================================================
+  test:
+    name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
 
     strategy:
@@ -64,6 +67,18 @@ jobs:
 
       - name: Run tests
         run: pytest unit_tests -v -m "not slow"
+
+  # =============================================================================
+  # Create GitHub Release (single job, no matrix)
+  # =============================================================================
+  release:
+    name: Create Release
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Extract version from tag
         id: version

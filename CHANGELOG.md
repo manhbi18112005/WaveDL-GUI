@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.7.1] - 2026-02-14
 
 ### Added
 - **Cross-validation**: MPS (Apple Silicon GPU) device support — auto-detects CUDA → MPS → CPU
@@ -19,7 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **Critical**: Auto-resume duplicated epochs — history now truncated to `start_epoch` on resume
 - **Critical**: Cross-validation OOM (SIGKILL:9) — `CVDataset` uses zero-copy `torch.from_numpy()` instead of `torch.tensor()`
+- **Critical**: Release workflow race — split matrix job so GitHub Release is created once, not per Python version
+- **Critical**: Inference crash on empty datasets — `run_inference()` guards empty predictions; `main()` early-returns before scaler validation
+- **Models**: Pretrained timm wrappers (CaFormer, EfficientViT, FastViT, MaxViT) now probe feature dims in `eval()` mode to preserve BatchNorm running stats
+- **Cross-validation**: `StratifiedKFold` gracefully falls back to `KFold` when bins have too few samples
+- **Training**: Warning suppression scoped to known-noisy libraries (`sklearn`, `timm`, `torchvision`, `scipy`) instead of blanket `FutureWarning`/`DeprecationWarning` filter
 - **Metrics**: Relative-error plots and CDF percentile markers now exclude `NaN` from near-zero targets (was mapping to 0%, understating error)
+- **Metrics**: 5 plot functions (`plot_correlation_heatmap`, `plot_relative_error`, `plot_error_cdf`, `plot_prediction_vs_index`, `plot_error_boxplot`) now call `_ensure_style_configured()` for consistent styling
 - **Cross-validation**: Fold-level `gc.collect()` + `torch.cuda.empty_cache()`; scheduler/optimizer args no longer silently dropped; `pin_memory` conditional on CUDA
 - **DDP**: ReduceLROnPlateau broadcasts per-group LRs (preserves multi-group ratios)
 - **HPO**: Crashed subprocess trials return `inf`; `--inprocess` forces `n_jobs=1`; empty `nvidia-smi` no longer yields phantom GPU
@@ -424,7 +430,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Example configurations and training scripts
 - MIT License and citation file
 
-[Unreleased]: https://github.com/ductho-le/WaveDL/compare/v1.6.3...HEAD
+[Unreleased]: https://github.com/ductho-le/WaveDL/compare/v1.7.1...HEAD
+[1.7.1]: https://github.com/ductho-le/WaveDL/compare/v1.7.0...v1.7.1
+[1.7.0]: https://github.com/ductho-le/WaveDL/compare/v1.6.3...v1.7.0
 [1.6.3]: https://github.com/ductho-le/WaveDL/compare/v1.6.2...v1.6.3
 [1.6.2]: https://github.com/ductho-le/WaveDL/compare/v1.6.1...v1.6.2
 [1.6.1]: https://github.com/ductho-le/WaveDL/compare/v1.6.0...v1.6.1
