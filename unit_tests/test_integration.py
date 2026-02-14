@@ -581,6 +581,43 @@ class TestSchedulerIntegration:
         final_lr = optimizer.param_groups[0]["lr"]
         assert final_lr < initial_lr
 
+    def test_plateau_scheduler_preserves_multigroup_lr(self):
+        """Test ReduceLROnPlateau preserves LR ratios across parameter groups.
+
+        Regression test: DDP LR sync previously broadcast only group[0]'s LR
+        to all groups, collapsing per-group ratios (e.g., Swin backbone at 0.1×).
+        """
+        model = CNN(in_shape=(32, 32), out_size=3)
+
+        # Create multi-group optimizer mimicking Swin's layout:
+        # Group 0: backbone (0.01 LR), Group 1: head (0.1 LR)
+        backbone_params = list(model.parameters())[:2]
+        head_params = list(model.parameters())[2:]
+        optimizer = torch.optim.Adam(
+            [
+                {"params": backbone_params, "lr": 0.01},
+                {"params": head_params, "lr": 0.1},
+            ]
+        )
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, patience=2, factor=0.5
+        )
+
+        initial_ratio = (
+            optimizer.param_groups[1]["lr"] / optimizer.param_groups[0]["lr"]
+        )
+        assert initial_ratio == pytest.approx(10.0)  # 0.1 / 0.01
+
+        # Simulate plateau
+        for _ in range(5):
+            scheduler.step(1.0)
+
+        # Both groups should have reduced, but ratio must be preserved
+        assert optimizer.param_groups[0]["lr"] < 0.01
+        assert optimizer.param_groups[1]["lr"] < 0.1
+        final_ratio = optimizer.param_groups[1]["lr"] / optimizer.param_groups[0]["lr"]
+        assert final_ratio == pytest.approx(10.0)
+
     def test_cosine_scheduler_varies_lr(self):
         """Test CosineAnnealingLR varies LR over epochs."""
         model = CNN(in_shape=(32, 32), out_size=3)

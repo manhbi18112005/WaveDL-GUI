@@ -264,6 +264,17 @@ def create_objective(args):
                     env=env,
                 )
 
+                # Reject crashed trials before parsing any output
+                if result.returncode != 0:
+                    print(
+                        f"Trial {trial.number}: Training subprocess failed "
+                        f"(exit code {result.returncode})"
+                    )
+                    stderr_lines = result.stderr.strip().split("\n")[-3:]
+                    for line in stderr_lines:
+                        print(f"  stderr: {line}")
+                    return float("inf")
+
                 # Read best val_loss from training_history.csv (reliable machine-readable)
                 val_loss = None
                 if history_file.exists():
@@ -459,7 +470,8 @@ Examples:
                 text=True,
             )
             if result_gpu.returncode == 0:
-                args.n_jobs = max(1, len(result_gpu.stdout.strip().split("\n")))
+                gpu_lines = result_gpu.stdout.strip()
+                args.n_jobs = max(1, len(gpu_lines.split("\n"))) if gpu_lines else 1
             else:
                 args.n_jobs = 1
         except Exception:
@@ -499,6 +511,14 @@ Examples:
         direction="minimize",
         pruner=pruner,
     )
+
+    # In-process mode: force single-threaded to avoid GPU memory contention
+    if args.inprocess and args.n_jobs > 1:
+        print(
+            f"\u26a0\ufe0f  --inprocess mode: overriding n_jobs={args.n_jobs} \u2192 1 "
+            "(multiple in-process trials would share GPU memory)"
+        )
+        args.n_jobs = 1
 
     # Run optimization
     objective = create_objective(args)

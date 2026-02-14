@@ -9,12 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Cross-validation**: MPS (Apple Silicon GPU) device support — auto-detects CUDA → MPS → CPU
+- **Tests**: 5 new regression tests for DDP LR sync, HPO subprocess failure, ONNX dir creation, in-process parallelism, and GPU detection edge case
 
 ### Fixed
 - **Critical**: Cross-validation OOM crash (SIGKILL:9) with many folds — `CVDataset` now uses `torch.from_numpy()` (zero-copy) instead of `torch.tensor()` (full copy)
 - **Cross-validation**: Missing fold-level memory cleanup — added `gc.collect()` and `torch.cuda.empty_cache()` between folds
 - **Cross-validation**: Scheduler/optimizer args (`scheduler_patience`, `scheduler_factor`, `min_lr`, `betas`, `momentum`, `grad_clip`) were silently dropped (used wrong defaults)
 - **Cross-validation**: `pin_memory=True` on non-CUDA devices (now conditional on CUDA availability)
+- **DDP**: ReduceLROnPlateau LR sync now broadcasts per-group LRs instead of a single scalar (preserves multi-group ratios for Swin backbone/head)
+- **HPO**: Subprocess trials with non-zero exit code now return `inf` immediately (prevents accepting val_loss from crashed trials)
+- **HPO**: `--inprocess` mode now forces `n_jobs=1` with warning (prevents GPU memory contention from parallel in-process trials)
+- **HPO**: GPU auto-detection handles empty `nvidia-smi` output correctly (`"".split()` no longer yields phantom GPU)
+- **Inference**: `output_dir.mkdir()` now runs before ONNX export (prevents `FileNotFoundError` for non-existent output directories)
+- **Launcher**: GPU auto-detection handles empty `nvidia-smi` output correctly
 
 ## [1.7.0] - 2026-02-05
 

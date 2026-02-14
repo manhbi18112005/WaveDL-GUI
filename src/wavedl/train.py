@@ -1805,20 +1805,20 @@ def main():
                     # Sync LR across all processes after main process updates it
                     accelerator.wait_for_everyone()
 
-                    # Broadcast new LR from rank 0 to all processes
+                    # Broadcast per-group LRs from rank 0 to all processes
+                    # (preserves multi-group ratios, e.g., Swin backbone 0.1× vs head 1×)
                     if dist.is_initialized():
-                        if accelerator.is_main_process:
-                            new_lr = optimizer.param_groups[0]["lr"]
-                        else:
-                            new_lr = 0.0
-                        new_lr_tensor = torch.tensor(
-                            new_lr, device=accelerator.device, dtype=torch.float32
+                        n_groups = len(optimizer.param_groups)
+                        lr_tensor = torch.zeros(
+                            n_groups, device=accelerator.device, dtype=torch.float32
                         )
-                        dist.broadcast(new_lr_tensor, src=0)
-                        # Update LR on non-main processes
+                        if accelerator.is_main_process:
+                            for i, pg in enumerate(optimizer.param_groups):
+                                lr_tensor[i] = pg["lr"]
+                        dist.broadcast(lr_tensor, src=0)
                         if not accelerator.is_main_process:
-                            for param_group in optimizer.param_groups:
-                                param_group["lr"] = new_lr_tensor.item()
+                            for i, pg in enumerate(optimizer.param_groups):
+                                pg["lr"] = lr_tensor[i].item()
                 else:
                     scheduler.step()
 

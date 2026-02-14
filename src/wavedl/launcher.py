@@ -51,7 +51,8 @@ def detect_gpus() -> int:
             text=True,
             check=True,
         )
-        gpu_count = len(result.stdout.strip().split("\n"))
+        gpu_output = result.stdout.strip()
+        gpu_count = len(gpu_output.split("\n")) if gpu_output else 0
         if gpu_count > 0:
             print(f"Auto-detected {gpu_count} GPU(s)")
             return gpu_count

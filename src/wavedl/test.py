@@ -978,6 +978,10 @@ def main():
     logger.info(f"Loading checkpoint from: {args.checkpoint}")
     model, scaler = load_checkpoint(args.checkpoint, in_shape, out_size, args.model)
 
+    # Ensure output directory exists before any file operations (including ONNX export)
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     # Handle ONNX export if requested
     if args.export == "onnx":
         # Determine output path
@@ -1019,10 +1023,6 @@ def main():
                 "Export-only mode. Use --save_predictions or --plot for inference."
             )
             return
-
-    # Ensure output directory exists before any file operations
-    output_dir = Path(args.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
 
     # Run inference with timing
     logger.info(f"Running inference on {len(X_test)} samples...")
