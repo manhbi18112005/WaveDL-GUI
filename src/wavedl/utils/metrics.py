@@ -1035,24 +1035,29 @@ def plot_relative_error(
     )
 
     # Calculate relative error (avoid division by zero)
+    # Points where y_true ≈ 0 produce inf/nan — we keep them as NaN and
+    # exclude from plotting/statistics rather than mapping to 0% (which
+    # would understate error for near-zero targets).
     with np.errstate(divide="ignore", invalid="ignore"):
         rel_error = np.abs((y_pred - y_true) / y_true) * 100
-        rel_error = np.nan_to_num(rel_error, nan=0.0, posinf=0.0, neginf=0.0)
+        rel_error = np.nan_to_num(rel_error, nan=np.nan, posinf=np.nan, neginf=np.nan)
 
     fig, axes = _create_subplot_grid(num_params)
 
     for i in range(num_params):
         ax = axes[i]
+        # Filter out NaN (near-zero true values where relative error is undefined)
+        mask = np.isfinite(rel_error[:, i])
         ax.plot(
-            y_true[:, i],
-            rel_error[:, i],
+            y_true[mask, i],
+            rel_error[mask, i],
             "o",
             markersize=5,
             markerfacecolor=COLORS["scatter"],
             markeredgecolor="none",
             label="Data",
         )
-        mean_rel = np.mean(rel_error[:, i])
+        mean_rel = np.nanmean(rel_error[:, i])
         ax.axhline(
             y=mean_rel, color=COLORS["accent"], linestyle="-", lw=1.2, label="Mean"
         )
@@ -1106,7 +1111,8 @@ def plot_error_cdf(
     if use_relative:
         with np.errstate(divide="ignore", invalid="ignore"):
             errors = np.abs((y_pred - y_true) / y_true) * 100
-            errors = np.nan_to_num(errors, nan=0.0, posinf=0.0, neginf=0.0)
+            # Keep inf/nan as NaN — exclude from CDF rather than understating
+            errors = np.nan_to_num(errors, nan=np.nan, posinf=np.nan, neginf=np.nan)
         xlabel = r"Relative Error\;$(\%)$"
     else:
         errors = np.abs(y_pred - y_true)
@@ -1124,14 +1130,18 @@ def plot_error_cdf(
     ]
 
     for i in range(num_params):
-        err = np.sort(errors[:, i])
+        # Filter NaN values (near-zero targets where relative error is undefined)
+        err_raw = errors[:, i]
+        err = np.sort(err_raw[np.isfinite(err_raw)])
+        if len(err) == 0:
+            continue
         cdf = np.arange(1, len(err) + 1) / len(err)
 
         color = colors_list[i % len(colors_list)]
         ax.plot(err, cdf * 100, label=param_names[i], color=color, lw=1.5)
 
-        # Find 95th percentile (use np.percentile for accuracy)
-        p95_val = np.percentile(errors[:, i], 95)
+        # Find 95th percentile (use filtered err to avoid NaN from near-zero targets)
+        p95_val = np.percentile(err, 95)
         ax.axvline(x=p95_val, color=color, linestyle=":")
 
     # Reference lines
@@ -1246,7 +1256,8 @@ def plot_error_boxplot(
     if use_relative:
         with np.errstate(divide="ignore", invalid="ignore"):
             errors = np.abs((y_pred - y_true) / y_true) * 100
-            errors = np.nan_to_num(errors, nan=0.0, posinf=0.0, neginf=0.0)
+            # Keep inf/nan as NaN — exclude from boxplot rather than understating
+            errors = np.nan_to_num(errors, nan=np.nan, posinf=np.nan, neginf=np.nan)
         ylabel = "Relative Error (%)"
     else:
         errors = y_pred - y_true  # Signed error for box plot
@@ -1256,9 +1267,9 @@ def plot_error_boxplot(
     fig_width = min(FIGURE_WIDTH_INCH * 0.5, 2 + num_params * 0.8)
     fig, ax = plt.subplots(figsize=(fig_width, FIGURE_WIDTH_INCH * 0.4))
 
-    # Box plot
+    # Box plot (filter NaN for each parameter — near-zero targets excluded)
     bp = ax.boxplot(
-        [errors[:, i] for i in range(num_params)],
+        [errors[:, i][np.isfinite(errors[:, i])] for i in range(num_params)],
         labels=param_names,
         patch_artist=True,
         showfliers=True,

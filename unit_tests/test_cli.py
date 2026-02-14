@@ -356,7 +356,7 @@ class TestModelWithDenormalization:
 # HPO MODULE TESTS (wavedl.hpo - requires optuna)
 # ==============================================================================
 try:
-    import optuna  # noqa: F401
+    import optuna
 
     HAS_OPTUNA = True
 except ImportError:
@@ -508,33 +508,59 @@ class TestHPOObjective:
 
         Regression test: n_jobs was passed through unconditionally, allowing
         multiple in-process trials to contend for the same GPU.
+
+        This test calls hpo.main() directly to exercise the full
+        parse_args → n_jobs override → optimize production path.
         """
-        from wavedl.hpo import create_objective
+        from wavedl import hpo
 
-        args = MagicMock()
-        args.data_path = "/fake/path.npz"
-        args.max_epochs = 10
-        args.quick = True
-        args.medium = False
-        args.inprocess = True
-        args.seed = 2025
-        args.timeout = 3600
-        args.models = None
-        args.optimizers = None
-        args.schedulers = None
-        args.losses = None
-        args.batch_sizes = None
-        args.n_jobs = 4  # User requests 4 parallel jobs
+        captured_n_jobs = {}
 
-        # The main() function handles the override, but we can test
-        # the logic directly: in-process + n_jobs > 1 should warn
-        if args.inprocess and args.n_jobs > 1:
-            args.n_jobs = 1
+        def mock_optimize(objective, **kwargs):
+            """Capture n_jobs as received by study.optimize."""
+            captured_n_jobs["value"] = kwargs.get("n_jobs")
 
-        assert args.n_jobs == 1
+        with (
+            patch.object(
+                sys,
+                "argv",
+                [
+                    "wavedl-hpo",
+                    "--data_path",
+                    "/fake/path.npz",
+                    "--n_trials",
+                    "1",
+                    "--n_jobs",
+                    "4",  # user requests 4 parallel
+                    "--inprocess",
+                    "--quick",
+                    "--storage",
+                    "none",
+                ],
+            ),
+            patch("pathlib.Path.exists", return_value=True),
+            patch("optuna.create_study") as mock_study,
+            patch("builtins.open", MagicMock()),  # suppress file output
+        ):
+            # Build a fake completed trial
+            mock_trial = MagicMock()
+            mock_trial.state = optuna.trial.TrialState.COMPLETE
+            mock_trial.number = 0
+            mock_trial.value = 0.01
+            mock_trial.params = {"model": "cnn"}
 
-        objective = create_objective(args)
-        assert callable(objective)
+            mock_study.return_value.optimize = mock_optimize
+            mock_study.return_value.trials = [mock_trial]
+            mock_study.return_value.best_trial = mock_trial
+            mock_study.return_value.best_value = 0.01
+            mock_study.return_value.best_params = {"model": "cnn"}
+
+            hpo.main()
+
+        assert captured_n_jobs["value"] == 1, (
+            "In-process mode should override n_jobs to 1 to prevent "
+            "GPU memory contention"
+        )
 
 
 @pytest.mark.skipif(not HAS_OPTUNA, reason="optuna not installed")
@@ -1029,10 +1055,11 @@ class TestONNXExport:
         assert os.path.exists(output_path)
 
     def test_export_creates_output_dir(self, temp_dir):
-        """Test ONNX export succeeds when output directory doesn't exist yet.
+        """Test ONNX export behaviour with missing parent directories.
 
-        Regression test: output_dir.mkdir() was called after export_to_onnx(),
-        causing FileNotFoundError for non-existent output directories.
+        Regression test: verifies that export_to_onnx (which delegates to
+        torch.onnx.export) fails gracefully when parent dirs are missing,
+        and succeeds when callers create them beforehand.
         """
         from wavedl.models.cnn import CNN
         from wavedl.test import export_to_onnx
@@ -1040,16 +1067,20 @@ class TestONNXExport:
         model = CNN(in_shape=(32, 32), out_size=3)
         sample_input = torch.randn(1, 1, 32, 32)
 
-        # Use a nested non-existent directory
+        # Part 1: export_to_onnx should return False (not crash) when
+        # parent directories don't exist
         nested_dir = os.path.join(temp_dir, "nonexistent", "subdir")
         output_path = os.path.join(nested_dir, "model.onnx")
+        result = export_to_onnx(model, sample_input, output_path, validate=False)
+        assert not result, (
+            "export_to_onnx should return False when parent dirs are missing"
+        )
 
-        # Ensure parent dirs for export (simulating the fix)
+        # Part 2: succeeds when callers create parent dirs (production pattern)
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        success = export_to_onnx(model, sample_input, output_path, validate=False)
-
-        assert success
-        assert os.path.exists(output_path)
+        result = export_to_onnx(model, sample_input, output_path, validate=False)
+        assert result, "ONNX export should succeed with existing parent directories"
+        assert os.path.exists(output_path), "ONNX file should exist after export"
 
     def test_get_onnx_model_info(self, temp_dir):
         """Test ONNX model info extraction."""
@@ -1134,14 +1165,13 @@ class TestScalerPortability:
     def test_scaler_overwrite_on_retrain(self, temp_dir):
         """Test that scaler is overwritten (not stale) when saving best checkpoint.
 
-        Simulates retrain scenario where:
-        1. Initial training creates checkpoint with scaler v1
-        2. Retraining in same dir creates new scaler v2
-        3. New best checkpoint should have scaler v2, not stale v1
+        Regression test: calls the production _save_best_checkpoint function
+        (with a mocked accelerator) to verify that scaler.pkl is copied from
+        output_dir into best_checkpoint/, replacing any stale version.
         """
-        import shutil
+        from wavedl.train import _save_best_checkpoint
 
-        # Setup directories
+        # Setup directories matching production layout
         output_dir = temp_dir
         ckpt_dir = os.path.join(temp_dir, "best_checkpoint")
         os.makedirs(ckpt_dir, exist_ok=True)
@@ -1156,11 +1186,31 @@ class TestScalerPortability:
         with open(os.path.join(output_dir, "scaler.pkl"), "wb") as f:
             pickle.dump(new_scaler, f)
 
-        # Simulate the scaler copy logic from train.py (FIXED version)
-        scaler_src = os.path.join(output_dir, "scaler.pkl")
-        scaler_dst = os.path.join(ckpt_dir, "scaler.pkl")
-        if os.path.exists(scaler_src):
-            shutil.copy2(scaler_src, scaler_dst)
+        # Mock accelerator and model so we can call _save_best_checkpoint
+        mock_accelerator = MagicMock()
+        mock_accelerator.is_main_process = True
+        mock_accelerator.save_state = MagicMock()
+        mock_accelerator.unwrap_model = MagicMock(
+            return_value=MagicMock(state_dict=MagicMock(return_value={}))
+        )
+
+        mock_args = MagicMock()
+        mock_args.output_dir = output_dir
+        mock_args.model = "cnn"
+
+        mock_logger = MagicMock()
+
+        _save_best_checkpoint(
+            accelerator=mock_accelerator,
+            model=MagicMock(),
+            args=mock_args,
+            epoch=5,
+            best_val_loss=0.01,
+            in_shape=(32, 32),
+            out_dim=3,
+            scaler=None,  # not used by function
+            logger=mock_logger,
+        )
 
         # Verify the checkpoint now has the NEW scaler, not stale old one
         with open(os.path.join(ckpt_dir, "scaler.pkl"), "rb") as f:

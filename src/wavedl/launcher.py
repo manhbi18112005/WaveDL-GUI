@@ -353,7 +353,7 @@ def main() -> int:
     print_summary(
         exit_code,
         wandb_enabled,
-        os.environ.get("WANDB_MODE", "offline"),
+        os.environ.get("WANDB_MODE", "online"),
         os.environ.get("WANDB_DIR", "/tmp/wandb"),
     )
 

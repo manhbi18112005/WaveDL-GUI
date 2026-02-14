@@ -450,6 +450,13 @@ Examples:
         default="wavedl_hpo",
         help="Optuna study name (default: wavedl_hpo)",
     )
+    parser.add_argument(
+        "--storage",
+        type=str,
+        default=None,
+        help="Optuna storage URL (default: sqlite:///{study_name}.db). "
+        "Set to 'none' to disable persistence.",
+    )
 
     args = parser.parse_args()
 
@@ -506,10 +513,24 @@ Examples:
         # NopPruner for subprocess mode - pruning has no effect there
         pruner = optuna.pruners.NopPruner()
 
+    # Determine storage backend for study persistence
+    if args.storage and args.storage.lower() == "none":
+        storage = None  # Explicitly disabled
+    elif args.storage:
+        storage = args.storage  # User-specified
+    else:
+        # Default: SQLite file alongside results for resumability
+        storage = f"sqlite:///{args.study_name}.db"
+
+    if storage:
+        print(f"Study persistence: {storage}")
+
     study = optuna.create_study(
         study_name=args.study_name,
         direction="minimize",
         pruner=pruner,
+        storage=storage,
+        load_if_exists=True,
     )
 
     # In-process mode: force single-threaded to avoid GPU memory contention

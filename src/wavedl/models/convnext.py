@@ -89,8 +89,17 @@ class ConvNeXtBlock(nn.Module):
             else None
         )
 
-        # Stochastic depth (drop path) - simplified version
-        self.drop_path = nn.Identity()  # Can be replaced with DropPath if needed
+        # Stochastic depth (drop path) for regularisation in deep networks
+        if drop_path > 0.0:
+            try:
+                from timm.layers import DropPath
+
+                self.drop_path = DropPath(drop_path)
+            except ImportError:
+                # Fallback: skip stochastic depth if timm is unavailable
+                self.drop_path = nn.Identity()
+        else:
+            self.drop_path = nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         residual = x
@@ -167,11 +176,20 @@ class ConvNeXtBase(BaseModel):
         self.stages = nn.ModuleList()
         self.downsamples = nn.ModuleList()
 
+        # Linearly increasing drop-path rates across all blocks (paper practice)
+        total_blocks = sum(depths)
+        dp_rates = torch.linspace(0, dropout_rate * 0.5, total_blocks).tolist()
+        block_idx = 0
+
         for i in range(4):
-            # Stage: multiple ConvNeXt blocks
+            # Stage: multiple ConvNeXt blocks with per-block drop path rates
             stage = nn.Sequential(
-                *[ConvNeXtBlock(dims[i], self.dim) for _ in range(depths[i])]
+                *[
+                    ConvNeXtBlock(dims[i], self.dim, drop_path=dp_rates[block_idx + j])
+                    for j in range(depths[i])
+                ]
             )
+            block_idx += depths[i]
             self.stages.append(stage)
 
             # Downsample between stages (except after last stage)

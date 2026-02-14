@@ -9,19 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Cross-validation**: MPS (Apple Silicon GPU) device support — auto-detects CUDA → MPS → CPU
-- **Tests**: 5 new regression tests for DDP LR sync, HPO subprocess failure, ONNX dir creation, in-process parallelism, and GPU detection edge case
+- **HPO**: SQLite study persistence (`--storage`) — interrupted searches resume automatically
+- **ConvNeXt**: Stochastic depth (DropPath) via `timm.layers.DropPath` with linearly-increasing rates (was no-op `nn.Identity()`)
+
+### Changed
+- **CI**: All workflows now test against Python `3.11`/`3.12`/`3.13` matrix
+- **Tests**: Regression tests rewritten to call production code (`hpo.main()`, `export_to_onnx()`, `_save_best_checkpoint()`) instead of replaying logic inline
 
 ### Fixed
-- **Critical**: Cross-validation OOM crash (SIGKILL:9) with many folds — `CVDataset` now uses `torch.from_numpy()` (zero-copy) instead of `torch.tensor()` (full copy)
-- **Cross-validation**: Missing fold-level memory cleanup — added `gc.collect()` and `torch.cuda.empty_cache()` between folds
-- **Cross-validation**: Scheduler/optimizer args (`scheduler_patience`, `scheduler_factor`, `min_lr`, `betas`, `momentum`, `grad_clip`) were silently dropped (used wrong defaults)
-- **Cross-validation**: `pin_memory=True` on non-CUDA devices (now conditional on CUDA availability)
-- **DDP**: ReduceLROnPlateau LR sync now broadcasts per-group LRs instead of a single scalar (preserves multi-group ratios for Swin backbone/head)
-- **HPO**: Subprocess trials with non-zero exit code now return `inf` immediately (prevents accepting val_loss from crashed trials)
-- **HPO**: `--inprocess` mode now forces `n_jobs=1` with warning (prevents GPU memory contention from parallel in-process trials)
-- **HPO**: GPU auto-detection handles empty `nvidia-smi` output correctly (`"".split()` no longer yields phantom GPU)
-- **Inference**: `output_dir.mkdir()` now runs before ONNX export (prevents `FileNotFoundError` for non-existent output directories)
-- **Launcher**: GPU auto-detection handles empty `nvidia-smi` output correctly
+- **Critical**: Auto-resume duplicated epochs — history now truncated to `start_epoch` on resume
+- **Critical**: Cross-validation OOM (SIGKILL:9) — `CVDataset` uses zero-copy `torch.from_numpy()` instead of `torch.tensor()`
+- **Metrics**: Relative-error plots and CDF percentile markers now exclude `NaN` from near-zero targets (was mapping to 0%, understating error)
+- **Cross-validation**: Fold-level `gc.collect()` + `torch.cuda.empty_cache()`; scheduler/optimizer args no longer silently dropped; `pin_memory` conditional on CUDA
+- **DDP**: ReduceLROnPlateau broadcasts per-group LRs (preserves multi-group ratios)
+- **HPO**: Crashed subprocess trials return `inf`; `--inprocess` forces `n_jobs=1`; empty `nvidia-smi` no longer yields phantom GPU
+- **Launcher**: W&B default changed to `"online"` (fixes spurious offline sync messages on local machines)
+- **Training**: Mixed-precision log shows actual `accelerator.mixed_precision` value
+- **Inference**: Output directory created before ONNX export
+
+### Removed
+- **Training**: Dead `_run_train_epoch()` / `_run_validation()` helpers (~130 lines)
 
 ## [1.7.0] - 2026-02-05
 

@@ -467,161 +467,6 @@ def parse_args() -> argparse.Namespace:
     return args, parser  # Returns (Namespace, ArgumentParser)
 
 
-# ==============================================================================
-# TRAINING HELPER FUNCTIONS
-# ==============================================================================
-def _run_train_epoch(
-    model,
-    train_dl,
-    optimizer,
-    criterion,
-    accelerator,
-    scheduler,
-    scheduler_step_per_batch: bool,
-    grad_clip: float,
-) -> tuple[float, float]:
-    """
-    Run one training epoch.
-
-    Args:
-        model: Model to train
-        train_dl: Training DataLoader
-        optimizer: Optimizer
-        criterion: Loss function (may be PhysicsConstrainedLoss)
-        accelerator: Accelerator instance
-        scheduler: LR scheduler
-        scheduler_step_per_batch: Whether to step scheduler per batch
-        grad_clip: Gradient clipping norm
-
-    Returns:
-        Tuple of (avg_train_loss, avg_grad_norm)
-    """
-    from wavedl.utils.constraints import PhysicsConstrainedLoss
-
-    model.train()
-    train_loss_sum = torch.tensor(0.0, device=accelerator.device)
-    train_samples = 0
-    grad_norm_tracker = MetricTracker()
-
-    for x, y in train_dl:
-        with accelerator.accumulate(model):
-            with accelerator.autocast():
-                pred = model(x)
-                if isinstance(criterion, PhysicsConstrainedLoss):
-                    loss = criterion(pred, y, x)
-                else:
-                    loss = criterion(pred, y)
-
-            accelerator.backward(loss)
-
-            if accelerator.sync_gradients:
-                grad_norm = accelerator.clip_grad_norm_(model.parameters(), grad_clip)
-                if grad_norm is not None:
-                    grad_norm_tracker.update(grad_norm.item())
-
-            optimizer.step()
-            optimizer.zero_grad(set_to_none=True)
-
-            if scheduler_step_per_batch:
-                scheduler.step()
-
-            train_loss_sum += loss.detach() * x.size(0)
-            train_samples += x.size(0)
-
-    # Sync across GPUs
-    train_loss_scalar = train_loss_sum.item()
-    global_loss = accelerator.reduce(
-        torch.tensor([train_loss_scalar], device=accelerator.device),
-        reduction="sum",
-    ).item()
-    global_samples = accelerator.reduce(
-        torch.tensor([train_samples], device=accelerator.device),
-        reduction="sum",
-    ).item()
-
-    return global_loss / global_samples, grad_norm_tracker.avg
-
-
-def _run_validation(
-    model,
-    val_dl,
-    criterion,
-    accelerator,
-    out_dim: int,
-    phys_scale: torch.Tensor,
-) -> tuple[float, np.ndarray, torch.Tensor, torch.Tensor]:
-    """
-    Run validation epoch.
-
-    Args:
-        model: Model in eval mode
-        val_dl: Validation DataLoader
-        criterion: Loss function
-        accelerator: Accelerator instance
-        out_dim: Number of output dimensions
-        phys_scale: Physical scale tensor for MAE computation
-
-    Returns:
-        Tuple of (avg_val_loss, avg_mae_per_param, gathered_preds, gathered_targets)
-    """
-    from wavedl.utils.constraints import PhysicsConstrainedLoss
-
-    model.eval()
-    val_loss_sum = torch.tensor(0.0, device=accelerator.device)
-    val_mae_sum = torch.zeros(out_dim, device=accelerator.device)
-    val_samples = 0
-    local_preds, local_targets = [], []
-
-    with torch.inference_mode():
-        for x, y in val_dl:
-            with accelerator.autocast():
-                pred = model(x)
-                if isinstance(criterion, PhysicsConstrainedLoss):
-                    loss = criterion(pred, y, x)
-                else:
-                    loss = criterion(pred, y)
-
-            val_loss_sum += loss.detach() * x.size(0)
-            val_samples += x.size(0)
-            val_mae_sum += torch.abs((pred - y) * phys_scale).sum(dim=0)
-            local_preds.append(pred.detach().cpu())
-            local_targets.append(y.detach().cpu())
-
-    # Gather across GPUs
-    local_preds_cat = torch.cat(local_preds)
-    local_targets_cat = torch.cat(local_targets)
-
-    if accelerator.num_processes > 1:
-        gathered_preds = accelerator.gather_for_metrics(
-            local_preds_cat.to(accelerator.device)
-        ).cpu()
-        gathered_targets = accelerator.gather_for_metrics(
-            local_targets_cat.to(accelerator.device)
-        ).cpu()
-    else:
-        gathered_preds = local_preds_cat
-        gathered_targets = local_targets_cat
-
-    # Sync metrics
-    val_loss_scalar = val_loss_sum.item()
-    val_metrics = torch.cat(
-        [
-            torch.tensor([val_loss_scalar], device=accelerator.device),
-            val_mae_sum,
-        ]
-    )
-    val_metrics_sync = accelerator.reduce(val_metrics, reduction="sum")
-    total_val_samples = accelerator.reduce(
-        torch.tensor([val_samples], device=accelerator.device),
-        reduction="sum",
-    ).item()
-
-    avg_val_loss = val_metrics_sync[0].item() / total_val_samples
-    avg_mae_per_param = (val_metrics_sync[1:] / total_val_samples).float().cpu().numpy()
-
-    return avg_val_loss, avg_mae_per_param, gathered_preds, gathered_targets
-
-
 def _save_best_checkpoint(
     accelerator,
     model,
@@ -1176,8 +1021,11 @@ def main():
 
     if accelerator.is_main_process:
         logger.info(f"🚀 Cluster Status: {accelerator.num_processes}x GPUs detected")
+        # Show the actual precision negotiated by Accelerator (may differ from
+        # CLI default when launched via accelerate launch)
+        actual_precision = accelerator.mixed_precision or "no"
         logger.info(
-            f"   Model: {args.model} | Precision: {args.precision} | Compile: {args.compile}"
+            f"   Model: {args.model} | Precision: {actual_precision} | Compile: {args.compile}"
         )
         logger.info(
             f"   Loss: {args.loss} | Optimizer: {args.optimizer} | Scheduler: {args.scheduler}"
@@ -1448,11 +1296,19 @@ def main():
                     "   ⚠️ training_meta.pkl not found, starting from epoch 0"
                 )
 
-            # Restore history
+            # Restore history, truncating to start_epoch to avoid duplicate
+            # rows for epochs that will be re-run from the best checkpoint.
             history_path = os.path.join(args.output_dir, "training_history.csv")
             if os.path.exists(history_path):
-                history = pd.read_csv(history_path).to_dict("records")
-                logger.info(f"   ✅ Loaded {len(history)} epochs from history")
+                full_history = pd.read_csv(history_path).to_dict("records")
+                history = full_history[:start_epoch]
+                if len(full_history) > start_epoch:
+                    logger.info(
+                        f"   ✅ Loaded {len(history)} of {len(full_history)} history "
+                        f"epochs (truncated to checkpoint epoch {start_epoch})"
+                    )
+                else:
+                    logger.info(f"   ✅ Loaded {len(history)} epochs from history")
         else:
             raise FileNotFoundError(f"Checkpoint not found: {args.resume}")
 
