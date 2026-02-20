@@ -120,3 +120,17 @@ logs/
 
 # Documentation
 manuscript/
+docs/
+
+.VSCodeCounter
+
+tools/*
+
+*.code-workspace
+
+test.py
+config.json
+AppData/
+download/
+build/
+dist/

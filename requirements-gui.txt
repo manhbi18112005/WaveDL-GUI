@@ -1,0 +1,25 @@
+# WaveDL GUI Requirements
+# ==========================
+# Install with: pip install -r requirements-gui.txt
+
+# Core GUI framework
+PySide6==6.6.2
+PySide6-Fluent-Widgets>=1.11.0
+
+# Real-time plotting
+pyqtgraph>=0.13.0
+
+# Configuration
+PyYAML>=6.0
+
+# Data handling
+numpy<2
+h5py>=3.8.0
+scipy>=1.10.0
+pandas>=2.0.0
+
+# Visualization
+matplotlib>=3.7.0
+
+# WaveDL framework (main package)
+# wavedl>=1.0.0

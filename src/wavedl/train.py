@@ -84,6 +84,7 @@ _setup_per_rank_compile_cache()
 # Standard imports (after environment setup)
 # =============================================================================
 import argparse
+import json
 import logging
 import pickle
 import shutil
@@ -1521,6 +1522,28 @@ def main():
                 base_str = f"{epoch + 1:<4} | {avg_train_loss:<8.4f} | {avg_val_loss:<8.4f} | {r2:<6.4f} | {pcc:<6.4f} | {grad_norm_tracker.avg:<6.4f} | {current_lr:<8.2e} | {avg_mae:<8.4f}"
                 param_str = " | ".join([f"{m:<8.4f}" for m in avg_mae_per_param])
                 logger.info(f"{base_str} | {param_str}")
+
+                # Structured metrics for GUI consumption
+                # This line is parsed by the GUI's OutputParser and filtered
+                # from the visible log output.
+                gui_metrics = {
+                    "epoch": epoch + 1,
+                    "total_epochs": args.epochs,
+                    "train_loss": avg_train_loss,
+                    "val_loss": avg_val_loss,
+                    "best_val_loss": best_val_loss,
+                    "r2": r2,
+                    "pearson": pcc,
+                    "grad_norm": grad_norm_tracker.avg,
+                    "lr": current_lr,
+                    "mae_avg": float(avg_mae),
+                    "mae_per_param": [float(m) for m in avg_mae_per_param],
+                    "epoch_time": round(epoch_time, 2),
+                    "total_time": round(total_training_time, 2),
+                    "patience_counter": patience_ctr,
+                    "max_patience": args.patience,
+                }
+                print(f"##METRICS##{json.dumps(gui_metrics)}", flush=True)
 
                 # WandB logging
                 if args.wandb and WANDB_AVAILABLE:

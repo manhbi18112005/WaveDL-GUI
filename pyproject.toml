@@ -11,7 +11,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["wavedl*"]
+include = ["wavedl*", "wavedl_gui*"]
 
 [tool.setuptools.dynamic]
 version = {attr = "wavedl.__version__"}
@@ -83,12 +83,18 @@ dev = [
     "ruff>=0.8.0",
     "pre-commit>=3.5.0",
 ]
+gui = [
+    "PyQt6>=6.6.0",
+    "pyqtgraph>=0.13.0",
+    "PyQt-Fluent-Widgets>=1.5.0",
+]
 
 [project.scripts]
 wavedl-train = "wavedl.launcher:main"  # Universal training (auto-detects HPC vs local)
 wavedl-hpc = "wavedl.launcher:main"    # Alias for backwards compatibility
 wavedl-test = "wavedl.test:main"
 wavedl-hpo = "wavedl.hpo:main"
+wavedl-gui = "wavedl_gui.main:main"
 
 [project.urls]
 Homepage = "https://github.com/ductho-le/WaveDL"
