@@ -1,4 +1,3 @@
-# coding:utf-8
 """
 WaveDL GUI - Statistics Widget Component
 
@@ -7,13 +6,13 @@ Uses theme-aware colors consistent with the DataInfoCard design system.
 """
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont, QColor, QPainter
-from PySide6.QtWidgets import QWidget, QVBoxLayout
-
-from qfluentwidgets import StrongBodyLabel, CaptionLabel, setFont, isDarkTheme
+from PySide6.QtGui import QColor, QFont, QPainter
+from PySide6.QtWidgets import QVBoxLayout, QWidget
+from qfluentwidgets import CaptionLabel, StrongBodyLabel, isDarkTheme, setFont
 
 
 # ─── Theme-aware colors (shared palette with data_info_card) ──────────────────
+
 
 def _muted_text_color() -> QColor:
     return QColor(110, 110, 110) if not isDarkTheme() else QColor(160, 160, 160)
@@ -24,6 +23,7 @@ def _section_bg_color() -> QColor:
 
 
 # ─── Widget ───────────────────────────────────────────────────────────────────
+
 
 class StatisticsWidget(QWidget):
     """A small vertical stat block: big number + caption beneath + optional subtitle."""

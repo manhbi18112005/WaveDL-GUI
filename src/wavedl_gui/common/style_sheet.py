@@ -1,14 +1,13 @@
-# coding: utf-8
 from enum import Enum
 
-from qfluentwidgets import StyleSheetBase, Theme, isDarkTheme, qconfig
+from qfluentwidgets import StyleSheetBase, Theme, qconfig
 
 
 class StyleSheet(StyleSheetBase, Enum):
-    """ Style sheet  """
+    """Style sheet"""
 
     # TODO: Add your qss here
-    
+
     SETTING_INTERFACE = "setting_interface"
 
     def path(self, theme=Theme.AUTO):

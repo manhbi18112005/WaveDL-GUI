@@ -1,17 +1,28 @@
-# coding: utf-8
 import os
-from pathlib import Path
+import platform
 import re
+import shutil
+import subprocess
 import sys
-from typing import Union
+from dataclasses import dataclass
 from json import loads
+from pathlib import Path
+from typing import ClassVar
 
-from PySide6.QtCore import QFile, QUrl, QFileInfo, QDir, QProcess, QStandardPaths
+import numpy as np
+from PySide6.QtCore import QDir, QFile, QFileInfo, QProcess, QUrl
 from PySide6.QtGui import QDesktopServices
+
+from wavedl.utils.data import (
+    INPUT_KEYS,
+    OUTPUT_KEYS,
+    DataSource,
+    get_data_source,
+)
 
 
 def adjustFileName(name: str):
-    """ adjust file name
+    """adjust file name
 
     Returns
     -------
@@ -23,23 +34,23 @@ def adjustFileName(name: str):
 
 
 def readFile(filePath: str):
-    """ load json data from file """
+    """load json data from file"""
     file = QFile(filePath)
     file.open(QFile.OpenModeFlag.ReadOnly)
-    data = str(file.readAll(), encoding='utf-8')
+    data = str(file.readAll(), encoding="utf-8")
     file.close()
     return data
 
 
 def loadJsonData(filePath: str):
-    """ load json data from file """
+    """load json data from file"""
     return loads(readFile(filePath))
 
 
 def removeFile(filePath: str | Path):
     try:
         os.remove(filePath)
-    except:
+    except Exception:
         pass
 
 
@@ -55,29 +66,36 @@ def openUrl(url: str):
     return True
 
 
-def showInFolder(path: Union[str, Path]):
-    """ show file in file explorer """
+def showInFolder(path: str | Path):
+    """show file in file explorer"""
     if not os.path.exists(path):
         return False
 
     if isinstance(path, Path):
         path = str(path.absolute())
 
-    if not path or path.lower().startswith('http'):
+    if not path or path.lower().startswith("http"):
         return False
 
-    info = QFileInfo(path)   # type:QFileInfo
+    info = QFileInfo(path)  # type:QFileInfo
     if sys.platform == "win32":
         args = [QDir.toNativeSeparators(path)]
         if not info.isDir():
-            args.insert(0, '/select,')
+            args.insert(0, "/select,")
 
-        QProcess.startDetached('explorer', args)
+        QProcess.startDetached("explorer", args)
     elif sys.platform == "darwin":
         args = [
-            "-e", 'tell application "Finder"', "-e", "activate",
-            "-e", f'select POSIX file "{path}"', "-e", "end tell",
-            "-e", "return"
+            "-e",
+            'tell application "Finder"',
+            "-e",
+            "activate",
+            "-e",
+            f'select POSIX file "{path}"',
+            "-e",
+            "end tell",
+            "-e",
+            "return",
         ]
         QProcess.execute("/usr/bin/osascript", args)
     else:
@@ -87,7 +105,7 @@ def showInFolder(path: Union[str, Path]):
     return True
 
 
-def runProcess(executable: Union[str, Path], args=None, timeout=5000, cwd=None) -> str:
+def runProcess(executable: str | Path, args=None, timeout=5000, cwd=None) -> str:
     process = QProcess()
 
     if cwd:
@@ -98,7 +116,7 @@ def runProcess(executable: Union[str, Path], args=None, timeout=5000, cwd=None) 
     return process.readAllStandardOutput().toStdString()
 
 
-def runDetachedProcess(executable: Union[str, Path], args=None, cwd=None):
+def runDetachedProcess(executable: str | Path, args=None, cwd=None):
     process = QProcess()
 
     if cwd:
@@ -106,27 +124,31 @@ def runDetachedProcess(executable: Union[str, Path], args=None, cwd=None):
 
     process.startDetached(str(executable).replace("\\", "/"), args or [])
 
+
 def getSystemProxy():
-    """ get system proxy """
+    """get system proxy"""
     if sys.platform == "win32":
         try:
             import winreg
 
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Software\Microsoft\Windows\CurrentVersion\Internet Settings') as key:
-                enabled, _ = winreg.QueryValueEx(key, 'ProxyEnable')
+            with winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Internet Settings",
+            ) as key:
+                enabled, _ = winreg.QueryValueEx(key, "ProxyEnable")
 
                 if enabled:
-                    return "http://" + winreg.QueryValueEx(key, 'ProxyServer')
-        except:
+                    return "http://" + winreg.QueryValueEx(key, "ProxyServer")
+        except Exception:
             pass
     elif sys.platform == "darwin":
-        s = os.popen('scutil --proxy').read()
-        info = dict(re.findall('(?m)^\s+([A-Z]\w+)\s+:\s+(\S+)', s))
+        s = os.popen("scutil --proxy").read()
+        info = dict(re.findall(r"(?m)^\s+([A-Z]\w+)\s+:\s+(\S+)", s))
 
-        if info.get('HTTPEnable') == '1':
+        if info.get("HTTPEnable") == "1":
             return f"http://{info['HTTPProxy']}:{info['HTTPPort']}"
-        elif info.get('ProxyAutoConfigEnable') == '1':
-            return info['ProxyAutoConfigURLString']
+        elif info.get("ProxyAutoConfigEnable") == "1":
+            return info["ProxyAutoConfigURLString"]
 
     return os.environ.get("http_proxy")
 
@@ -134,10 +156,6 @@ def getSystemProxy():
 # =============================================================================
 # SYSTEM INFORMATION
 # =============================================================================
-import platform
-import shutil
-import subprocess
-from dataclasses import dataclass
 
 
 def get_cpu_name() -> str:
@@ -147,7 +165,10 @@ def get_cpu_name() -> str:
         if system == "Darwin":
             result = subprocess.run(
                 ["sysctl", "-n", "machdep.cpu.brand_string"],
-                capture_output=True, text=True, check=True, timeout=5,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=5,
             )
             return result.stdout.strip()
         elif system == "Linux":
@@ -169,7 +190,10 @@ def get_system_memory_mb() -> int:
         if system == "Darwin":
             result = subprocess.run(
                 ["sysctl", "-n", "hw.memsize"],
-                capture_output=True, text=True, check=True, timeout=5,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=5,
             )
             return int(result.stdout.strip()) // (1024 * 1024)
         elif system == "Linux":
@@ -179,14 +203,17 @@ def get_system_memory_mb() -> int:
                         return int(line.split()[1]) // 1024  # kB -> MB
         elif system == "Windows":
             import ctypes
+
             kernel32 = ctypes.windll.kernel32
+
             class MEMORYSTATUSEX(ctypes.Structure):
-                _fields_ = [
+                _fields_: ClassVar = [
                     ("dwLength", ctypes.c_ulong),
                     ("dwMemoryLoad", ctypes.c_ulong),
                     ("ullTotalPhys", ctypes.c_ulonglong),
                     *[(f"ull{i}", ctypes.c_ulonglong) for i in range(6)],
                 ]
+
             stat = MEMORYSTATUSEX()
             stat.dwLength = ctypes.sizeof(stat)
             kernel32.GlobalMemoryStatusEx(ctypes.byref(stat))
@@ -205,12 +232,17 @@ def get_os_display_name() -> str:
     elif system == "Linux":
         try:
             import distro  # type: ignore
+
             return f"{distro.name()} {distro.version()}"
         except ImportError:
             return f"Linux {platform.release()}"
     elif system == "Windows":
         ver = platform.version()
-        return f"Windows {platform.win32_ver()[1]}" if platform.win32_ver()[1] else f"Windows {ver}"
+        return (
+            f"Windows {platform.win32_ver()[1]}"
+            if platform.win32_ver()[1]
+            else f"Windows {ver}"
+        )
     return platform.platform()
 
 
@@ -337,20 +369,6 @@ def get_gpu_summary() -> str:
     )
 
 
-# =============================================================================
-# DATA INSPECTION - Uses WaveDL library for consistent data loading
-# =============================================================================
-import numpy as np
-
-# Import WaveDL data utilities for consistent key detection and loading
-from wavedl.utils.data import (
-    DataSource,
-    get_data_source,
-    INPUT_KEYS,
-    OUTPUT_KEYS,
-)
-
-
 @dataclass
 class DataInfo:
     """Information about a dataset file."""
@@ -468,6 +486,7 @@ def inspect_data_file(path: str | Path) -> DataInfo:
             output_dtype="",
             error=str(e),
         )
+
 
 def _detect_keys(path: str, format_str: str) -> tuple[str, str]:
     """Detect the input/output keys used in a data file."""
@@ -590,4 +609,3 @@ def check_pytorch_installation() -> tuple:
 def get_python_executable() -> str:
     """Get the path to the current Python executable."""
     return sys.executable
-

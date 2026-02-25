@@ -1,9 +1,9 @@
 import functools
 import warnings
-from typing import Dict, List, Callable
+from collections.abc import Callable
 
 from PySide6 import QtCore
-from PySide6.QtCore import QThreadPool, QObject, QRunnable
+from PySide6.QtCore import QObject, QThreadPool
 
 from .future import Future, FutureCancelled
 from .task import BaseTask, Task
@@ -22,10 +22,12 @@ class BaseTaskExecutor(QObject):
             self.threadPool = QThreadPool.globalInstance()
         else:
             self.threadPool = QThreadPool()
-            self.threadPool.setMaxThreadCount(2 * cpu_count())  # IO-Bound = 2*N, CPU-Bound = N + 1
+            self.threadPool.setMaxThreadCount(
+                2 * cpu_count()
+            )  # IO-Bound = 2*N, CPU-Bound = N + 1
 
         self.taskMap = {}
-        self.tasks: Dict[int, BaseTask] = {}
+        self.tasks: dict[int, BaseTask] = {}
         self.taskCounter = 0
 
     def deleteLater(self) -> None:
@@ -39,7 +41,9 @@ class BaseTaskExecutor(QObject):
     def _taskRun(self, task: BaseTask, future: Future, **kwargs):
         self.tasks[self.taskCounter] = task
         future.setTaskID(self.taskCounter)
-        task.signal.finished.connect(self._taskDone, type=QtCore.Qt.ConnectionType.QueuedConnection)
+        task.signal.finished.connect(
+            self._taskDone, type=QtCore.Qt.ConnectionType.QueuedConnection
+        )
         self.threadPool.start(task)
         self.taskCounter += 1
 
@@ -54,7 +58,7 @@ class BaseTaskExecutor(QObject):
             fut.setResult(fut.getExtra("result"))
 
     def _taskCancel(self, fut: Future):
-        stack: List[Future] = [fut]
+        stack: list[Future] = [fut]
         while stack:
             f = stack.pop()
 
@@ -79,12 +83,15 @@ class BaseTaskExecutor(QObject):
         del taskRef
 
     def cancelTask(self, fut: Future):
-        warnings.warn("BaseTaskExecutor.cancelTask: 目前好像不能正常工作...", DeprecationWarning)
+        warnings.warn(
+            "BaseTaskExecutor.cancelTask: 目前好像不能正常 work...",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._taskCancel(fut)
 
 
 class TaskExecutor(BaseTaskExecutor):
-
     globalInstance = None
 
     def asyncRun(self, target: Callable, *args, **kwargs) -> Future:
@@ -94,7 +101,7 @@ class TaskExecutor(BaseTaskExecutor):
             future=future,
             target=target if target is functools.partial else functools.partial(target),
             args=args,
-            kwargs=kwargs
+            kwargs=kwargs,
         )
         self._taskRun(task, future)
         return future

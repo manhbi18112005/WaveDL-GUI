@@ -1,11 +1,9 @@
-# coding:utf-8
-from PySide6.QtWidgets import QWidget, QHBoxLayout
-
-from qfluentwidgets import IconWidget, BodyLabel
+from PySide6.QtWidgets import QHBoxLayout, QWidget
+from qfluentwidgets import BodyLabel, IconWidget
 
 
 class HintWidget(QWidget):
-    """ Hint widget """
+    """Hint widget"""
 
     def __init__(self, icon, text, parent=None):
         super().__init__(parent=parent)

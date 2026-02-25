@@ -1,4 +1,3 @@
-# coding: utf-8
 """
 WaveDL GUI - Data Info Card Component
 
@@ -7,16 +6,24 @@ clear visual hierarchy, grouped sections, and at-a-glance statistics.
 """
 
 from pathlib import Path
-from PySide6.QtCore import Qt, QTimer, QSize
-from PySide6.QtGui import QFont, QColor, QPainter, QPen, QBrush, QPainterPath
-from PySide6.QtWidgets import (
-    QVBoxLayout, QHBoxLayout, QWidget, QGridLayout, QFrame,
-    QGraphicsDropShadowEffect,
-)
 
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath
+from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QVBoxLayout,
+    QWidget,
+)
 from qfluentwidgets import (
-    SimpleCardWidget, BodyLabel, CaptionLabel, StrongBodyLabel,
-    setFont, isDarkTheme, FluentIcon as FIF, IconWidget,
+    BodyLabel,
+    CaptionLabel,
+    FluentIcon as FIF,
+    IconWidget,
+    SimpleCardWidget,
+    StrongBodyLabel,
+    isDarkTheme,
+    setFont,
 )
 
 from ..common.utils import DataInfo
@@ -24,6 +31,7 @@ from ..components.statistic_widget import StatisticsWidget
 
 
 # ─── Color palette ────────────────────────────────────────────────────────────
+
 
 def _accent_color() -> QColor:
     """Primary accent (blue)."""
@@ -56,6 +64,7 @@ def _section_bg_color() -> QColor:
 
 # ─── Tiny reusable sub-widgets ────────────────────────────────────────────────
 
+
 class _Tag(QWidget):
     """A small rounded tag/chip for quick-glance metadata (e.g. 'NPZ', '1D')."""
 
@@ -77,6 +86,7 @@ class _Tag(QWidget):
 
     def _update_width(self):
         from PySide6.QtGui import QFontMetrics
+
         fm = QFontMetrics(QFont("Segoe UI", 10, QFont.Weight.DemiBold))
         self.setFixedWidth(fm.horizontalAdvance(self._text) + 20)
 
@@ -161,8 +171,8 @@ class _SectionHeader(QWidget):
 
 # ─── Main card ────────────────────────────────────────────────────────────────
 
-class DataInfoCard(SimpleCardWidget):
 
+class DataInfoCard(SimpleCardWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.data_info: DataInfo | None = None
@@ -256,7 +266,9 @@ class DataInfoCard(SimpleCardWidget):
         content.addSpacing(8)
         self.errorLabel = CaptionLabel("", self)
         self.errorLabel.setWordWrap(True)
-        self.errorLabel.setStyleSheet("color: #dc2626;" if not isDarkTheme() else "color: #f87171;")
+        self.errorLabel.setStyleSheet(
+            "color: #dc2626;" if not isDarkTheme() else "color: #f87171;"
+        )
         self.errorLabel.hide()
         content.addWidget(self.errorLabel)
 
@@ -302,8 +314,14 @@ class DataInfoCard(SimpleCardWidget):
         self.dimTag.setText("")
         for stat in (self.samplesStat, self.dimStat, self.outputsStat, self.sizeStat):
             stat.setValue("—")
-        for row in (self.inputShapeRow, self.inputDtypeRow, self.inputKeyRow,
-                    self.outputShapeRow, self.outputDtypeRow, self.outputKeyRow):
+        for row in (
+            self.inputShapeRow,
+            self.inputDtypeRow,
+            self.inputKeyRow,
+            self.outputShapeRow,
+            self.outputDtypeRow,
+            self.outputKeyRow,
+        ):
             row.setValue("—")
 
         self._showCard()
@@ -319,7 +337,9 @@ class DataInfoCard(SimpleCardWidget):
         self.formatTag.setText(info.format.upper())
         self.formatTag.setColor(_accent_color())
         self.dimTag.setText(info.dimensionality or "—")
-        self.dimTag.setColor(QColor("#8b5cf6") if not isDarkTheme() else QColor("#a78bfa"))
+        self.dimTag.setColor(
+            QColor("#8b5cf6") if not isDarkTheme() else QColor("#a78bfa")
+        )
 
         # Stat boxes
         self.samplesStat.setValue(f"{info.num_samples:,}")
@@ -328,13 +348,21 @@ class DataInfoCard(SimpleCardWidget):
         self.sizeStat.setValue(info.file_size_str)
 
         # Input tensor
-        shape_str = "(" + ", ".join(str(d) for d in info.input_shape) + ")" if info.input_shape else "—"
+        shape_str = (
+            "(" + ", ".join(str(d) for d in info.input_shape) + ")"
+            if info.input_shape
+            else "—"
+        )
         self.inputShapeRow.setValue(shape_str)
         self.inputDtypeRow.setValue(info.input_dtype or "—")
         self.inputKeyRow.setValue(info.input_key or "X")
 
         # Output tensor
-        shape_str = "(" + ", ".join(str(d) for d in info.output_shape) + ")" if info.output_shape else "—"
+        shape_str = (
+            "(" + ", ".join(str(d) for d in info.output_shape) + ")"
+            if info.output_shape
+            else "—"
+        )
         self.outputShapeRow.setValue(shape_str)
         self.outputDtypeRow.setValue(info.output_dtype or "—")
         self.outputKeyRow.setValue(info.output_key or "Y")
@@ -367,11 +395,13 @@ class DataInfoCard(SimpleCardWidget):
         accent_rect = self.rect().adjusted(1, 1, -1, 0)
         accent_rect.setHeight(4)
         path = QPainterPath()
-        path.addRoundedRect(accent_rect.x(), accent_rect.y(),
-                            accent_rect.width(), r * 2, r, r)
+        path.addRoundedRect(
+            accent_rect.x(), accent_rect.y(), accent_rect.width(), r * 2, r, r
+        )
         clip_rect = QPainterPath()
-        clip_rect.addRect(accent_rect.x(), accent_rect.y(),
-                          accent_rect.width(), accent_rect.height())
+        clip_rect.addRect(
+            accent_rect.x(), accent_rect.y(), accent_rect.width(), accent_rect.height()
+        )
         path = path.intersected(clip_rect)
         p.setBrush(self._status_color)
         p.drawPath(path)

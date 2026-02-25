@@ -1,15 +1,15 @@
+from dataclasses import dataclass
+
 from .entity import Entity
 from .task import Task, TaskStatus
 
-from dataclasses import dataclass
-
 
 class EntityFactory:
-    """ Entity factory """
+    """Entity factory"""
 
     @staticmethod
     def create(table: str):
-        """ create an entity instance
+        """create an entity instance
 
         Parameters
         ----------

@@ -1,14 +1,13 @@
-# coding:utf-8
-from ..logger import Logger
-from ..setting import DB_PATH
 from PySide6.QtSql import QSqlDatabase
 from PySide6.QtWidgets import QApplication
 
+from ..logger import Logger
+from ..setting import DB_PATH
 from .service import TaskService
 
 
 class DBInitializer:
-    """ Database initializer """
+    """Database initializer"""
 
     logger = Logger("database")
     CONNECTION_NAME = "main"
@@ -16,8 +15,8 @@ class DBInitializer:
 
     @classmethod
     def init(cls):
-        """ Initialize database """
-        db = QSqlDatabase.addDatabase('QSQLITE', cls.CONNECTION_NAME)
+        """Initialize database"""
+        db = QSqlDatabase.addDatabase("QSQLITE", cls.CONNECTION_NAME)
         db.setDatabaseName(cls.CACHE_FILE)
         if not db.open():
             cls.logger.error("Database connection failed")

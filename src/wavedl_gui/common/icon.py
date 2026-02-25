@@ -1,11 +1,9 @@
-# coding: utf-8
 from enum import Enum
 
-from qfluentwidgets import FluentIconBase, getIconColor, Theme
+from qfluentwidgets import FluentIconBase, Theme, getIconColor
 
 
 class Icon(FluentIconBase, Enum):
-
     SELECT = "Select"
     SETTINGS = "Settings"
     SETTINGS_FILLED = "SettingsFilled"
@@ -17,7 +15,6 @@ class Icon(FluentIconBase, Enum):
 
 
 class Ico(FluentIconBase, Enum):
-
     M3U8DL = "M3U8DL"
 
     def path(self, theme=Theme.AUTO):
@@ -25,7 +22,6 @@ class Ico(FluentIconBase, Enum):
 
 
 class PNG(FluentIconBase, Enum):
-
     SHAKA_PACKAGER = "ShakaPackager"
 
     def path(self, theme=Theme.AUTO):
@@ -33,7 +29,6 @@ class PNG(FluentIconBase, Enum):
 
 
 class Logo(FluentIconBase, Enum):
-
     KEY = "Key"
     GEAR = "Gear"
     FILM = "Film"
@@ -85,4 +80,4 @@ class Logo(FluentIconBase, Enum):
     VIDEOCASSETTE = "Videocassette"
 
     def path(self, theme=Theme.AUTO) -> str:
-        return f":/src/wavedl_gui/images/logo/{self.value}.svg"
+        return f":/src/wavedl_gui/resource/images/logo/{self.value}.svg"

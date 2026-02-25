@@ -1,11 +1,8 @@
-# coding: utf-8
+from AppKit import NSApp
 from PySide6.QtCore import QObject
-from Foundation import NSObject, NSAutoreleasePool
-from AppKit import NSApp, NSApplication, NSImage, NSString, NSFont, NSColor
 
 
 class MacSpeedBadge(QObject):
-
     def __init__(self, parent=None):
         super().__init__(parent)
 

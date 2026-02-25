@@ -1,12 +1,12 @@
-# coding:utf-8
-from copy import deepcopy
 import traceback
+from copy import deepcopy
+
 from .logger import Logger
 from .setting import DEBUG
 
 
 def exceptionHandler(log: str, *default):
-    """ decorator for exception handling
+    """decorator for exception handling
 
     Parameters
     ----------
@@ -18,13 +18,14 @@ def exceptionHandler(log: str, *default):
     """
 
     def outer(func):
-
         def inner(*args, **kwargs):
             try:
                 return func(*args, **kwargs)
             except BaseException as e:
                 if DEBUG:
-                    Logger(log).error(f"{e.__class__.__name__}: {traceback.format_exc()}")
+                    Logger(log).error(
+                        f"{e.__class__.__name__}: {traceback.format_exc()}"
+                    )
 
                 value = deepcopy(default)
                 if len(value) == 0:
@@ -40,7 +41,7 @@ def exceptionHandler(log: str, *default):
 
 
 def exceptionTracebackHandler(log: str, *default):
-    """ decorator for exception handling
+    """decorator for exception handling
 
     Parameters
     ----------
@@ -52,7 +53,6 @@ def exceptionTracebackHandler(log: str, *default):
     """
 
     def outer(func):
-
         def inner(*args, **kwargs):
             try:
                 return func(*args, **kwargs)

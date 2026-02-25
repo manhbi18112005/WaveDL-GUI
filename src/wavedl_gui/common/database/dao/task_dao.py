@@ -1,14 +1,25 @@
-# coding:utf-8
+from typing import ClassVar
+
 from .dao_base import DaoBase
 
 
 class TaskDao(DaoBase):
-    """ Task DAO """
+    """Task DAO"""
 
-    table = 'tbl_task'
-    fields = [
-        'id', 'url', 'isLive', 'fileName', "saveFolder", 'size', 'isBinaryMerge',
-        'isLiveRealTimeMerge', 'command', 'status', 'logFile', 'createTime'
+    table = "tbl_task"
+    fields: ClassVar = [
+        "id",
+        "url",
+        "isLive",
+        "fileName",
+        "saveFolder",
+        "size",
+        "isBinaryMerge",
+        "isLiveRealTimeMerge",
+        "command",
+        "status",
+        "logFile",
+        "createTime",
     ]
 
     def createTable(self):

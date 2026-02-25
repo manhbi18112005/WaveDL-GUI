@@ -1,7 +1,6 @@
 import functools
-from typing import Optional
 
-from PySide6.QtCore import QObject, Signal, QRunnable
+from PySide6.QtCore import QObject, QRunnable, Signal
 
 from .future import Future
 
@@ -16,7 +15,7 @@ class BaseTask(QRunnable):
         self._signal = WorkerSignal()  # Signal(object)
         self._future = future
         self._id = _id
-        self._exception: Optional[BaseException] = None
+        self._exception: BaseException | None = None
         self._semaphore = future.semaphore
 
     @property
@@ -35,7 +34,9 @@ class BaseTask(QRunnable):
 
 
 class Task(BaseTask):
-    def __init__(self, _id: int, future: Future, target: functools.partial, args, kwargs):
+    def __init__(
+        self, _id: int, future: Future, target: functools.partial, args, kwargs
+    ):
         super().__init__(_id=_id, future=future)
         self._target = target
         self._kwargs = kwargs

@@ -1,12 +1,10 @@
-# coding:utf-8
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QPixmap, QPainter, QColor, QFont
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
-from qfluentwidgets import ScrollArea, FlowLayout, setFont, TitleLabel
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont
+from PySide6.QtWidgets import QVBoxLayout, QWidget
+from qfluentwidgets import ScrollArea, TitleLabel, setFont
 
 
 class Interface(ScrollArea):
-
     def __init__(self, parent=None):
         super().__init__(parent=parent)
         self.view = QWidget(self)

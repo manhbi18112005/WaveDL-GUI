@@ -187,7 +187,7 @@ def get_default_output_dir() -> Path:
         base = Path.home() / "Documents" / "WaveDL"
     else:  # Linux
         base = Path.home() / "wavedl_experiments"
-    
+
     base.mkdir(parents=True, exist_ok=True)
     return base
 ````

@@ -1,9 +1,8 @@
-# coding: utf-8
 from PySide6.QtCore import QObject, Signal
 
 
 class SignalBus(QObject):
-    """ Signal bus for application-wide event communication """
+    """Signal bus for application-wide event communication"""
 
     # Application signals
     appMessageSig = Signal(str)
@@ -14,13 +13,13 @@ class SignalBus(QObject):
     micaEnableChanged = Signal(bool)
 
     # Training signals
-    trainingProgressSig = Signal(object)      # TrainingProgress dataclass
-    trainingOutputSig = Signal(str)           # Log output line
+    trainingProgressSig = Signal(object)  # TrainingProgress dataclass
+    trainingOutputSig = Signal(str)  # Log output line
     trainingStateChangedSig = Signal(object)  # ProcessState enum
     trainingCompletedSig = Signal(bool, str)  # (success, message)
-    historyUpdatedSig = Signal(list)          # List of TrainingMetrics
+    historyUpdatedSig = Signal(list)  # List of TrainingMetrics
 
-    # Testing signals  
+    # Testing signals
     testCompletedSig = Signal(bool, str, dict)  # (success, message, results)
 
     # Navigation signals
@@ -30,7 +29,7 @@ class SignalBus(QObject):
     switchToResultsSig = Signal()
 
     # Action signals
-    requestStartTrainingSig = Signal()   # Request MainWindow to start training
+    requestStartTrainingSig = Signal()  # Request MainWindow to start training
 
 
 signalBus = SignalBus()

@@ -1,10 +1,9 @@
-# coding: utf-8
 from PySide6.QtCore import QObject
+
 from ..common.database.entity import Task
 
 
 class SpeedService(QObject):
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self.speedMap = {}
@@ -19,12 +18,12 @@ class SpeedService(QObject):
         total = 0
 
         for tid, speed in self.speedMap.items():
-            speed = speed.strip().upper().replace(' ', '')
-            if speed.endswith('KB/S'):
+            speed = speed.strip().upper().replace(" ", "")
+            if speed.endswith("KB/S"):
                 total += float(speed[:-4]) / 1024
-            elif speed.endswith('MB/S'):
+            elif speed.endswith("MB/S"):
                 total += float(speed[:-4])
-            elif speed.endswith('GB/S'):
+            elif speed.endswith("GB/S"):
                 total += float(speed[:-4]) * 1024
 
         return f"{total:.2f} MB/s"

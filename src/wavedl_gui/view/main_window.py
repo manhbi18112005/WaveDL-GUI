@@ -22,7 +22,6 @@ from qfluentwidgets import (
 from ..common.concurrent import TaskExecutor
 from ..common.config import cfg
 from ..common.database import DatabaseThread, DBInitializer, SqlResponse, sqlSignalBus
-from ..common.icon import Icon
 from ..common.setting import FEEDBACK_URL, KOFI_URL, RELEASE_URL
 from ..common.signal_bus import signalBus
 from ..common.utils import check_pytorch_installation, get_gpu_summary, openUrl

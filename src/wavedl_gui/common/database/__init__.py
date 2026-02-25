@@ -1,13 +1,14 @@
-from .db_initializer import DBInitializer
-from .service import *
 from collections import deque
 
 from PySide6.QtCore import QObject, QThread, Signal
 from PySide6.QtSql import QSqlDatabase
 
+from .db_initializer import DBInitializer
+from .service import TaskService
+
 
 class SqlRequest:
-    """ Sql request """
+    """Sql request"""
 
     def __init__(self, service: str, method: str, slot=None, params: dict = None):
         self.service = service
@@ -17,7 +18,7 @@ class SqlRequest:
 
 
 class SqlResponse:
-    """ Sql response """
+    """Sql response"""
 
     def __init__(self, data, slot):
         self.slot = slot
@@ -25,7 +26,7 @@ class SqlResponse:
 
 
 class SqlSignalBus(QObject):
-    """ Sql Signal bus """
+    """Sql Signal bus"""
 
     fetchDataSig = Signal(SqlRequest)
     dataFetched = Signal(SqlResponse)
@@ -35,14 +36,13 @@ sqlSignalBus = SqlSignalBus()
 
 
 def sqlRequest(service: str, method: str, slot=None, **params):
-    """ query sql from database """
+    """query sql from database"""
     request = SqlRequest(service, method, slot, params)
     sqlSignalBus.fetchDataSig.emit(request)
 
 
-
 class Database(QObject):
-    """ Database """
+    """Database"""
 
     def __init__(self, db: QSqlDatabase = None, parent=None):
         """
@@ -64,13 +64,12 @@ class Database(QObject):
         self.taskService = TaskService(db)
 
     def setDatabase(self, db: QSqlDatabase):
-        """ set the database to be used """
+        """set the database to be used"""
         self.taskService.taskDao.setDatabase(db)
 
 
-
 class DatabaseThread(QThread):
-    """ Database thread """
+    """Database thread"""
 
     def __init__(self, db: QSqlDatabase = None, parent=None):
         """

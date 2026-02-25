@@ -1,15 +1,14 @@
-# coding:utf-8
-from typing import List
+from typing import ClassVar
 
-from PySide6.QtSql import QSqlDatabase, QSqlRecord
 from PySide6.QtCore import QDateTime, Qt
+from PySide6.QtSql import QSqlDatabase, QSqlRecord
 
 from ..entity import Entity, EntityFactory
 from .sql_query import SqlQuery
 
 
 def finishQuery(func):
-    """ Finish sql query to unlock database """
+    """Finish sql query to unlock database"""
 
     def wrapper(dao, *args, **kwargs):
         result = func(dao, *args, **kwargs)
@@ -20,21 +19,21 @@ def finishQuery(func):
 
 
 class DaoBase:
-    """ Database access operation abstract class """
+    """Database access operation abstract class"""
 
-    table = ''
-    fields = ['id']
+    table = ""
+    fields: ClassVar = ["id"]
 
     def __init__(self, db: QSqlDatabase = None):
         self.setDatabase(db)
 
     def createTable(self):
-        """ create table """
+        """create table"""
         raise NotImplementedError
 
     @finishQuery
     def selectBy(self, **condition) -> Entity:
-        """ query a record that meet the conditions
+        """query a record that meet the conditions
 
         Parameters
         ----------
@@ -54,7 +53,7 @@ class DaoBase:
         return self.loadFromRecord(self.query.record())
 
     def selectByPage(self, pageNum=1, pageSize=10, **condition):
-        """ query records that meet the conditions from specified page
+        """query records that meet the conditions from specified page
 
         Parameters
         ----------
@@ -66,11 +65,11 @@ class DaoBase:
         entity: Entity
             entity instance, `None` if no record is found
         """
-        condition['limit'] = ((pageNum - 1) * pageSize, pageSize)
+        condition["limit"] = ((pageNum - 1) * pageSize, pageSize)
         return self.listBy(**condition)
 
     def selectLikePage(self, pageNum=1, pageSize=10, **condition):
-        """ Fuzzy query records that meet the conditions from specified page
+        """Fuzzy query records that meet the conditions from specified page
 
         Parameters
         ----------
@@ -82,11 +81,11 @@ class DaoBase:
         entity: Entity
             entity instance, `None` if no record is found
         """
-        condition['limit'] = ((pageNum - 1) * pageSize, pageSize)
+        condition["limit"] = ((pageNum - 1) * pageSize, pageSize)
         return self.listLike(**condition)
 
-    def listBy(self, **condition) -> List[Entity]:
-        """ query all records that meet the conditions
+    def listBy(self, **condition) -> list[Entity]:
+        """query all records that meet the conditions
 
         Parameters
         ----------
@@ -105,8 +104,8 @@ class DaoBase:
 
         return self.iterRecords()
 
-    def listLike(self, **condition) -> List[Entity]:
-        """ Fuzzy query all records that meet the conditions (or relationships)
+    def listLike(self, **condition) -> list[Entity]:
+        """Fuzzy query all records that meet the conditions (or relationships)
 
         Parameters
         ----------
@@ -132,7 +131,7 @@ class DaoBase:
         return self.iterRecords()
 
     def _prepareSelectBy(self, condition: dict):
-        """ prepare sql select statement
+        """prepare sql select statement
 
         Parameters
         ----------
@@ -145,12 +144,12 @@ class DaoBase:
         if not condition:
             raise ValueError("At least one condition must be passed in")
 
-        commands = ['orderBy', 'limit', 'desc', 'asc']
+        commands = ["orderBy", "limit", "desc", "asc"]
         sql = f"SELECT * FROM {self.table}"
 
-        keys = [i for i in condition.keys() if i not in commands]
+        keys = [i for i in condition if i not in commands]
         if keys:
-            where = [f'{k} = ?' for k in keys]
+            where = [f"{k} = ?" for k in keys]
             sql += f" WHERE  {' AND '.join(where)}"
 
         sql = self._addConditionToSql(sql, condition)
@@ -160,7 +159,7 @@ class DaoBase:
             self.query.addBindValue(condition[k])
 
     def _prepareSelectLike(self, condition: dict):
-        """ prepare sql fuzzy select statement
+        """prepare sql fuzzy select statement
 
         Parameters
         ----------
@@ -175,8 +174,8 @@ class DaoBase:
 
         sql = f"SELECT * FROM {self.table}"
 
-        commands = ['orderBy', 'limit', 'desc', 'asc']
-        likeKeys = [k for k in condition.keys() if k not in commands]
+        commands = ["orderBy", "limit", "desc", "asc"]
+        likeKeys = [k for k in condition if k not in commands]
 
         if likeKeys:
             placeholders = [f"{k} like ?" for k in likeKeys]
@@ -186,18 +185,18 @@ class DaoBase:
 
         self.query.prepare(sql)
         for k in likeKeys:
-            self.query.addBindValue(f'%{condition[k]}%')
+            self.query.addBindValue(f"%{condition[k]}%")
 
     def _addConditionToSql(self, sql: str, condition: dict):
-        if 'orderBy' in condition:
+        if "orderBy" in condition:
             sql += f" ORDER BY {condition['orderBy']}"
-            if 'desc' in condition and condition['desc']:
-                sql += ' DESC'
-            elif 'asc' in condition and condition['asc']:
-                sql += ' ASC'
+            if condition.get("desc"):
+                sql += " DESC"
+            elif condition.get("asc"):
+                sql += " ASC"
 
-        if 'limit' in condition:
-            limit = condition['limit']
+        if "limit" in condition:
+            limit = condition["limit"]
             if isinstance(limit, int):
                 sql += f" LIMIT {limit}"
             elif isinstance(limit, tuple):
@@ -205,8 +204,8 @@ class DaoBase:
 
         return sql
 
-    def listAll(self) -> List[Entity]:
-        """ query all records """
+    def listAll(self) -> list[Entity]:
+        """query all records"""
         sql = f"SELECT * FROM {self.table}"
         if not self.query.exec(sql):
             return []
@@ -214,14 +213,14 @@ class DaoBase:
         return self.iterRecords()
 
     def listByFields(self, field: str, values: list):
-        """ query the records of field values in the list """
+        """query the records of field values in the list"""
         if field not in self.fields:
             raise ValueError(f"field name `{field}` is illegal")
 
         if not values:
             return []
 
-        placeHolders = ','.join(['?']*len(values))
+        placeHolders = ",".join(["?"] * len(values))
         sql = f"SELECT * FROM {self.table} WHERE {field} IN ({placeHolders})"
         self.query.prepare(sql)
 
@@ -233,13 +232,13 @@ class DaoBase:
 
         return self.iterRecords()
 
-    def listByIds(self, ids: list) -> List[Entity]:
-        """ query the records of the primary key value in the list """
+    def listByIds(self, ids: list) -> list[Entity]:
+        """query the records of the primary key value in the list"""
         return self.listByFields(self.fields[0], ids)
 
     @finishQuery
-    def iterRecords(self) -> List[Entity]:
-        """ iterate over all queried records """
+    def iterRecords(self) -> list[Entity]:
+        """iterate over all queried records"""
         entities = []
 
         while self.query.next():
@@ -250,7 +249,7 @@ class DaoBase:
 
     @finishQuery
     def update(self, id, field: str, value) -> bool:
-        """ update the value of a field in a record
+        """update the value of a field in a record
 
         Parameters
         ----------
@@ -276,7 +275,7 @@ class DaoBase:
 
     @finishQuery
     def updateByField(self, field: str, old, new) -> bool:
-        """ update the value of a field in a record
+        """update the value of a field in a record
 
         Parameters
         ----------
@@ -302,7 +301,7 @@ class DaoBase:
 
     @finishQuery
     def updateById(self, entity: Entity) -> bool:
-        """ update a record
+        """update a record
 
         Parameters
         ----------
@@ -318,7 +317,7 @@ class DaoBase:
             return False
 
         id_ = self.fields[0]
-        values = ','.join([f'{i} = :{i}' for i in self.fields[1:]])
+        values = ",".join([f"{i} = :{i}" for i in self.fields[1:]])
         sql = f"UPDATE {self.table} SET {values} WHERE {id_} = :{id_}"
 
         self.query.prepare(sql)
@@ -327,8 +326,8 @@ class DaoBase:
         return self.query.exec()
 
     @finishQuery
-    def updateByIds(self, entities: List[Entity]) -> bool:
-        """ update multi records
+    def updateByIds(self, entities: list[Entity]) -> bool:
+        """update multi records
 
         Parameters
         ----------
@@ -350,7 +349,7 @@ class DaoBase:
         db.transaction()
 
         id_ = self.fields[0]
-        values = ','.join([f'{i} = :{i}' for i in self.fields[1:]])
+        values = ",".join([f"{i} = :{i}" for i in self.fields[1:]])
         sql = f"UPDATE {self.table} SET {values} WHERE {id_} = :{id_}"
 
         self.query.prepare(sql)
@@ -364,7 +363,7 @@ class DaoBase:
 
     @finishQuery
     def insert(self, entity: Entity) -> bool:
-        """ insert a record
+        """insert a record
 
         Parameters
         ----------
@@ -376,15 +375,15 @@ class DaoBase:
         success: bool
             is the insert successful
         """
-        values = ','.join([f':{i}' for i in self.fields])
+        values = ",".join([f":{i}" for i in self.fields])
         sql = f"INSERT INTO {self.table} VALUES ({values})"
         self.query.prepare(sql)
         self.bindEntityToQuery(entity)
         return self.query.exec()
 
     @finishQuery
-    def insertBatch(self, entities: List[Entity], ignore=False) -> bool:
-        """ insert multi records
+    def insertBatch(self, entities: list[Entity], ignore=False) -> bool:
+        """insert multi records
 
         Parameters
         ----------
@@ -405,7 +404,7 @@ class DaoBase:
         db = self.getDatabase()
         db.transaction()
 
-        values = ','.join([f':{i}' for i in self.fields])
+        values = ",".join([f":{i}" for i in self.fields])
         if not ignore:
             sql = f"INSERT INTO {self.table} VALUES ({values})"
         else:
@@ -421,7 +420,7 @@ class DaoBase:
 
     @finishQuery
     def insertOrUpdate(self, entity: Entity):
-        """ insert a new record or update the record if it already exists
+        """insert a new record or update the record if it already exists
 
         Parameters
         ----------
@@ -434,7 +433,7 @@ class DaoBase:
             is the insert successful
         """
         # insert a new record or ignore it if the primary key already exists
-        values = ','.join([f':{i}' for i in self.fields])
+        values = ",".join([f":{i}" for i in self.fields])
         sql = f"INSERT OR IGNORE INTO {self.table} VALUES ({values})"
         self.query.prepare(sql)
         self.bindEntityToQuery(entity)
@@ -446,7 +445,7 @@ class DaoBase:
 
     @finishQuery
     def deleteById(self, id) -> bool:
-        """ delete a record
+        """delete a record
 
         Parameters
         ----------
@@ -465,14 +464,14 @@ class DaoBase:
 
     @finishQuery
     def deleteByFields(self, field: str, values: list):
-        """ delete multi records based on the value of a field """
+        """delete multi records based on the value of a field"""
         if field not in self.fields:
             raise ValueError(f"field name `{field}` is illegal")
 
         if not values:
             return True
 
-        placeHolders = ','.join(['?']*len(values))
+        placeHolders = ",".join(["?"] * len(values))
         sql = f"DELETE FROM {self.table} WHERE {field} IN ({placeHolders})"
         self.query.prepare(sql)
 
@@ -483,14 +482,14 @@ class DaoBase:
 
     @finishQuery
     def deleteByMultiFields(self, **condition):
-        """ delete multi records based on the value of multi fields """
+        """delete multi records based on the value of multi fields"""
         if not condition:
             return
 
         placeHolders = []
         keys = list(condition.keys())
         for _ in range(len(condition[keys[0]])):
-            placeHolder = ' AND '.join([f"{k} = ?" for k in keys])
+            placeHolder = " AND ".join([f"{k} = ?" for k in keys])
             placeHolders.append(f"({placeHolder})")
 
         sql = f"DELETE FROM {self.table} WHERE {' OR '.join(placeHolders)}"
@@ -503,7 +502,7 @@ class DaoBase:
         return self.query.exec()
 
     def deleteByIds(self, ids: list) -> bool:
-        """ delete multi records
+        """delete multi records
 
         Parameters
         ----------
@@ -518,7 +517,7 @@ class DaoBase:
         return self.deleteByFields(self.fields[0], ids)
 
     def count(self):
-        """ Returns the count of rows """
+        """Returns the count of rows"""
         success = self.query.exec(f"SELECT COUNT(*) from {self.table}")
         if not success:
             return 0
@@ -526,12 +525,12 @@ class DaoBase:
         return self.query.record().value(0) if self.query.next() else 0
 
     def clearTable(self):
-        """ clear all data from table """
+        """clear all data from table"""
         return self.query.exec(f"DELETE FROM {self.table}")
 
     @classmethod
     def loadFromRecord(cls, record: QSqlRecord) -> Entity:
-        """ create an entity instance from a record
+        """create an entity instance from a record
 
         Parameters
         ----------
@@ -549,7 +548,9 @@ class DaoBase:
             field = record.fieldName(i)
 
             if isinstance(entity[field], QDateTime):
-                entity[field] = QDateTime.fromString(record.value(i), Qt.DateFormat.ISODateWithMs)
+                entity[field] = QDateTime.fromString(
+                    record.value(i), Qt.DateFormat.ISODateWithMs
+                )
             elif isinstance(entity[field], bool):
                 entity[field] = bool(record.value(i))
             else:
@@ -558,23 +559,23 @@ class DaoBase:
         return entity
 
     def adjustText(self, text: str):
-        """ handling single quotation marks in strings """
+        """handling single quotation marks in strings"""
         return text.replace("'", "''")
 
     def bindEntityToQuery(self, entity: Entity):
-        """ bind the value of entity to query object """
+        """bind the value of entity to query object"""
         for field in self.fields:
             value = entity[field]
-            self.query.bindValue(f':{field}', value)
+            self.query.bindValue(f":{field}", value)
 
     def setDatabase(self, db: QSqlDatabase):
-        """ use the specified database """
-        self.connectionName = db.connectionName() if db else ''
+        """use the specified database"""
+        self.connectionName = db.connectionName() if db else ""
         self.query = SqlQuery(db) if db else SqlQuery()
         self.query.setForwardOnly(True)
 
     def getDatabase(self):
-        """ get connected database """
+        """get connected database"""
         if self.connectionName:
             return QSqlDatabase.database(self.connectionName)
 

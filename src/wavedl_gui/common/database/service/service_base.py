@@ -1,27 +1,24 @@
-# coding:utf-8
-from typing import List
-
 from PySide6.QtSql import QSqlDatabase
 
 from ..entity import Entity
 
 
 class ServiceBase:
-    """ Service abstract class """
+    """Service abstract class"""
 
     def __init__(self):
         super().__init__()
 
     def createTable(self) -> bool:
-        """ create table """
+        """create table"""
         raise NotADirectoryError
 
-    def clearTable(self)-> bool:
-        """ clear all data from relative tables """
+    def clearTable(self) -> bool:
+        """clear all data from relative tables"""
         raise NotImplementedError
 
     def findBy(self, **condition) -> Entity:
-        """ query a record that meets the condition
+        """query a record that meets the condition
 
         Parameters
         ----------
@@ -35,8 +32,8 @@ class ServiceBase:
         """
         raise NotImplementedError
 
-    def listBy(self, **condition) -> List[Entity]:
-        """ query all records that meet the conditions
+    def listBy(self, **condition) -> list[Entity]:
+        """query all records that meet the conditions
 
         Parameters
         ----------
@@ -50,8 +47,8 @@ class ServiceBase:
         """
         raise NotImplementedError
 
-    def listLike(self, **condition) -> List[Entity]:
-        """ fuzzy query all records that meet the conditions (or relationships)
+    def listLike(self, **condition) -> list[Entity]:
+        """fuzzy query all records that meet the conditions (or relationships)
 
         Parameters
         ----------
@@ -65,16 +62,16 @@ class ServiceBase:
         """
         raise NotImplementedError
 
-    def listAll(self) -> List[Entity]:
-        """ query all records """
+    def listAll(self) -> list[Entity]:
+        """query all records"""
         raise NotImplementedError
 
-    def listByIds(self, ids: list) -> List[Entity]:
-        """ query the records of the primary key value in the list """
+    def listByIds(self, ids: list) -> list[Entity]:
+        """query the records of the primary key value in the list"""
         raise NotImplementedError
 
     def modify(self, id, field: str, value) -> bool:
-        """ modify the value of a field in a record
+        """modify the value of a field in a record
 
         Parameters
         ----------
@@ -95,7 +92,7 @@ class ServiceBase:
         raise NotImplementedError
 
     def modifyById(self, entity: Entity) -> bool:
-        """ modify a record
+        """modify a record
 
         Parameters
         ----------
@@ -109,8 +106,8 @@ class ServiceBase:
         """
         raise NotImplementedError
 
-    def modifyByIds(self, entities: List[Entity]) -> bool:
-        """ modify multi records
+    def modifyByIds(self, entities: list[Entity]) -> bool:
+        """modify multi records
 
         Parameters
         ----------
@@ -125,7 +122,7 @@ class ServiceBase:
         raise NotImplementedError
 
     def add(self, entity: Entity) -> bool:
-        """ add a record
+        """add a record
 
         Parameters
         ----------
@@ -139,8 +136,8 @@ class ServiceBase:
         """
         raise NotImplementedError
 
-    def addBatch(self, entities: List[Entity]) -> bool:
-        """ add multi records
+    def addBatch(self, entities: list[Entity]) -> bool:
+        """add multi records
 
         Parameters
         ----------
@@ -155,7 +152,7 @@ class ServiceBase:
         raise NotImplementedError
 
     def removeById(self, id) -> bool:
-        """ remove a record
+        """remove a record
 
         Parameters
         ----------
@@ -170,7 +167,7 @@ class ServiceBase:
         raise NotImplementedError
 
     def removeByIds(self, ids: list) -> bool:
-        """ remove multi records
+        """remove multi records
 
         Parameters
         ----------
@@ -185,9 +182,9 @@ class ServiceBase:
         raise NotImplementedError
 
     def count(self) -> int:
-        """ Returns the count of rows """
+        """Returns the count of rows"""
         raise NotImplementedError
 
     def setDatabase(self, db: QSqlDatabase):
-        """ use the specified database """
+        """use the specified database"""
         raise NotImplementedError

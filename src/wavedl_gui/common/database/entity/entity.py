@@ -1,11 +1,8 @@
-# coding:utf-8
 from copy import deepcopy
-from dataclasses import dataclass, field
-from typing import List
 
 
 class Entity:
-    """ Entity abstract class """
+    """Entity abstract class"""
 
     def __setitem__(self, key, value):
         self.__dict__[key] = value
@@ -18,5 +15,3 @@ class Entity:
 
     def copy(self):
         return deepcopy(self)
-
-

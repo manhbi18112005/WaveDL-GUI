@@ -1,22 +1,22 @@
-# coding:utf-8
+from PySide6.QtSql import QSqlError, QSqlQuery
+
 from ...logger import Logger
-from PySide6.QtSql import QSqlQuery, QSqlError
 
 
 class SqlQuery(QSqlQuery):
-    """ Database sql statement execution class """
+    """Database sql statement execution class"""
 
-    logger = Logger('cache')
+    logger = Logger("cache")
 
     def exec(self, query: str = None):
-        """ execute sql statement """
+        """execute sql statement"""
         if not query:
             return self.check(super().exec())
 
         return self.check(super().exec(query))
 
     def check(self, success: bool):
-        """ check execution result """
+        """check execution result"""
         if success:
             return True
 
@@ -31,7 +31,7 @@ class SqlQuery(QSqlQuery):
         query = self.lastQuery()
         return query
         for k, v in self.boundValues().items():
-            query = query.replace('?', str(v), 1)
+            query = query.replace("?", str(v), 1)
             query = query.replace(k, str(v))
 
         return query

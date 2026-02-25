@@ -1,19 +1,18 @@
-# coding:utf-8
 import os
 import sys
 from inspect import getsourcefile
 from pathlib import Path
 
-os.chdir(Path(getsourcefile(lambda: 0)).resolve().parent)
-
 from PySide6.QtCore import Qt, QTranslator
-from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QApplication
 from qfluentwidgets import FluentTranslator
 
-from wavedl_gui.common.config import cfg
+from wavedl_gui.common import resource  # noqa: F401
 from wavedl_gui.common.application import SingletonApplication
+from wavedl_gui.common.config import cfg
 from wavedl_gui.view.main_window import MainWindow
+
+
+os.chdir(Path(getsourcefile(lambda: 0)).resolve().parent)
 
 
 # enable dpi scale
@@ -27,6 +26,7 @@ app.setAttribute(Qt.AA_DontCreateNativeWidgetSiblings)
 
 if sys.platform == "darwin":
     from AppKit import NSApplication
+
     NSApplication.sharedApplication()
 
 # internationalization

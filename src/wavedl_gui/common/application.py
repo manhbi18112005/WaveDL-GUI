@@ -1,7 +1,5 @@
-# coding:utf-8
 import sys
 import traceback
-from typing import List
 
 from PySide6.QtCore import QIODevice, QSharedMemory, Signal
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
@@ -12,12 +10,12 @@ from .signal_bus import signalBus
 
 
 class SingletonApplication(QApplication):
-    """ Singleton application """
+    """Singleton application"""
 
     messageSig = Signal(object)
     logger = Logger("application")
 
-    def __init__(self, argv: List[str], key: str):
+    def __init__(self, argv: list[str], key: str):
         super().__init__(argv)
         self.key = key
         self.timeout = 1000
@@ -31,7 +29,7 @@ class SingletonApplication(QApplication):
         if self.memory.attach():
             self.isRunning = True
 
-            self.sendMessage(" ".join(argv[1:]) if len(argv) > 1 else 'show')
+            self.sendMessage(" ".join(argv[1:]) if len(argv) > 1 else "show")
             sys.exit()
 
         self.isRunning = False
@@ -46,12 +44,11 @@ class SingletonApplication(QApplication):
     def __onNewConnection(self):
         socket = self.server.nextPendingConnection()
         if socket.waitForReadyRead(self.timeout):
-            signalBus.appMessageSig.emit(
-                socket.readAll().data().decode('utf-8'))
+            signalBus.appMessageSig.emit(socket.readAll().data().decode("utf-8"))
             socket.disconnectFromServer()
 
     def sendMessage(self, message: str):
-        """ send message to another application """
+        """send message to another application"""
         if not self.isRunning:
             return
 
@@ -72,10 +69,11 @@ class SingletonApplication(QApplication):
 
 
 def exception_hook(exception: BaseException, value, tb):
-    """ exception callback function """
+    """exception callback function"""
     SingletonApplication.logger.error("Unhandled exception", (exception, value, tb))
-    message = '\n'.join([''.join(traceback.format_tb(tb)),
-                        '{0}: {1}'.format(exception.__name__, value)])
+    message = "\n".join(
+        ["".join(traceback.format_tb(tb)), f"{exception.__name__}: {value}"]
+    )
     signalBus.appErrorSig.emit(message)
 
 

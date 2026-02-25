@@ -1,16 +1,12 @@
-# coding:utf-8
-from typing import List
-
 from PySide6.QtSql import QSqlDatabase
 
 from ..dao import TaskDao
 from ..entity import Task
-
 from .service_base import ServiceBase
 
 
 class TaskService(ServiceBase):
-    """ Task service """
+    """Task service"""
 
     def __init__(self, db: QSqlDatabase = None):
         super().__init__()
@@ -22,13 +18,13 @@ class TaskService(ServiceBase):
     def findBy(self, **condition) -> Task:
         return self.taskDao.selectBy(**condition)
 
-    def listBy(self, **condition) -> List[Task]:
+    def listBy(self, **condition) -> list[Task]:
         return self.taskDao.listBy(**condition)
 
-    def listAll(self) -> List[Task]:
+    def listAll(self) -> list[Task]:
         return self.taskDao.listAll()
 
-    def listByIds(self, ids: List[str]) -> List[Task]:
+    def listByIds(self, ids: list[str]) -> list[Task]:
         return self.taskDao.listByIds(ids)
 
     def modify(self, id: str, field: str, value) -> bool:
@@ -37,19 +33,19 @@ class TaskService(ServiceBase):
     def modifyById(self, task: Task) -> bool:
         return self.taskDao.updateById(task)
 
-    def modifyByIds(self, users: List[Task]) -> bool:
+    def modifyByIds(self, users: list[Task]) -> bool:
         return self.taskDao.updateByIds(users)
 
     def add(self, task: Task) -> bool:
         return self.taskDao.insert(task)
 
-    def addBatch(self, users: List[Task]) -> bool:
+    def addBatch(self, users: list[Task]) -> bool:
         return self.taskDao.insertBatch(users)
 
     def removeById(self, id: str) -> bool:
         return self.taskDao.deleteById(id)
 
-    def removeByIds(self, ids: List[str]) -> bool:
+    def removeByIds(self, ids: list[str]) -> bool:
         return self.taskDao.deleteByIds(ids)
 
     def clearTable(self) -> bool:
@@ -58,7 +54,7 @@ class TaskService(ServiceBase):
     def setDatabase(self, db: QSqlDatabase):
         self.taskDao.setDatabase(db)
 
-    def listLike(self, **condition) -> List[Task]:
+    def listLike(self, **condition) -> list[Task]:
         return self.taskDao.listLike(**condition)
 
     def count(self) -> int:
