@@ -147,7 +147,7 @@ class SettingInterface(ScrollArea):
         )
         self.aboutCard = PrimaryPushSettingCard(
             self.tr("Check update"),
-            ":/app/images/logo.png",
+            FIF.PEOPLE,
             self.tr("About"),
             "© "
             + self.tr("Copyright")
