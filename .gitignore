@@ -134,3 +134,6 @@ AppData/
 download/
 build/
 dist/
+
+# Apps
+examples/ios_demo

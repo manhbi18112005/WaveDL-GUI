@@ -71,8 +71,8 @@ Train on datasets larger than RAM:
 
 **🧠 Models? We've Got Options**
 
-21 architectures (69 variants), ready to go:
-- CNNs, ResNets, ViTs, EfficientNets...
+20+ architectures (70+ variants), ready to go:
+- CNNs, ResNets, ViTs, SSMs, WaveNets...
 - All adapted for regression
 - [Add your own](#adding-custom-models) in one line
 
@@ -318,7 +318,7 @@ WaveDL/
 │       ├── hpo.py                # Hyperparameter optimization
 │       ├── launcher.py           # Training launcher (wavedl-train)
 │       │
-│       ├── models/               # Model Zoo (21 architectures, 69 variants)
+│       ├── models/               # Model Zoo (20+ architectures, 70+ variants)
 │       │   ├── registry.py       # Model factory (@register_model)
 │       │   ├── base.py           # Abstract base class
 │       │   └── ...               # See "Available Models" section
@@ -350,7 +350,7 @@ WaveDL/
 > All configuration options below work with `wavedl-train`. The wrapper script passes all arguments directly to `train.py`.
 
 <details>
-<summary><b>Available Models</b> — 21 architectures (69 variants)</summary>
+<summary><b>Available Models</b> — 20+ architectures (70+ variants)</summary>
 
 | Model | Backbone Params | Dim |
 |-------|-----------------|-----|
@@ -372,9 +372,10 @@ WaveDL/
 | `mobilenet_v3_small` ⭐ | 0.9M | 2D |
 | `mobilenet_v3_large` ⭐ | 3.0M | 2D |
 | **EfficientNet** — Efficient Neural Network |||
-| `efficientnet_b0` ⭐ | 4.0M | 2D |
-| `efficientnet_b1` ⭐ | 6.5M | 2D |
-| `efficientnet_b2` ⭐ | 7.7M | 2D |
+| `efficientnet_b0` ⭐ | 5.3M | 2D |
+| `efficientnet_b2` ⭐ | 9.1M | 2D |
+| `efficientnet_b4` ⭐ | 19M | 2D |
+| `efficientnet_b7` ⭐ | 66M | 2D |
 | **EfficientNetV2** — Efficient Neural Network V2 |||
 | `efficientnet_v2_s` ⭐ | 20.2M | 2D |
 | `efficientnet_v2_m` ⭐ | 52.9M | 2D |
@@ -425,18 +426,17 @@ WaveDL/
 | `caformer_m36` ⭐ | 56.9M | 2D |
 | `poolformer_s12` ⭐ | 11.9M | 2D |
 | **EfficientViT** — Memory-Efficient ViT |||
-| `efficientvit_m0` ⭐ | 2.2M | 2D |
 | `efficientvit_m1` ⭐ | 2.6M | 2D |
-| `efficientvit_m2` ⭐ | 3.8M | 2D |
-| `efficientvit_b0` ⭐ | 2.1M | 2D |
 | `efficientvit_b1` ⭐ | 7.5M | 2D |
 | `efficientvit_b2` ⭐ | 21.8M | 2D |
-| `efficientvit_b3` ⭐ | 46.1M | 2D |
-| `efficientvit_l1` ⭐ | 49.5M | 2D |
 | `efficientvit_l2` ⭐ | 60.5M | 2D |
 | **── State Space Models ──** |||
 | **Mamba** — State Space Model |||
 | `mamba_1d` | 3.4M | 1D |
+| **S4D** — Diagonal Structured State Space |||
+| `s4d_small` | 0.8M | 1D |
+| `s4d` | 3.2M | 1D |
+| `s4d_large` | 11M | 1D |
 | **Vision Mamba (ViM)** — 2D Mamba |||
 | `vim_tiny` | 6.6M | 2D |
 | `vim_small` | 51.1M | 2D |
@@ -446,6 +446,10 @@ WaveDL/
 | `tcn_small` | 0.9M | 1D |
 | `tcn` | 6.9M | 1D |
 | `tcn_large` | 10.0M | 1D |
+| **WaveNet** — Gated Dilated Conv Network |||
+| `wavenet_small` | 1.0M | 1D |
+| `wavenet` | 4.0M | 1D |
+| `wavenet_large` | 15M | 1D |
 | **ResNet3D** — 3D Residual Network |||
 | `resnet3d_18` | 33.2M | 3D |
 | `mc3_18` — Mixed Convolution 3D | 11.5M | 3D |
@@ -461,64 +465,67 @@ WaveDL/
 
 ```bash
 # Run once on login node (with internet) — downloads ALL pretrained weights
+# Uses download-only approach (no model instantiation) to avoid CPU time limits
 python -c "
-import os
+import os, torch, warnings
+warnings.filterwarnings('ignore', category=UserWarning, module='pydantic')
 os.environ['TORCH_HOME'] = '.torch_cache'  # Match WaveDL's HPC cache location
+os.environ['HF_HOME'] = '.hf_cache'        # Match WaveDL's HPC cache for timm models
 
 from torchvision import models as m
 from torchvision.models import video as v
 
-# === TorchVision Models (use IMAGENET1K_V1 to match WaveDL) ===
-models = [
-    ('resnet18', m.ResNet18_Weights.IMAGENET1K_V1),
-    ('resnet50', m.ResNet50_Weights.IMAGENET1K_V1),
-    ('efficientnet_b0', m.EfficientNet_B0_Weights.IMAGENET1K_V1),
-    ('efficientnet_b1', m.EfficientNet_B1_Weights.IMAGENET1K_V1),
-    ('efficientnet_b2', m.EfficientNet_B2_Weights.IMAGENET1K_V1),
-    ('efficientnet_v2_s', m.EfficientNet_V2_S_Weights.IMAGENET1K_V1),
-    ('efficientnet_v2_m', m.EfficientNet_V2_M_Weights.IMAGENET1K_V1),
-    ('efficientnet_v2_l', m.EfficientNet_V2_L_Weights.IMAGENET1K_V1),
-    ('mobilenet_v3_small', m.MobileNet_V3_Small_Weights.IMAGENET1K_V1),
-    ('mobilenet_v3_large', m.MobileNet_V3_Large_Weights.IMAGENET1K_V1),
-    ('regnet_y_400mf', m.RegNet_Y_400MF_Weights.IMAGENET1K_V1),
-    ('regnet_y_800mf', m.RegNet_Y_800MF_Weights.IMAGENET1K_V1),
-    ('regnet_y_1_6gf', m.RegNet_Y_1_6GF_Weights.IMAGENET1K_V1),
-    ('regnet_y_3_2gf', m.RegNet_Y_3_2GF_Weights.IMAGENET1K_V1),
-    ('regnet_y_8gf', m.RegNet_Y_8GF_Weights.IMAGENET1K_V1),
-    ('swin_t', m.Swin_T_Weights.IMAGENET1K_V1),
-    ('swin_s', m.Swin_S_Weights.IMAGENET1K_V1),
-    ('swin_b', m.Swin_B_Weights.IMAGENET1K_V1),
-    ('convnext_tiny', m.ConvNeXt_Tiny_Weights.IMAGENET1K_V1),
-    ('densenet121', m.DenseNet121_Weights.IMAGENET1K_V1),
+# === TorchVision + Video Models — download only, no model instantiation ===
+urls = [
+    ('ResNet18',         m.ResNet18_Weights.IMAGENET1K_V1.url),
+    ('ResNet50',         m.ResNet50_Weights.IMAGENET1K_V1.url),
+    ('EfficientNet_B0',  m.EfficientNet_B0_Weights.IMAGENET1K_V1.url),
+    ('EfficientNet_B2',  m.EfficientNet_B2_Weights.IMAGENET1K_V1.url),
+    ('EfficientNet_B4',  m.EfficientNet_B4_Weights.IMAGENET1K_V1.url),
+    ('EfficientNet_B7',  m.EfficientNet_B7_Weights.IMAGENET1K_V1.url),
+    ('EfficientNetV2_S', m.EfficientNet_V2_S_Weights.IMAGENET1K_V1.url),
+    ('EfficientNetV2_M', m.EfficientNet_V2_M_Weights.IMAGENET1K_V1.url),
+    ('EfficientNetV2_L', m.EfficientNet_V2_L_Weights.IMAGENET1K_V1.url),
+    ('MobileNetV3_S',    m.MobileNet_V3_Small_Weights.IMAGENET1K_V1.url),
+    ('MobileNetV3_L',    m.MobileNet_V3_Large_Weights.IMAGENET1K_V1.url),
+    ('RegNet_Y_400MF',   m.RegNet_Y_400MF_Weights.IMAGENET1K_V1.url),
+    ('RegNet_Y_800MF',   m.RegNet_Y_800MF_Weights.IMAGENET1K_V1.url),
+    ('RegNet_Y_1_6GF',   m.RegNet_Y_1_6GF_Weights.IMAGENET1K_V1.url),
+    ('RegNet_Y_3_2GF',   m.RegNet_Y_3_2GF_Weights.IMAGENET1K_V1.url),
+    ('RegNet_Y_8GF',     m.RegNet_Y_8GF_Weights.IMAGENET1K_V1.url),
+    ('Swin_T',           m.Swin_T_Weights.IMAGENET1K_V1.url),
+    ('Swin_S',           m.Swin_S_Weights.IMAGENET1K_V1.url),
+    ('Swin_B',           m.Swin_B_Weights.IMAGENET1K_V1.url),
+    ('ConvNeXt_Tiny',    m.ConvNeXt_Tiny_Weights.IMAGENET1K_V1.url),
+    ('DenseNet121',      m.DenseNet121_Weights.IMAGENET1K_V1.url),
+    ('R3D_18',           v.R3D_18_Weights.KINETICS400_V1.url),
+    ('MC3_18',           v.MC3_18_Weights.KINETICS400_V1.url),
 ]
-for name, w in models:
-    getattr(m, name)(weights=w); print(f'✓ {name}')
+cache = os.path.join(os.environ['TORCH_HOME'], 'hub', 'checkpoints')
+os.makedirs(cache, exist_ok=True)
+for name, url in urls:
+    torch.hub.download_url_to_file(url, os.path.join(cache, os.path.basename(url)))
+    print(f'  ✓ {name}')
 
-# 3D video models
-v.r3d_18(weights=v.R3D_18_Weights.KINETICS400_V1); print('✓ r3d_18')
-v.mc3_18(weights=v.MC3_18_Weights.KINETICS400_V1); print('✓ mc3_18')
-
-# === Timm Models (MaxViT, FastViT, CAFormer, ConvNeXt V2) ===
+# === Timm Models — download only via HuggingFace Hub ===
 import timm
-
+from huggingface_hub import hf_hub_download
 timm_models = [
-    # MaxViT (no suffix - timm resolves to default)
     'maxvit_tiny_tf_224', 'maxvit_small_tf_224', 'maxvit_base_tf_224',
-    # FastViT (no suffix)
     'fastvit_t8', 'fastvit_t12', 'fastvit_s12', 'fastvit_sa12',
-    # CAFormer/PoolFormer (no suffix)
     'caformer_s18', 'caformer_s36', 'caformer_m36', 'poolformer_s12',
-    # ConvNeXt V2 (no suffix)
     'convnextv2_tiny',
-    # EfficientViT (no suffix)
-    'efficientvit_m0', 'efficientvit_m1', 'efficientvit_m2',
-    'efficientvit_b0', 'efficientvit_b1', 'efficientvit_b2', 'efficientvit_b3',
-    'efficientvit_l1', 'efficientvit_l2',
+    'efficientvit_m1', 'efficientvit_b1', 'efficientvit_b2', 'efficientvit_l2',
 ]
 for name in timm_models:
-    timm.create_model(name, pretrained=True); print(f'✓ {name}')
+    cfg = timm.get_pretrained_cfg(name)
+    if cfg.hf_hub_id:
+        hf_hub_download(cfg.hf_hub_id, 'model.safetensors')
+    elif cfg.url:
+        torch.hub.download_url_to_file(cfg.url, os.path.join(cache, os.path.basename(cfg.url)))
+    print(f'  ✓ {name}')
 
-print('\\n✓ All pretrained weights cached!')
+print(f'\n✓ All {len(urls) + len(timm_models)} pretrained weight files cached!')
 "
 ```
 
@@ -936,7 +943,7 @@ wavedl-train --data_path train.npz --model cnn --lr 3.2e-4 --batch_size 128 ...
 | `--output` | `hpo_results.json` | Output file |
 
 
-> See [Available Models](#available-models) for all 21 architectures (69 variants) you can search.
+> See [Available Models](#available-models) for all 20+ architectures (70+ variants) you can search.
 
 </details>
 
