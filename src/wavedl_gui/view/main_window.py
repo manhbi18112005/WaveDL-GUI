@@ -123,7 +123,7 @@ class MainWindow(FluentWindow):
         """Initialize window properties."""
         self.resize(1200, 800)
         self.setMinimumSize(1000, 700)
-        self.setWindowIcon(QIcon(":/app/images/logo.png"))
+        self.setWindowIcon(QIcon(":/src/wavedl_gui/resource/images/logo.png"))
         self.setWindowTitle("WaveDL - Deep Learning Training GUI")
         QApplication.setQuitOnLastWindowClosed(False)
 
