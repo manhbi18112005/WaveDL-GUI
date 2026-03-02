@@ -22,6 +22,7 @@ DEFAULT_EPOCHS = 1000
 DEFAULT_PATIENCE = 20
 DEFAULT_WEIGHT_DECAY = 0.0001
 DEFAULT_GRAD_CLIP = 1.0
+DEFAULT_GRAD_ACCUM_STEPS = 1
 DEFAULT_SEED = 2025
 
 # Loss functions available in wavedl
@@ -203,6 +204,11 @@ TOOLTIPS = {
     "grad_clip": (
         "Gradient clipping norm threshold.\nPrevents exploding gradients. 0 = disabled."
     ),
+    "grad_accum_steps": (
+        "Gradient accumulation steps.\n"
+        "Simulates larger batch sizes with limited GPU memory.\n"
+        "Effective batch = batch_size x steps x num_GPUs."
+    ),
     "loss": ("Loss function for training.\nMSE is standard for regression."),
     "optimizer": ("Optimization algorithm.\nAdamW is recommended for most cases."),
     "scheduler": (
@@ -271,6 +277,7 @@ class TrainingConfig:
     patience: int = DEFAULT_PATIENCE
     weight_decay: float = DEFAULT_WEIGHT_DECAY
     grad_clip: float = DEFAULT_GRAD_CLIP
+    grad_accum_steps: int = DEFAULT_GRAD_ACCUM_STEPS
 
     # Loss and optimizer
     loss: str = "mse"
@@ -341,6 +348,8 @@ class TrainingConfig:
         args.extend(["--patience", str(self.patience)])
         args.extend(["--weight_decay", str(self.weight_decay)])
         args.extend(["--grad_clip", str(self.grad_clip)])
+        if self.grad_accum_steps > 1:
+            args.extend(["--grad_accum_steps", str(self.grad_accum_steps)])
 
         # Loss
         args.extend(["--loss", self.loss])
@@ -422,6 +431,7 @@ class TrainingConfig:
             "patience": self.patience,
             "weight_decay": self.weight_decay,
             "grad_clip": self.grad_clip,
+            "grad_accum_steps": self.grad_accum_steps,
             "loss": self.loss,
             "optimizer": self.optimizer,
             "scheduler": self.scheduler,
