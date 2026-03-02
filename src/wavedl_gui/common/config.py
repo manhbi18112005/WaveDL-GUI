@@ -86,6 +86,9 @@ class Config(QConfig):
     patience = RangeConfigItem("Training", "Patience", 20, RangeValidator(1, 1000))
     weightDecay = ConfigItem("Training", "WeightDecay", 0.0001)
     gradClip = ConfigItem("Training", "GradClip", 1.0)
+    gradAccumSteps = RangeConfigItem(
+        "Training", "GradAccumSteps", 1, RangeValidator(1, 128)
+    )
     seed = RangeConfigItem("Training", "Seed", 2025, RangeValidator(0, 999999))
     workers = RangeConfigItem("Training", "Workers", -1, RangeValidator(-1, 64))
 
