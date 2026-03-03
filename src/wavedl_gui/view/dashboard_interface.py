@@ -1,8 +1,5 @@
 """
 WaveDL GUI - Training Dashboard Interface
-
-A premium monitoring dashboard for real-time training progress.
-Uses the same visual design system as DataInfoCard for consistency.
 """
 
 from __future__ import annotations
@@ -30,7 +27,9 @@ from qfluentwidgets import (
 )
 
 from ..common.signal_bus import signalBus
-from ..components.statistic_widget import StatisticsWidget
+from ..components.convergence_card import ConvergenceCard, PerParamCard
+from ..components.loss_chart_card import LossChartCard
+from ..components.metric_card import MetricCard
 from ..service.training_service import ProcessState, TrainingProgress
 
 
@@ -408,16 +407,93 @@ class _LogCard(SimpleCardWidget):
         self.clearBtn.clicked.connect(self.logOutput.clear)
 
 
+# ─── Epoch summary strip ─────────────────────────────────────────────────────
+
+
+class _EpochSummaryStrip(QWidget):
+    """Compact horizontal strip showing key epoch-over-epoch summaries.
+
+    Displays: best val loss, best R², total parameters updated,
+    improvement rate — all in a single tinted row.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        h = QHBoxLayout(self)
+        h.setContentsMargins(16, 6, 16, 6)
+        h.setSpacing(24)
+
+        self._items: dict[str, CaptionLabel] = {}
+        for key, label in [
+            ("best_val", "Best Val Loss"),
+            ("best_r2", "Best R\u00b2"),
+            ("improvement", "Improvement"),
+            ("throughput", "Throughput"),
+        ]:
+            lbl = CaptionLabel(f"{label}: —", self)
+            lbl.setTextColor(_muted_text_color(), _muted_text_color())
+            setFont(lbl, 10, QFont.Weight.DemiBold)
+            h.addWidget(lbl)
+            self._items[key] = lbl
+
+        h.addStretch()
+
+    def update_summary(
+        self,
+        best_val: float,
+        best_r2: float,
+        improvement_pct: float,
+        samples_per_sec: float,
+    ):
+        """Update all summary values."""
+        if best_val < float("inf"):
+            self._items["best_val"].setText(f"Best Val Loss: {best_val:.6f}")
+        if best_r2 > -float("inf"):
+            self._items["best_r2"].setText(f"Best R\u00b2: {best_r2:.4f}")
+        if improvement_pct != 0:
+            arrow = "▲" if improvement_pct > 0 else "▼"
+            self._items["improvement"].setText(
+                f"Improvement: {arrow} {abs(improvement_pct):.2f}%"
+            )
+        if samples_per_sec > 0:
+            self._items["throughput"].setText(
+                f"Throughput: {samples_per_sec:.0f} samples/s"
+            )
+
+    def reset(self):
+        """Reset to placeholder state."""
+        labels = {
+            "best_val": "Best Val Loss",
+            "best_r2": "Best R\u00b2",
+            "improvement": "Improvement",
+            "throughput": "Throughput",
+        }
+        for key, lbl_text in labels.items():
+            self._items[key].setText(f"{lbl_text}: —")
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setBrush(_section_bg_color())
+        p.setPen(Qt.NoPen)
+        p.drawRoundedRect(self.rect(), 6, 6)
+        p.end()
+
+
 # ─── Dashboard interface ──────────────────────────────────────────────────────
 
 
 class DashboardInterface(ScrollArea):
-    """Training dashboard interface for monitoring progress."""
+    """Comprehensive training dashboard with real-time monitoring metrics."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.scrollWidget = QWidget()
         self.expandLayout = QVBoxLayout(self.scrollWidget)
+
+        # Track best-ever values for summary strip
+        self._best_r2: float = -float("inf")
+        self._prev_val_loss: float = float("inf")
 
         self._init_ui()
         self._connect_signals()
@@ -438,30 +514,65 @@ class DashboardInterface(ScrollArea):
         # ── Progress card ──────────────────────────────────────────
         self.progressCard = ProgressCard(self.scrollWidget)
 
-        # ── Metrics row ────────────────────────────────────────────
+        # ── Epoch summary strip ────────────────────────────────────
+        self.summaryStrip = _EpochSummaryStrip(self.scrollWidget)
+
+        # ── Metrics row 1 (with sparklines) ────────────────────────
         metricsWidget = QWidget(self.scrollWidget)
         metricsLayout = QHBoxLayout(metricsWidget)
         metricsLayout.setContentsMargins(0, 0, 0, 0)
         metricsLayout.setSpacing(10)
 
-        self.trainLossCard = StatisticsWidget(self.tr("Train Loss"), metricsWidget)
-        self.valLossCard = StatisticsWidget(self.tr("Val Loss"), metricsWidget)
-        self.r2Card = StatisticsWidget(self.tr("R\u00b2 Score"), metricsWidget)
-        self.lrCard = StatisticsWidget(self.tr("Learning Rate"), metricsWidget)
+        self.trainLossCard = MetricCard(
+            self.tr("Train Loss"),
+            line_color=_accent_color(),
+            parent=metricsWidget,
+        )
+        self.valLossCard = MetricCard(
+            self.tr("Val Loss"),
+            line_color=_warning_color(),
+            parent=metricsWidget,
+        )
+        self.r2Card = MetricCard(
+            self.tr("R\u00b2 Score"),
+            line_color=_success_color(),
+            higher_is_better=True,
+            parent=metricsWidget,
+        )
+        self.lrCard = MetricCard(
+            self.tr("Learning Rate"),
+            line_color=QColor("#8b5cf6") if not isDarkTheme() else QColor("#a78bfa"),
+            parent=metricsWidget,
+        )
 
         for card in (self.trainLossCard, self.valLossCard, self.r2Card, self.lrCard):
             metricsLayout.addWidget(card)
 
-        # ── Metrics row 2 ─────────────────────────────────────────────
+        # ── Metrics row 2 (with sparklines) ────────────────────────
         metricsWidget2 = QWidget(self.scrollWidget)
         metricsLayout2 = QHBoxLayout(metricsWidget2)
         metricsLayout2.setContentsMargins(0, 0, 0, 0)
         metricsLayout2.setSpacing(10)
 
-        self.pearsonCard = StatisticsWidget(self.tr("Pearson"), metricsWidget2)
-        self.gradNormCard = StatisticsWidget(self.tr("Grad Norm"), metricsWidget2)
-        self.maeCard = StatisticsWidget(self.tr("MAE Avg"), metricsWidget2)
-        self.epochTimeCard = StatisticsWidget(self.tr("Epoch Time"), metricsWidget2)
+        self.pearsonCard = MetricCard(
+            self.tr("Pearson"),
+            line_color=_accent_color(),
+            higher_is_better=True,
+            parent=metricsWidget2,
+        )
+        self.gradNormCard = MetricCard(
+            self.tr("Grad Norm"),
+            line_color=_error_color(),
+            parent=metricsWidget2,
+        )
+        self.maeCard = MetricCard(
+            self.tr("MAE Avg"), line_color=_warning_color(), parent=metricsWidget2
+        )
+        self.epochTimeCard = MetricCard(
+            self.tr("Epoch Time"),
+            line_color=_muted_text_color(),
+            parent=metricsWidget2,
+        )
 
         for card in (
             self.pearsonCard,
@@ -471,15 +582,33 @@ class DashboardInterface(ScrollArea):
         ):
             metricsLayout2.addWidget(card)
 
+        # ── Loss chart card ────────────────────────────────────────
+        self.lossChartCard = LossChartCard(self.scrollWidget)
+
+        # ── Analysis row: Convergence + Per-Param side by side ─────
+        analysisWidget = QWidget(self.scrollWidget)
+        analysisLayout = QHBoxLayout(analysisWidget)
+        analysisLayout.setContentsMargins(0, 0, 0, 0)
+        analysisLayout.setSpacing(15)
+
+        self.convergenceCard = ConvergenceCard(analysisWidget)
+        self.perParamCard = PerParamCard(analysisWidget)
+
+        analysisLayout.addWidget(self.convergenceCard, 1)
+        analysisLayout.addWidget(self.perParamCard, 1)
+
         # ── Log card ───────────────────────────────────────────────
         self.logCard = _LogCard(self.scrollWidget)
 
         # ── Assemble layout ────────────────────────────────────────
-        self.expandLayout.setSpacing(15)
+        self.expandLayout.setSpacing(12)
         self.expandLayout.setContentsMargins(36, 10, 36, 0)
         self.expandLayout.addWidget(self.progressCard)
+        self.expandLayout.addWidget(self.summaryStrip)
         self.expandLayout.addWidget(metricsWidget)
         self.expandLayout.addWidget(metricsWidget2)
+        self.expandLayout.addWidget(self.lossChartCard)
+        self.expandLayout.addWidget(analysisWidget)
         self.expandLayout.addWidget(self.logCard)
 
     def _connect_signals(self):
@@ -495,22 +624,87 @@ class DashboardInterface(ScrollArea):
         """Handle real-time progress update."""
         self.progressCard.update_progress(progress)
 
-        self.trainLossCard.setValue(f"{progress.train_loss:.6f}")
+        # ── MetricCards (with sparklines + trend deltas) ──
+        self.trainLossCard.setValue(
+            f"{progress.train_loss:.6f}",
+            raw=progress.train_loss,
+        )
         self.valLossCard.setValue(
             f"{progress.val_loss:.6f}",
-            f"Best: {progress.best_val_loss:.6f}",
+            raw=progress.val_loss,
+            subtitle=f"Best: {progress.best_val_loss:.6f}",
         )
-        self.r2Card.setValue(f"{progress.r2_score:.4f}")
-        self.lrCard.setValue(f"{progress.learning_rate:.2e}")
-
-        self.pearsonCard.setValue(f"{progress.pearson:.4f}")
-        self.gradNormCard.setValue(f"{progress.grad_norm:.4f}")
-        self.maeCard.setValue(f"{progress.mae_avg:.4f}")
+        self.r2Card.setValue(
+            f"{progress.r2_score:.4f}",
+            raw=progress.r2_score,
+        )
+        self.lrCard.setValue(
+            f"{progress.learning_rate:.2e}",
+            raw=progress.learning_rate,
+        )
+        self.pearsonCard.setValue(
+            f"{progress.pearson:.4f}",
+            raw=progress.pearson,
+        )
+        self.gradNormCard.setValue(
+            f"{progress.grad_norm:.4f}",
+            raw=progress.grad_norm,
+        )
+        self.maeCard.setValue(
+            f"{progress.mae_avg:.4f}",
+            raw=progress.mae_avg,
+        )
         self.epochTimeCard.setValue(
             f"{progress.time_per_epoch:.1f}s",
-            f"Total: {_format_duration(progress.total_time)}"
+            raw=progress.time_per_epoch,
+            subtitle=f"Total: {_format_duration(progress.total_time)}"
             if progress.total_time > 0
             else "",
+        )
+
+        # ── Loss chart ──
+        self.lossChartCard.addPoint(
+            progress.train_loss, progress.val_loss, progress.epoch
+        )
+
+        # ── Convergence health ──
+        self.convergenceCard.update_health(
+            train_loss=progress.train_loss,
+            val_loss=progress.val_loss,
+            best_val_loss=progress.best_val_loss,
+            learning_rate=progress.learning_rate,
+            grad_norm=progress.grad_norm,
+            patience_counter=progress.patience_counter,
+            max_patience=progress.max_patience,
+            epoch=progress.epoch,
+            total_epochs=progress.total_epochs,
+        )
+
+        # ── Per-parameter MAE ──
+        if progress.mae_per_param:
+            self.perParamCard.setValues(progress.mae_per_param)
+
+        # ── Summary strip ──
+        if progress.r2_score > self._best_r2:
+            self._best_r2 = progress.r2_score
+
+        improvement_pct = 0.0
+        if self._prev_val_loss < float("inf") and self._prev_val_loss > 0:
+            improvement_pct = (
+                (self._prev_val_loss - progress.val_loss) / self._prev_val_loss
+            ) * 100
+        self._prev_val_loss = progress.val_loss
+
+        # Estimate throughput (rough: batch_size isn't available, use epoch time)
+        throughput = 0.0
+        if progress.time_per_epoch > 0:
+            throughput = 1.0 / progress.time_per_epoch  # epochs/sec as proxy
+
+        self.summaryStrip.update_summary(
+            best_val=progress.best_val_loss,
+            best_r2=self._best_r2,
+            improvement_pct=improvement_pct,
+            samples_per_sec=throughput,
         )
 
     @Slot(str)
@@ -550,12 +744,22 @@ class DashboardInterface(ScrollArea):
     def reset(self):
         """Reset dashboard to initial placeholder state."""
         self.progressCard.reset()
-        self.trainLossCard.setValue("—")
-        self.valLossCard.setValue("—")
-        self.r2Card.setValue("—")
-        self.lrCard.setValue("—")
-        self.pearsonCard.setValue("—")
-        self.gradNormCard.setValue("—")
-        self.maeCard.setValue("—")
-        self.epochTimeCard.setValue("—")
+        self.summaryStrip.reset()
+
+        self.trainLossCard.reset()
+        self.valLossCard.reset()
+        self.r2Card.reset()
+        self.lrCard.reset()
+        self.pearsonCard.reset()
+        self.gradNormCard.reset()
+        self.maeCard.reset()
+        self.epochTimeCard.reset()
+
+        self.lossChartCard.clear()
+        self.convergenceCard.reset()
+        self.perParamCard.reset()
+
         self.logCard.logOutput.clear()
+
+        self._best_r2 = -float("inf")
+        self._prev_val_loss = float("inf")
