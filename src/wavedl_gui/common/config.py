@@ -16,7 +16,7 @@ from qfluentwidgets import (
     qconfig,
 )
 
-from .constants import ALL_MODELS
+from .constants.models import ALL_MODELS
 from .setting import CONFIG_FILE
 
 

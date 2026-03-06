@@ -12,6 +12,7 @@ from qfluentwidgets import (
     DoubleSpinBox,
     ExpandLayout,
     FluentIcon as FIF,
+    PushSettingCard,
     RangeSettingCard,
     ScrollArea,
     SettingCard,
@@ -19,21 +20,19 @@ from qfluentwidgets import (
     SpinBox,
     SwitchSettingCard,
     TitleLabel,
-    ToolTipFilter,
-    ToolTipPosition,
     setFont,
 )
 
 from ..common.config import cfg
-from ..common.constants import (
-    ALL_MODELS,
+from ..common.constants.index import (
     LOSS_FUNCTIONS,
     OPTIMIZERS,
     PRECISION_OPTIONS,
     SCHEDULERS,
-    TOOLTIPS,
     TrainingConfig,
 )
+from ..common.constants.models import MODEL_INFO
+from ..components.model_selector_dialog import ModelSelectorDialog
 
 
 class SettingCardGroup(CardGroup):
@@ -109,7 +108,6 @@ class TrainingInterface(ScrollArea):
 
         self._init_ui()
         self._connect_signals()
-        self._applyTooltips()
 
     def _init_ui(self):
         self.setObjectName("trainingInterface")
@@ -127,13 +125,12 @@ class TrainingInterface(ScrollArea):
         # Model section
         self.modelGroup = SettingCardGroup(self.tr("Model"), self.scrollWidget)
 
-        self.modelCard = ComboBoxSettingCard(
-            cfg.model,
+        self.modelCard = PushSettingCard(
+            self.tr("Choose"),
             FIF.ROBOT,
             self.tr("Neural Network Model"),
-            self.tr("Select the architecture to train"),
-            texts=ALL_MODELS,
-            parent=self.modelGroup,
+            self._getModelDisplayText(cfg.get(cfg.model)),
+            self.modelGroup,
         )
 
         self.pretrainedCard = SwitchSettingCard(
@@ -143,6 +140,9 @@ class TrainingInterface(ScrollArea):
             configItem=cfg.pretrained,
             parent=self.modelGroup,
         )
+
+        # Set initial pretrained switch state based on current model
+        self._updatePretrainedCard(cfg.get(cfg.model))
 
         # Hyperparameters section
         self.hyperGroup = SettingCardGroup(
@@ -313,34 +313,51 @@ class TrainingInterface(ScrollArea):
 
     def _connect_signals(self):
         """Connect signals for config updates."""
-        pass  # Config items auto-save
+        self.modelCard.clicked.connect(self._openModelSelector)
 
-    def _applyTooltips(self):
-        mapping = {
-            "model": self.modelCard,
-            "pretrained": self.pretrainedCard,
-            "batch_size": self.batchSizeCard,
-            "learning_rate": self.lrCard,
-            "epochs": self.epochsCard,
-            "patience": self.patienceCard,
-            "loss": self.lossCard,
-            "optimizer": self.optimizerCard,
-            "scheduler": self.schedulerCard,
-            "precision": self.precisionCard,
-            "compile": self.compileCard,
-            "deterministic": self.deterministicCard,
-            "seed": self.seedCard,
-            "no_cache": self.noCacheCard,
-            "cv": self.cvCard,
-            "cv_stratify": self.cvStratifyCard,
-        }
-        for key, card in mapping.items():
-            text = TOOLTIPS.get(key)
-            if text:
-                card.setToolTip(text)
-                card.installEventFilter(
-                    ToolTipFilter(card, 300, ToolTipPosition.BOTTOM)
+    def _openModelSelector(self):
+        """Open the model selector dialog."""
+        current = cfg.get(cfg.model)
+        dialog = ModelSelectorDialog(current, self.window())
+        dialog.modelSelected.connect(self._onModelSelected)
+        dialog.exec()
+
+    def _onModelSelected(self, model_key: str):
+        """Handle model selection from dialog."""
+        cfg.set(cfg.model, model_key)
+        self.modelCard.setContent(self._getModelDisplayText(model_key))
+        self._updatePretrainedCard(model_key)
+
+    def _updatePretrainedCard(self, model_key: str):
+        """Enable/disable pretrained switch based on model support."""
+        info = MODEL_INFO.get(model_key, {})
+        has_pretrained = bool(info.get("is_pretrained"))
+        self.pretrainedCard.setEnabled(has_pretrained)
+        if not has_pretrained:
+            self.pretrainedCard.setChecked(False)
+            cfg.set(cfg.pretrained, False)
+            self.pretrainedCard.setContent(self.tr("Not available for this model"))
+        else:
+            self.pretrainedCard.setContent(
+                self.tr(
+                    "Initialize with ImageNet weights (recommended for 2D image data)"
                 )
+            )
+
+    @staticmethod
+    def _getModelDisplayText(model_key: str) -> str:
+        """Format display text for the model setting card."""
+        info = MODEL_INFO.get(model_key, {})
+        name = info.get("display_name", model_key)
+        dims = ", ".join(f"{d}D" for d in info.get("supported_dims", []))
+        params_m = info.get("params_m")
+        params = f"{params_m}M" if params_m is not None else ""
+        parts = [name]
+        if dims:
+            parts.append(f"({dims})")
+        if params:
+            parts.append(f"\u2014 {params} params")
+        return " ".join(parts)
 
     def get_training_config(
         self, data_path: str = "", output_dir: str = ""

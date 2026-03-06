@@ -24,7 +24,7 @@ from ..common.utils import get_python_executable
 
 
 if TYPE_CHECKING:
-    from ..common.constants import TestConfig, TrainingConfig
+    from ..common.constants.index import TestConfig, TrainingConfig
 
 
 class ProcessState(Enum):
