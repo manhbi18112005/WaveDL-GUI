@@ -25,13 +25,11 @@ from qfluentwidgets import (
     ScrollArea,
     SettingCardGroup as CardGroup,
     TitleLabel,
-    ToolTipFilter,
-    ToolTipPosition,
     setFont,
 )
 
 from ..common.config import cfg
-from ..common.constants import TOOLTIPS, TrainingConfig
+from ..common.constants.index import TrainingConfig
 from ..common.signal_bus import signalBus
 from ..common.utils import DataInfo, inspect_data_file
 from ..components.controls_card import ControlsCard
@@ -100,7 +98,6 @@ class ProjectInterface(ScrollArea):
 
         self.__initLayout()
         self._connect_signals()
-        self._applyTooltips()
 
     def __initLayout(self):
         self.settingLabel.move(36, 40)
@@ -125,19 +122,6 @@ class ProjectInterface(ScrollArea):
         self.controlsCard.exportConfigClicked.connect(self._export_config)
 
         signalBus.trainingStateChangedSig.connect(self._on_state_changed)
-
-    def _applyTooltips(self):
-        mapping = {
-            "data_file": self.dataCard,
-            "output_dir": self.outputCard,
-        }
-        for key, card in mapping.items():
-            text = TOOLTIPS.get(key)
-            if text:
-                card.setToolTip(text)
-                card.installEventFilter(
-                    ToolTipFilter(card, 300, ToolTipPosition.BOTTOM)
-                )
 
     def _select_data_file(self):
         """Open file dialog to select data file."""

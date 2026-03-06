@@ -15,8 +15,6 @@ from qfluentwidgets import (
     SettingCardGroup as CardGroup,
     SwitchSettingCard,
     TitleLabel,
-    ToolTipFilter,
-    ToolTipPosition,
     setFont,
     setTheme,
     setThemeColor,
@@ -24,7 +22,6 @@ from qfluentwidgets import (
 from qframelesswindow.utils import getSystemAccentColor
 
 from ..common.config import cfg
-from ..common.constants import TOOLTIPS
 from ..common.setting import AUTHOR, FEEDBACK_URL, VERSION, YEAR
 from ..common.signal_bus import signalBus
 
@@ -175,7 +172,6 @@ class SettingInterface(ScrollArea):
         # initialize layout
         self.__initLayout()
         self._connect_signals()
-        self._applyTooltips()
 
     def __initLayout(self):
         self.settingLabel.move(36, 40)
@@ -256,16 +252,3 @@ class SettingInterface(ScrollArea):
         self.feedbackCard.clicked.connect(
             lambda: QDesktopServices.openUrl(QUrl(FEEDBACK_URL))
         )
-
-    def _applyTooltips(self):
-        mapping = {
-            "precision": self.precisionCard,
-            "deterministic": self.deterministicCard,
-        }
-        for key, card in mapping.items():
-            text = TOOLTIPS.get(key)
-            if text:
-                card.setToolTip(text)
-                card.installEventFilter(
-                    ToolTipFilter(card, 300, ToolTipPosition.BOTTOM)
-                )
