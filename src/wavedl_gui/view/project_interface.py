@@ -17,13 +17,10 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QFileDialog, QWidget
 from qfluentwidgets import (
     ExpandLayout,
-    FluentIcon as FIF,
     InfoBar,
     InfoBarPosition,
     MessageBox,
-    PushSettingCard,
     ScrollArea,
-    SettingCardGroup as CardGroup,
     TitleLabel,
     setFont,
 )
@@ -34,37 +31,41 @@ from ..common.signal_bus import signalBus
 from ..common.utils import DataInfo, inspect_data_file
 from ..components.controls_card import ControlsCard
 from ..components.data_info_card import DataInfoCard
+from ..components.shared import (
+    FilePickerCard,
+    FolderPickerCard,
+    SettingCardGroup,
+)
 from ..components.system_info_card import SystemInfoCard
 from ..service.training_service import ProcessState
 
 
-class SettingCardGroup(CardGroup):
-    def __init__(self, title: str, parent=None):
-        super().__init__(title, parent)
-        setFont(self.titleLabel, 14, QFont.Weight.DemiBold)
-
-
 class ProjectInterface(ScrollArea):
     """Project setup interface for data and output configuration."""
+
+    _DATA_FILE_FILTER = (
+        "NPZ Files (*.npz);;MATLAB Files (*.mat);;"
+        "HDF5 Files (*.h5 *.hdf5);;All Files (*)"
+    )
 
     def __init__(self, parent=None):
         super().__init__(parent=parent)
         self.scrollWidget = QWidget()
         self.expandLayout = ExpandLayout(self.scrollWidget)
 
-        self._data_path = ""
         self._output_dir = cfg.get(cfg.outputFolder)
         self.settingLabel = TitleLabel(self.tr("Project Setup"), self)
 
         self.dataGroup = SettingCardGroup(self.tr("Training Data"), self.scrollWidget)
-        self.dataCard = PushSettingCard(
-            self.tr("Select File"),
-            FIF.DOCUMENT,
-            self.tr("Training Data File"),
-            self.tr(
+        self.dataCard = FilePickerCard(
+            title=self.tr("Training Data File"),
+            description=self.tr(
                 "Select data file (.npz, .mat, or .h5) containing input/output arrays"
             ),
-            self.dataGroup,
+            file_filter=self._DATA_FILE_FILTER,
+            button_text=self.tr("Select File"),
+            dialog_title=self.tr("Select Training Data"),
+            parent=self.dataGroup,
         )
 
         self.dataInfoCard = DataInfoCard(self.scrollWidget)
@@ -72,12 +73,12 @@ class ProjectInterface(ScrollArea):
         self.outputGroup = SettingCardGroup(
             self.tr("Output Configuration"), self.scrollWidget
         )
-        self.outputCard = PushSettingCard(
-            self.tr("Choose"),
-            FIF.FOLDER,
-            self.tr("Output Directory"),
-            cfg.get(cfg.outputFolder),
-            self.outputGroup,
+        self.outputCard = FolderPickerCard(
+            title=self.tr("Output Directory"),
+            description=cfg.get(cfg.outputFolder),
+            default_dir=cfg.get(cfg.outputFolder),
+            dialog_title=self.tr("Select Output Directory"),
+            parent=self.outputGroup,
         )
 
         self.systemInfoCard = SystemInfoCard(self.scrollWidget)
@@ -113,8 +114,13 @@ class ProjectInterface(ScrollArea):
         self.expandLayout.addWidget(self.controlsCard)
 
     def _connect_signals(self):
-        self.dataCard.clicked.connect(self._select_data_file)
-        self.outputCard.clicked.connect(self._select_output_dir)
+        # Disconnect the built-in clicked handler so we can add our own
+        # post-selection logic (inspect + InfoBar notification).
+        self.dataCard.clicked.disconnect(self.dataCard._on_clicked)
+        self.dataCard.clicked.connect(self._on_data_card_clicked)
+
+        self.outputCard.clicked.disconnect(self.outputCard._on_clicked)
+        self.outputCard.clicked.connect(self._on_output_card_clicked)
 
         self.controlsCard.openOutputClicked.connect(self._open_output_folder)
         self.controlsCard.openConfigClicked.connect(self._open_config_file)
@@ -123,19 +129,19 @@ class ProjectInterface(ScrollArea):
 
         signalBus.trainingStateChangedSig.connect(self._on_state_changed)
 
-    def _select_data_file(self):
-        """Open file dialog to select data file."""
+    def _on_data_card_clicked(self):
+        """Open file dialog and run data inspection on selection."""
         path, _ = QFileDialog.getOpenFileName(
             self,
             self.tr("Select Training Data"),
             "",
-            "NPZ Files (*.npz);;MATLAB Files (*.mat);;HDF5 Files (*.h5 *.hdf5);;All Files (*)",
+            self._DATA_FILE_FILTER,
         )
         if path:
             self.set_data_path(path)
 
-    def _select_output_dir(self):
-        """Open folder dialog to select output directory."""
+    def _on_output_card_clicked(self):
+        """Open folder dialog and persist the choice."""
         folder = QFileDialog.getExistingDirectory(
             self, self.tr("Select Output Directory"), self._output_dir
         )
@@ -143,8 +149,7 @@ class ProjectInterface(ScrollArea):
             self.set_output_dir(folder)
 
     def set_data_path(self, path: str):
-        self._data_path = path
-        self.dataCard.setContent(path)
+        self.dataCard.set_path(path)
 
         info = inspect_data_file(path)
         self.dataInfoCard.set_data_info(info)
@@ -168,7 +173,7 @@ class ProjectInterface(ScrollArea):
 
     def set_output_dir(self, folder: str):
         self._output_dir = folder
-        self.outputCard.setContent(folder)
+        self.outputCard.set_folder(folder)
         cfg.set(cfg.outputFolder, folder)
 
     def _open_output_folder(self):
@@ -260,7 +265,7 @@ class ProjectInterface(ScrollArea):
             return
 
         config = TrainingConfig(
-            data_path=self._data_path,
+            data_path=self.dataCard.path,
             output_dir=self._output_dir,
             model=cfg.get(cfg.model),
             pretrained=cfg.get(cfg.pretrained),
@@ -300,7 +305,7 @@ class ProjectInterface(ScrollArea):
 
     @property
     def data_path(self) -> str:
-        return self._data_path
+        return self.dataCard.path
 
     @property
     def output_dir(self) -> str:

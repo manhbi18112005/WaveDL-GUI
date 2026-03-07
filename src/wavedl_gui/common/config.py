@@ -71,6 +71,11 @@ class Config(QConfig):
         "Update", "CheckUpdateAtStartUp", True, BoolValidator()
     )
 
+    # onboarding wizard
+    showWizardOnStartup = ConfigItem(
+        "MainWindow", "ShowWizardOnStartup", True, BoolValidator()
+    )
+
     # training - output
     outputFolder = ConfigItem(
         "Training",

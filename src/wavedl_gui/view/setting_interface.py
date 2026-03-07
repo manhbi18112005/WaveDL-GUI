@@ -12,7 +12,6 @@ from qfluentwidgets import (
     PushSettingCard,
     ScrollArea,
     SettingCard,
-    SettingCardGroup as CardGroup,
     SwitchSettingCard,
     TitleLabel,
     setFont,
@@ -24,12 +23,7 @@ from qframelesswindow.utils import getSystemAccentColor
 from ..common.config import cfg
 from ..common.setting import AUTHOR, FEEDBACK_URL, VERSION, YEAR
 from ..common.signal_bus import signalBus
-
-
-class SettingCardGroup(CardGroup):
-    def __init__(self, title: str, parent=None):
-        super().__init__(title, parent)
-        setFont(self.titleLabel, 14, QFont.Weight.DemiBold)
+from ..components.shared import SettingCardGroup
 
 
 class SettingInterface(ScrollArea):
@@ -132,6 +126,13 @@ class SettingInterface(ScrollArea):
             configItem=cfg.checkUpdateAtStartUp,
             parent=self.updateSoftwareGroup,
         )
+        self.wizardOnStartupCard = SwitchSettingCard(
+            FIF.EDUCATION,
+            self.tr("Show setup wizard on startup"),
+            self.tr("Display the guided onboarding wizard when the application starts"),
+            configItem=cfg.showWizardOnStartup,
+            parent=self.updateSoftwareGroup,
+        )
 
         # application
         self.aboutGroup = SettingCardGroup(self.tr("About"), self.scrollWidget)
@@ -187,6 +188,7 @@ class SettingInterface(ScrollArea):
         self.trainingGroup.addSettingCard(self.deterministicCard)
 
         self.updateSoftwareGroup.addSettingCard(self.updateOnStartUpCard)
+        self.updateSoftwareGroup.addSettingCard(self.wizardOnStartupCard)
 
         self.aboutGroup.addSettingCard(self.feedbackCard)
         self.aboutGroup.addSettingCard(self.aboutCard)

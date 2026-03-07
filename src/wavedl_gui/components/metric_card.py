@@ -11,28 +11,15 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont, QPainter
 from PySide6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
-from qfluentwidgets import CaptionLabel, StrongBodyLabel, isDarkTheme, setFont
+from qfluentwidgets import CaptionLabel, StrongBodyLabel, setFont
 
+from ..common.theme_colors import (
+    error_color as _error_color,
+    muted_text_color as _muted_text_color,
+    section_bg_color as _section_bg_color,
+    success_color as _success_color,
+)
 from .sparkline_widget import SparklineWidget
-
-
-# ─── Theme-aware colors (shared palette) ──────────────────────────────────────
-
-
-def _muted_text_color() -> QColor:
-    return QColor(110, 110, 110) if not isDarkTheme() else QColor(160, 160, 160)
-
-
-def _section_bg_color() -> QColor:
-    return QColor(0, 0, 0, 6) if not isDarkTheme() else QColor(255, 255, 255, 6)
-
-
-def _success_color() -> QColor:
-    return QColor("#16a34a") if not isDarkTheme() else QColor("#4ade80")
-
-
-def _error_color() -> QColor:
-    return QColor("#dc2626") if not isDarkTheme() else QColor("#f87171")
 
 
 # ─── Metric Card ──────────────────────────────────────────────────────────────

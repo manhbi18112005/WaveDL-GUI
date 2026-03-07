@@ -33,6 +33,7 @@ from .dashboard_interface import DashboardInterface
 from .project_interface import ProjectInterface
 from .setting_interface import SettingInterface
 from .training_interface import TrainingInterface
+from .wizard.onboarding_wizard import OnboardingWizard
 
 
 class MainWindow(FluentWindow):
@@ -283,6 +284,8 @@ class MainWindow(FluentWindow):
         super().resizeEvent(e)
         if hasattr(self, "splashScreen"):
             self.splashScreen.resize(self.size())
+        if hasattr(self, "_wizard") and self._wizard is not None:
+            self._wizard.setGeometry(self.rect())
 
     def closeEvent(self, event):
         """Handle close event - minimize to tray."""
@@ -299,6 +302,60 @@ class MainWindow(FluentWindow):
 
         if cfg.get(cfg.checkUpdateAtStartUp):
             self.checkUpdate(True)
+
+        # Show onboarding wizard if enabled
+        if cfg.get(cfg.showWizardOnStartup):
+            self._showOnboardingWizard()
+
+    def _showOnboardingWizard(self):
+        """Show the onboarding wizard overlay."""
+        self._wizard = OnboardingWizard(self)
+        self._wizard.wizardCompleted.connect(self._onWizardCompleted)
+        self._wizard.setGeometry(self.rect())
+        self._wizard.show()
+        self._wizard.raise_()
+
+    def _onWizardCompleted(self, state):
+        """Handle wizard completion."""
+        from ..common.wizard_state import WizardState
+
+        if not isinstance(state, WizardState):
+            return
+
+        # Hide and clean up wizard
+        self._wizard.hide()
+        self._wizard.deleteLater()
+        self._wizard = None
+
+        # Suppress wizard on next launch
+        cfg.set(cfg.showWizardOnStartup, False)
+
+        if state.user_mode == "advanced":
+            # Just close wizard — main window is already visible
+            return
+
+        # Basic mode: populate config and start training
+        if state.data_path:
+            self.projectInterface.set_data_path(state.data_path)
+        if state.output_dir:
+            self.projectInterface.set_output_dir(state.output_dir)
+
+        # Apply wizard config to cfg items
+        training_config = state.to_training_config()
+        cfg.set(cfg.model, training_config.model)
+        cfg.set(cfg.pretrained, training_config.pretrained)
+        cfg.set(cfg.batchSize, training_config.batch_size)
+        cfg.set(cfg.learningRate, training_config.lr)
+        cfg.set(cfg.epochs, training_config.epochs)
+        cfg.set(cfg.patience, training_config.patience)
+        cfg.set(cfg.loss, training_config.loss)
+        cfg.set(cfg.optimizer, training_config.optimizer)
+        cfg.set(cfg.scheduler, training_config.scheduler)
+        cfg.set(cfg.precision, training_config.precision)
+
+        # Switch to dashboard and start training
+        self.switchTo(self.dashboardInterface)
+        trainingService.start_training(training_config)
 
     def _check_environment(self):
         """Check PyTorch and GPU availability."""

@@ -31,5 +31,8 @@ class SignalBus(QObject):
     # Action signals
     requestStartTrainingSig = Signal()  # Request MainWindow to start training
 
+    # Wizard signals
+    wizardCompletedSig = Signal(object)  # WizardState dataclass
+
 
 signalBus = SignalBus()

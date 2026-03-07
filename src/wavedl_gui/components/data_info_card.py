@@ -10,13 +10,11 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath
 from PySide6.QtWidgets import (
-    QFrame,
     QHBoxLayout,
     QVBoxLayout,
     QWidget,
 )
 from qfluentwidgets import (
-    BodyLabel,
     CaptionLabel,
     FluentIcon as FIF,
     IconWidget,
@@ -26,43 +24,22 @@ from qfluentwidgets import (
     setFont,
 )
 
+from ..common.theme_colors import (
+    accent_color as _accent_color,
+    error_color as _error_color,
+    muted_text_color as _muted_text_color,
+    success_color as _success_color,
+)
 from ..common.utils import DataInfo
+from ..components.shared import (
+    PropertyRow as _PropertyRow,
+    SectionHeader as _SectionHeader,
+    Separator as _Separator,
+)
 from ..components.statistic_widget import StatisticsWidget
 
 
-# ─── Color palette ────────────────────────────────────────────────────────────
-
-
-def _accent_color() -> QColor:
-    """Primary accent (blue)."""
-    return QColor("#3b82f6") if not isDarkTheme() else QColor("#60a5fa")
-
-
-def _success_color() -> QColor:
-    return QColor("#16a34a") if not isDarkTheme() else QColor("#4ade80")
-
-
-def _error_color() -> QColor:
-    return QColor("#dc2626") if not isDarkTheme() else QColor("#f87171")
-
-
-def _muted_text_color() -> QColor:
-    return QColor(110, 110, 110) if not isDarkTheme() else QColor(160, 160, 160)
-
-
-def _subtle_border_color() -> QColor:
-    return QColor(0, 0, 0, 18) if not isDarkTheme() else QColor(255, 255, 255, 18)
-
-
-def _tag_bg_color() -> QColor:
-    return QColor(0, 0, 0, 12) if not isDarkTheme() else QColor(255, 255, 255, 12)
-
-
-def _section_bg_color() -> QColor:
-    return QColor(0, 0, 0, 6) if not isDarkTheme() else QColor(255, 255, 255, 6)
-
-
-# ─── Tiny reusable sub-widgets ────────────────────────────────────────────────
+# ─── Tag widget (unique to DataInfoCard) ───────────────────────────────────
 
 
 class _Tag(QWidget):
@@ -104,69 +81,6 @@ class _Tag(QWidget):
         p.setFont(QFont("Segoe UI", 10, QFont.Weight.DemiBold))
         p.drawText(self.rect(), Qt.AlignCenter, self._text)
         p.end()
-
-
-class _Separator(QFrame):
-    """A thin horizontal line separator."""
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setFrameShape(QFrame.HLine)
-        self.setFixedHeight(1)
-
-    def paintEvent(self, _):
-        p = QPainter(self)
-        p.setPen(Qt.NoPen)
-        p.setBrush(_subtle_border_color())
-        p.drawRect(self.rect())
-        p.end()
-
-
-class _PropertyRow(QWidget):
-    """Label → value row with optional monospaced value."""
-
-    def __init__(self, label: str, mono: bool = False, parent=None):
-        super().__init__(parent)
-        h = QHBoxLayout(self)
-        h.setContentsMargins(0, 2, 0, 2)
-        h.setSpacing(12)
-
-        self.label = CaptionLabel(label, self)
-        self.label.setTextColor(_muted_text_color(), _muted_text_color())
-        self.label.setFixedWidth(100)
-
-        self.value = BodyLabel("", self)
-        if mono:
-            setFont(self.value, 12, QFont.Weight.Normal)
-            self.value.setFont(QFont("Cascadia Code, Consolas, Monaco, monospace", 12))
-        else:
-            setFont(self.value, 12, QFont.Weight.Normal)
-
-        h.addWidget(self.label)
-        h.addWidget(self.value, 1)
-
-    def setValue(self, v: str):
-        self.value.setText(v)
-
-
-class _SectionHeader(QWidget):
-    """Section header with an icon and title."""
-
-    def __init__(self, icon: FIF, title: str, parent=None):
-        super().__init__(parent)
-        h = QHBoxLayout(self)
-        h.setContentsMargins(0, 4, 0, 4)
-        h.setSpacing(8)
-
-        ic = IconWidget(icon, self)
-        ic.setFixedSize(16, 16)
-        h.addWidget(ic)
-
-        lbl = CaptionLabel(title.upper(), self)
-        lbl.setTextColor(_muted_text_color(), _muted_text_color())
-        setFont(lbl, 10, QFont.Weight.Bold)
-        h.addWidget(lbl)
-        h.addStretch()
 
 
 # ─── Main card ────────────────────────────────────────────────────────────────
