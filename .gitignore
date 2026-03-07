@@ -137,3 +137,4 @@ dist/
 
 # Apps
 examples/ios_demo
+.agent
