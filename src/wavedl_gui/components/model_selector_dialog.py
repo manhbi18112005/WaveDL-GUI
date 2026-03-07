@@ -1,9 +1,12 @@
 """
-WaveDL GUI - Model Selector Dialog
+WaveDL GUI - Model Selector Dialog & Shared Browser Panel
 
-A polished, Apple-quality model selection dialog with:
-- Left panel: searchable, filterable card list grouped by category
-- Right panel: detailed information about the selected model
+Provides:
+    ModelCard            – compact card for a single model
+    ModelDetailPanel     – right-hand detail view
+    CategoryFilterBar    – horizontal pill buttons for category filtering
+    ModelBrowserPanel    – reusable left+right model browser (used by wizard AND dialog)
+    ModelSelectorDialog  – full-screen dialog wrapping the browser panel
 """
 
 from __future__ import annotations
@@ -20,12 +23,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 from qfluentwidgets import (
+    Action,
     BodyLabel,
     CaptionLabel,
+    DropDownPushButton,
     FlowLayout,
     InfoBadge,
     MaskDialogBase,
     PillPushButton,
+    RoundMenu,
     ScrollArea,
     SearchLineEdit,
     SimpleCardWidget,
@@ -551,38 +557,325 @@ class CategoryFilterBar(QWidget):
 
 
 # =============================================================================
+# Model Browser Panel (shared between wizard step and dialog)
+# =============================================================================
+class ModelBrowserPanel(QWidget):
+    """Reusable model browser: search + dim filter + category tabs + card
+    list on the left, detail panel on the right.
+
+    Signals
+    -------
+    modelSelected(str)
+        Emitted whenever the user clicks a card.
+    modelCountChanged(int, int)
+        ``(shown, total)`` — emitted after each rebuild so the parent can
+        update its own subtitle / status label.
+    """
+
+    modelSelected = Signal(str)
+    modelCountChanged = Signal(int, int)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._cards: dict[str, ModelCard] = {}
+        self._selected: str = ""
+        self._dim_filter: int | None = None  # active filter value (None = all)
+        self._suggested_dim: int | None = None  # suggested from data_info
+        self._init_ui()
+        self._populate()
+
+    # ── UI construction ──────────────────────────────────────────────────
+
+    def _init_ui(self):
+        main = QHBoxLayout(self)
+        main.setSpacing(0)
+        main.setContentsMargins(0, 0, 0, 0)
+
+        # Left panel
+        left = QWidget(self)
+        left_lay = QVBoxLayout(left)
+        left_lay.setContentsMargins(0, 0, 12, 0)
+        left_lay.setSpacing(8)
+
+        # Search row: dim-filter pill + search bar
+        search_row = QHBoxLayout()
+        search_row.setSpacing(8)
+        search_row.setContentsMargins(0, 0, 0, 0)
+
+        from qfluentwidgets import FluentIcon as FIF
+
+        self._dim_btn = DropDownPushButton(left)
+        self._dim_btn.setFixedHeight(36)
+        self._dim_btn.setIcon(FIF.FILTER)
+        self._dim_btn.setText("All")
+
+        dim_menu = RoundMenu(parent=self._dim_btn)
+        self._dim_actions: dict[int | None, Action] = {}
+        for key, label in [(None, "All"), (1, "1D"), (2, "2D"), (3, "3D")]:
+            action = Action(label)
+            action.setCheckable(True)
+            action.triggered.connect(lambda *_, k=key: self._on_dim_action(k))
+            dim_menu.addAction(action)
+            self._dim_actions[key] = action
+        self._dim_actions[None].setChecked(True)
+        self._dim_btn.setMenu(dim_menu)
+        search_row.addWidget(self._dim_btn)
+
+        self._search = SearchLineEdit(left)
+        self._search.setPlaceholderText("Search models...")
+        self._search.setFixedHeight(36)
+        self._search.textChanged.connect(self._on_search)
+        search_row.addWidget(self._search, 1)
+
+        left_lay.addLayout(search_row)
+
+        # Category filter
+        self._category_bar = CategoryFilterBar(list(MODEL_CATEGORIES.keys()), left)
+        self._category_bar.categoryChanged.connect(self._on_category_changed)
+        left_lay.addWidget(self._category_bar)
+
+        # Scrollable card list
+        self._card_scroll = ScrollArea(left)
+        self._card_scroll.setWidgetResizable(True)
+        self._card_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self._card_scroll.enableTransparentBackground()
+
+        self._card_container = QWidget()
+        self._card_container.setStyleSheet("background: transparent;")
+        self._card_layout = QVBoxLayout(self._card_container)
+        self._card_layout.setContentsMargins(0, 0, 8, 0)
+        self._card_layout.setSpacing(6)
+        self._card_scroll.setWidget(self._card_container)
+
+        left_lay.addWidget(self._card_scroll, 1)
+        main.addWidget(left, 3)
+
+        # Right panel: detail
+        self._detail = ModelDetailPanel(self)
+        main.addWidget(self._detail, 2)
+
+    # ── Public API ───────────────────────────────────────────────────────
+
+    def set_dim_filter(self, dim: int | None):
+        """Set/clear the dimensionality filter and rebuild the card list.
+
+        When *dim* is not None, the suggested dimension is remembered so the
+        dropdown can highlight it.
+        """
+        self._suggested_dim = dim
+        self._dim_filter = dim
+        # Update dropdown state
+        self._sync_dim_menu()
+        self._rebuild_cards()
+
+    def select_model(self, model_key: str):
+        """Programmatically select a model card."""
+        self._select(model_key)
+
+    def scroll_to(self, model_key: str):
+        """Scroll the card list to make the given card visible."""
+        if model_key in self._cards:
+            self._card_scroll.ensureWidgetVisible(self._cards[model_key], 0, 50)
+
+    @property
+    def selected_key(self) -> str:
+        return self._selected
+
+    @property
+    def detail_panel(self) -> ModelDetailPanel:
+        return self._detail
+
+    @property
+    def model_count(self) -> int:
+        return len(self._cards)
+
+    # ── Card building ────────────────────────────────────────────────────
+
+    def _populate(self):
+        """Initial card build with no dim filter."""
+        self._rebuild_cards()
+
+    def _rebuild_cards(self):
+        """(Re)build model cards, respecting the current dim filter."""
+        # Clear existing
+        for card in self._cards.values():
+            card.deleteLater()
+        self._cards.clear()
+
+        while self._card_layout.count():
+            item = self._card_layout.takeAt(0)
+            w = item.widget()
+            if w:
+                w.deleteLater()
+
+        active_dim = self._dim_filter
+        total = 0
+        shown = 0
+
+        for cat_name, cat_data in MODEL_CATEGORIES.items():
+            compatible: list[str] = []
+            for model_id in cat_data["models"]:
+                total += 1
+                info = MODEL_INFO.get(model_id, {})
+                supported = info.get("supported_dims", [])
+                if active_dim is None or active_dim in supported:
+                    compatible.append(model_id)
+                    shown += 1
+
+            if not compatible:
+                continue
+
+            # Category header
+            header = self._make_category_header(cat_name, cat_data)
+            self._card_layout.addWidget(header)
+
+            for model_id in compatible:
+                card = ModelCard(model_id, self._card_container)
+                card.clicked.connect(self._select)
+                self._card_layout.addWidget(card)
+                self._cards[model_id] = card
+
+            self._card_layout.addSpacing(8)
+
+        self._card_layout.addStretch()
+        self.modelCountChanged.emit(shown, total)
+
+        # Auto-select first or keep previous
+        if self._selected and self._selected in self._cards:
+            self._select(self._selected)
+        elif self._cards:
+            self._select(next(iter(self._cards)))
+
+        # Re-apply search
+        if self._search.text().strip():
+            self._on_search(self._search.text())
+
+    @staticmethod
+    def _make_category_header(cat_name: str, cat_data: dict) -> QWidget:
+        widget = QWidget()
+        widget.setObjectName(f"catHeader_{cat_name}")
+        lay = QVBoxLayout(widget)
+        lay.setContentsMargins(4, 8, 0, 4)
+        lay.setSpacing(2)
+
+        name_lbl = StrongBodyLabel(cat_name, widget)
+        setFont(name_lbl, 12, QFont.Weight.DemiBold)
+        lay.addWidget(name_lbl)
+
+        desc = cat_data.get("short_description", "")
+        if desc:
+            desc_lbl = CaptionLabel(desc, widget)
+            desc_lbl.setTextColor(QColor(142, 142, 147), QColor(142, 142, 147))
+            lay.addWidget(desc_lbl)
+
+        return widget
+
+    # ── Selection ────────────────────────────────────────────────────────
+
+    def _select(self, model_key: str):
+        if self._selected in self._cards:
+            self._cards[self._selected].setSelected(False)
+        self._selected = model_key
+        if model_key in self._cards:
+            self._cards[model_key].setSelected(True)
+        self._detail.setModel(model_key)
+        self.modelSelected.emit(model_key)
+
+    # ── Filtering ────────────────────────────────────────────────────────
+
+    def _on_dim_action(self, dim: int | None):
+        """Handle dimension filter dropdown selection."""
+        self._dim_filter = dim
+        self._sync_dim_menu()
+        self._rebuild_cards()
+
+    def _sync_dim_menu(self):
+        """Update the dropdown button text and checkmarks."""
+        for key, action in self._dim_actions.items():
+            action.setChecked(key == self._dim_filter)
+        if self._dim_filter is None:
+            self._dim_btn.setText("All")
+        else:
+            self._dim_btn.setText(f"{self._dim_filter}D")
+
+    def _on_search(self, text: str):
+        query = text.strip().lower()
+        for cat_name, cat_data in MODEL_CATEGORIES.items():
+            cat_visible = False
+            for model_id in cat_data["models"]:
+                if model_id not in self._cards:
+                    continue
+                card = self._cards[model_id]
+                info = MODEL_INFO.get(model_id, {})
+                name = info.get("display_name", model_id).lower()
+                desc = info.get("short_description", "").lower()
+                tags_str = " ".join(info.get("tags", [])).lower()
+                best = info.get("best_for", "").lower()
+                dims = " ".join(f"{d}D" for d in info.get("supported_dims", [])).lower()
+                match = not query or any(
+                    query in f for f in (model_id, name, desc, best, dims, tags_str)
+                )
+                card.setVisible(match)
+                if match:
+                    cat_visible = True
+
+            header = self._card_container.findChild(QWidget, f"catHeader_{cat_name}")
+            if header:
+                header.setVisible(cat_visible)
+
+    def _on_category_changed(self, category: str):
+        for cat_name, cat_data in MODEL_CATEGORIES.items():
+            visible = not category or cat_name == category
+            for model_id in cat_data["models"]:
+                if model_id in self._cards:
+                    self._cards[model_id].setVisible(visible)
+            header = self._card_container.findChild(QWidget, f"catHeader_{cat_name}")
+            if header:
+                header.setVisible(visible)
+
+        if self._search.text().strip():
+            self._on_search(self._search.text())
+
+
+# =============================================================================
 # Model Selector Dialog
 # =============================================================================
 class ModelSelectorDialog(MaskDialogBase):
     """Apple-quality model selection dialog.
 
-    Left panel: searchable card list with category filter pills.
-    Right panel: detailed model information.
+    Embeds a :class:`ModelBrowserPanel` with dialog chrome:
+    header, subtitle, cancel/select buttons.
     """
 
     modelSelected = Signal(str)  # model_key
 
-    def __init__(self, current_model: str = "", parent=None):
+    def __init__(
+        self,
+        current_model: str = "",
+        parent=None,
+        *,
+        dim_filter: int | None = None,
+    ):
         super().__init__(parent)
-        self._selectedKey = current_model
-        self._cards: dict[str, ModelCard] = {}
-        self._categoryCards: dict[str, list[str]] = {}
-
         self._initWidget()
         self._initLayout()
         self._connectSignals()
-        self._populateModels()
+
+        # Apply dimension filter if provided
+        if dim_filter is not None:
+            self._browser.set_dim_filter(dim_filter)
 
         # Pre-select current model
-        if current_model and current_model in self._cards:
-            self._selectCard(current_model)
-            self._scrollToCard(current_model)
+        if current_model:
+            self._browser.select_model(current_model)
+            self._browser.scroll_to(current_model)
 
     def _initWidget(self):
         # Main container
         self.container = QFrame(self.widget)
         self.container.setObjectName("modelSelectorContainer")
-        # Size relative to parent window (70%)
         parent_size = self.parent().size() if self.parent() else QSize(1400, 900)
         w = max(960, int(parent_size.width() * 0.7))
         h = max(640, int(parent_size.height() * 0.7))
@@ -611,9 +904,6 @@ class ModelSelectorDialog(MaskDialogBase):
                 "}"
             )
 
-        # --- Left Panel ---
-        self.leftPanel = QWidget()
-
         # Header
         self.headerLabel = SubtitleLabel("Choose Model")
         setFont(self.headerLabel, 22, QFont.Weight.Bold)
@@ -622,28 +912,8 @@ class ModelSelectorDialog(MaskDialogBase):
         self.subtitleLabel.setTextColor(QColor(142, 142, 147), QColor(142, 142, 147))
         setFont(self.subtitleLabel, 13)
 
-        # Search
-        self.searchBox = SearchLineEdit()
-        self.searchBox.setPlaceholderText("Search models...")
-        self.searchBox.setFixedHeight(36)
-
-        # Category filter
-        self.categoryBar = CategoryFilterBar(list(MODEL_CATEGORIES.keys()))
-
-        # Scrollable card list
-        self.cardScroll = ScrollArea()
-        self.cardScroll.setWidgetResizable(True)
-        self.cardScroll.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-        )
-        self.cardScroll.enableTransparentBackground()
-
-        self.cardContainer = QWidget()
-        self.cardContainer.setStyleSheet("background: transparent;")
-        self.cardLayout = QVBoxLayout(self.cardContainer)
-        self.cardLayout.setContentsMargins(0, 0, 8, 0)
-        self.cardLayout.setSpacing(6)
-        self.cardScroll.setWidget(self.cardContainer)
+        # Browser panel (the shared component)
+        self._browser = ModelBrowserPanel()
 
         # Bottom buttons
         self.cancelBtn = PillPushButton()
@@ -652,166 +922,47 @@ class ModelSelectorDialog(MaskDialogBase):
         self.selectBtn = PillPushButton()
         self.selectBtn.setText("Select")
 
-        # --- Right Panel ---
-        self.detailPanel = ModelDetailPanel()
-
     def _initLayout(self):
-        # Dialog centers the container
         dialogLayout = QHBoxLayout(self.widget)
         dialogLayout.setContentsMargins(0, 0, 0, 0)
         dialogLayout.addWidget(self.container, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        # Main horizontal split
-        mainLayout = QHBoxLayout(self.container)
-        mainLayout.setContentsMargins(0, 0, 0, 0)
-        mainLayout.setSpacing(0)
+        mainLayout = QVBoxLayout(self.container)
+        mainLayout.setContentsMargins(24, 24, 0, 20)
+        mainLayout.setSpacing(12)
 
-        # Left panel layout
-        leftLayout = QVBoxLayout(self.leftPanel)
-        leftLayout.setContentsMargins(24, 24, 16, 20)
-        leftLayout.setSpacing(12)
+        # Header
+        mainLayout.addWidget(self.headerLabel)
+        mainLayout.addWidget(self.subtitleLabel)
+        mainLayout.addSpacing(4)
 
-        leftLayout.addWidget(self.headerLabel)
-        leftLayout.addWidget(self.subtitleLabel)
-        leftLayout.addSpacing(4)
-        leftLayout.addWidget(self.searchBox)
-        leftLayout.addWidget(self.categoryBar)
-        leftLayout.addWidget(self.cardScroll, 1)
+        # Browser fills remaining space
+        mainLayout.addWidget(self._browser, 1)
 
-        # Button row
+        # Buttons bottom-left
         btnRow = QHBoxLayout()
+        btnRow.setContentsMargins(0, 0, 24, 0)
         btnRow.addStretch()
         btnRow.addWidget(self.cancelBtn)
         btnRow.addWidget(self.selectBtn)
-        leftLayout.addLayout(btnRow)
-
-        mainLayout.addWidget(self.leftPanel, 3)
-        mainLayout.addWidget(self.detailPanel, 2)
+        mainLayout.addLayout(btnRow)
 
     def _connectSignals(self):
-        self.searchBox.textChanged.connect(self._onSearchChanged)
-        self.categoryBar.categoryChanged.connect(self._onCategoryChanged)
         self.cancelBtn.clicked.connect(lambda *_: self.reject())
         self.selectBtn.clicked.connect(lambda *_: self._onSelectClicked())
+        self._browser.modelCountChanged.connect(self._onCountChanged)
 
-    def _populateModels(self):
-        """Build model cards grouped by category."""
-        for category, cat_info in MODEL_CATEGORIES.items():
-            # Category header
-            header = self._createCategoryHeader(category)
-            self.cardLayout.addWidget(header)
-            self._categoryCards.setdefault(category, [])
-
-            for key in cat_info["models"]:
-                card = ModelCard(key)
-                card.clicked.connect(self._selectCard)
-                self.cardLayout.addWidget(card)
-                self._cards[key] = card
-                self._categoryCards[category].append(key)
-
-            self.cardLayout.addSpacing(8)
-
-        self.cardLayout.addStretch()
-
-    def _createCategoryHeader(self, category: str) -> QWidget:
-        """Create a category section header with description."""
-        widget = QWidget()
-        widget.setObjectName(f"catHeader_{category}")
-        layout = QVBoxLayout(widget)
-        layout.setContentsMargins(4, 8, 0, 4)
-        layout.setSpacing(2)
-
-        nameLabel = StrongBodyLabel(category)
-        setFont(nameLabel, 12, QFont.Weight.DemiBold)
-        layout.addWidget(nameLabel)
-
-        desc = MODEL_CATEGORIES.get(category, {}).get("description", "")
-        if desc:
-            descLabel = CaptionLabel(desc)
-            descLabel.setTextColor(QColor(142, 142, 147), QColor(142, 142, 147))
-            layout.addWidget(descLabel)
-
-        return widget
-
-    def _selectCard(self, model_key: str):
-        """Handle card selection."""
-        # Deselect previous
-        if self._selectedKey in self._cards:
-            self._cards[self._selectedKey].setSelected(False)
-
-        self._selectedKey = model_key
-
-        # Select new
-        if model_key in self._cards:
-            self._cards[model_key].setSelected(True)
-
-        # Update detail panel
-        self.detailPanel.setModel(model_key)
-
-    def _scrollToCard(self, model_key: str):
-        """Scroll the card list to make the given card visible."""
-        if model_key in self._cards:
-            card = self._cards[model_key]
-            self.cardScroll.ensureWidgetVisible(card, 0, 50)
-
-    def _onSearchChanged(self, text: str):
-        """Filter cards by search text."""
-        query = text.strip().lower()
-        visible_count = 0
-
-        for category, keys in self._categoryCards.items():
-            category_visible = False
-            for key in keys:
-                card = self._cards[key]
-                info = MODEL_INFO.get(key, {})
-                name = info.get("display_name", key).lower()
-                desc = info.get("short_description", "").lower()
-                tags_str = " ".join(info.get("tags", [])).lower()
-                best = info.get("best_for", "").lower()
-                dims = " ".join(f"{d}D" for d in info.get("supported_dims", [])).lower()
-
-                match = not query or any(
-                    query in field for field in (key, name, desc, best, dims, tags_str)
-                )
-                card.setVisible(match)
-                if match:
-                    category_visible = True
-                    visible_count += 1
-
-            # Toggle category header
-            header = self.container.findChild(QWidget, f"catHeader_{category}")
-            if header:
-                header.setVisible(category_visible)
-
-        self.subtitleLabel.setText(
-            f"{visible_count} model{'s' if visible_count != 1 else ''} found"
-            if query
-            else f"{len(MODEL_INFO)} architectures available"
-        )
-
-    def _onCategoryChanged(self, category: str):
-        """Filter cards by category."""
-        for cat, keys in self._categoryCards.items():
-            visible = not category or cat == category
-            for key in keys:
-                card = self._cards[key]
-                card.setVisible(visible)
-
-            header = self.container.findChild(QWidget, f"catHeader_{cat}")
-            if header:
-                header.setVisible(visible)
-
-        # Also apply search filter on top
-        search_text = self.searchBox.text().strip()
-        if search_text:
-            self._onSearchChanged(search_text)
+    def _onCountChanged(self, shown: int, total: int):
+        if shown < total:
+            self.subtitleLabel.setText(f"Showing {shown} of {total} models")
+        else:
+            self.subtitleLabel.setText(f"{total} architectures available")
 
     def _onSelectClicked(self):
-        """Confirm selection and close."""
-        if self._selectedKey:
-            self.modelSelected.emit(self._selectedKey)
+        key = self._browser.selected_key
+        if key:
+            self.modelSelected.emit(key)
             self.accept()
 
     def getSelectedModel(self) -> str:
-        """Return the selected model key."""
-        return self._selectedKey
+        return self._browser.selected_key

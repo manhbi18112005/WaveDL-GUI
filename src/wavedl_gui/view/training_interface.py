@@ -16,7 +16,6 @@ from qfluentwidgets import (
     RangeSettingCard,
     ScrollArea,
     SettingCard,
-    SettingCardGroup as CardGroup,
     SpinBox,
     SwitchSettingCard,
     TitleLabel,
@@ -33,12 +32,7 @@ from ..common.constants.index import (
 )
 from ..common.constants.models import MODEL_INFO
 from ..components.model_selector_dialog import ModelSelectorDialog
-
-
-class SettingCardGroup(CardGroup):
-    def __init__(self, title: str, parent=None):
-        super().__init__(title, parent)
-        setFont(self.titleLabel, 14, QFont.Weight.DemiBold)
+from ..components.shared import SettingCardGroup
 
 
 class SpinBoxSettingCard(SettingCard):
@@ -318,7 +312,17 @@ class TrainingInterface(ScrollArea):
     def _openModelSelector(self):
         """Open the model selector dialog."""
         current = cfg.get(cfg.model)
-        dialog = ModelSelectorDialog(current, self.window())
+
+        # Try to get data dimensionality for the filter pill
+        dim_filter = None
+        main_window = self.window()
+        if hasattr(main_window, "projectInterface"):
+            data_info = main_window.projectInterface.get_data_info()
+            if data_info and data_info.dimensionality:
+                dim_map = {"1D": 1, "2D": 2, "3D": 3}
+                dim_filter = dim_map.get(data_info.dimensionality)
+
+        dialog = ModelSelectorDialog(current, self.window(), dim_filter=dim_filter)
         dialog.modelSelected.connect(self._onModelSelected)
         dialog.exec()
 
