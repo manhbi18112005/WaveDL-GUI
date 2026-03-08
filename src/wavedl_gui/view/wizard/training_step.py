@@ -12,6 +12,7 @@ import os
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
+    QApplication,
     QHBoxLayout,
     QVBoxLayout,
     QWidget,
@@ -20,8 +21,11 @@ from qfluentwidgets import (
     BodyLabel,
     FluentIcon as FIF,
     IconWidget,
+    InfoBar,
+    InfoBarPosition,
     PrimaryPushButton,
     SubtitleLabel,
+    TransparentPushButton,
     isDarkTheme,
     setFont,
 )
@@ -112,6 +116,7 @@ class TrainingStep(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._rows: list[_SummaryRow] = []
+        self._state: WizardState | None = None
         self._init_ui()
 
     def _init_ui(self):
@@ -133,9 +138,18 @@ class TrainingStep(QWidget):
 
         root.addSpacing(32)
 
-        # Start button
+        # Action buttons
         btn_row = QHBoxLayout()
         btn_row.addStretch()
+
+        self._copy_btn = TransparentPushButton(FIF.COPY, "Copy CLI Command", self)
+        self._copy_btn.setFixedSize(200, 44)
+        setFont(self._copy_btn, 14, QFont.Weight.DemiBold)
+        self._copy_btn.clicked.connect(self._copy_cli_command)
+        btn_row.addWidget(self._copy_btn)
+
+        btn_row.addSpacing(12)
+
         self._start_btn = PrimaryPushButton(FIF.PLAY, "Start Training", self)
         self._start_btn.setFixedSize(220, 44)
         setFont(self._start_btn, 15, QFont.Weight.DemiBold)
@@ -146,9 +160,28 @@ class TrainingStep(QWidget):
 
         root.addStretch()
 
+    def _copy_cli_command(self):
+        """Copy the CLI command to clipboard."""
+        if self._state is None:
+            return
+        command = self._state.to_training_config().to_command()
+        QApplication.clipboard().setText(command)
+
+        # Find the top-level window for InfoBar parenting
+        w = self.window()
+        InfoBar.success(
+            title="Command Copied",
+            content="CLI command copied to clipboard",
+            parent=w,
+            position=InfoBarPosition.TOP,
+            duration=3000,
+        )
+
     def populate(self, state: WizardState):
         """Fill the summary card from the wizard state."""
         # Clear old rows
+        self._state = state
+
         for row in self._rows:
             row.deleteLater()
         self._rows.clear()
