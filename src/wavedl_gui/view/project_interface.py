@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from typing import TYPE_CHECKING
 
 import yaml
 from PySide6.QtCore import Qt
@@ -28,16 +29,21 @@ from qfluentwidgets import (
 from ..common.config import cfg
 from ..common.constants.index import TrainingConfig
 from ..common.signal_bus import signalBus
-from ..common.utils import DataInfo, inspect_data_file
 from ..components.controls_card import ControlsCard
 from ..components.data_info_card import DataInfoCard
+from ..components.data_plots_card import DataPlotsCard
 from ..components.shared import (
     FilePickerCard,
     FolderPickerCard,
     SettingCardGroup,
 )
 from ..components.system_info_card import SystemInfoCard
+from ..service.data_parse_worker import DataParseWorker
 from ..service.training_service import ProcessState
+
+
+if TYPE_CHECKING:
+    from ..common.utils import DataInfo
 
 
 class ProjectInterface(ScrollArea):
@@ -54,6 +60,7 @@ class ProjectInterface(ScrollArea):
         self.expandLayout = ExpandLayout(self.scrollWidget)
 
         self._output_dir = cfg.get(cfg.outputFolder)
+        self._parse_worker: DataParseWorker | None = None
         self.settingLabel = TitleLabel(self.tr("Project Setup"), self)
 
         self.dataGroup = SettingCardGroup(self.tr("Training Data"), self.scrollWidget)
@@ -69,6 +76,7 @@ class ProjectInterface(ScrollArea):
         )
 
         self.dataInfoCard = DataInfoCard(self.scrollWidget)
+        self.dataPlotsCard = DataPlotsCard(self.scrollWidget)
 
         self.outputGroup = SettingCardGroup(
             self.tr("Output Configuration"), self.scrollWidget
@@ -110,6 +118,7 @@ class ProjectInterface(ScrollArea):
         self.expandLayout.addWidget(self.systemInfoCard)
         self.expandLayout.addWidget(self.dataGroup)
         self.expandLayout.addWidget(self.dataInfoCard)
+        self.expandLayout.addWidget(self.dataPlotsCard)
         self.expandLayout.addWidget(self.outputGroup)
         self.expandLayout.addWidget(self.controlsCard)
 
@@ -151,25 +160,40 @@ class ProjectInterface(ScrollArea):
     def set_data_path(self, path: str):
         self.dataCard.set_path(path)
 
-        info = inspect_data_file(path)
-        self.dataInfoCard.set_data_info(info)
+        # Cancel any running parse worker
+        if self._parse_worker is not None and self._parse_worker.isRunning():
+            self._parse_worker.terminate()
+            self._parse_worker.wait()
 
-        if info.error:
-            InfoBar.error(
-                title=self.tr("Error"),
-                content=info.error,
-                parent=self.window(),
-                position=InfoBarPosition.TOP,
-                duration=5000,
-            )
-        else:
-            InfoBar.success(
-                title=self.tr("Data loaded"),
-                content=f"{info.num_samples:,} samples, {info.dimensionality} data",
-                parent=self.window(),
-                position=InfoBarPosition.TOP,
-                duration=3000,
-            )
+        # Start async inspection (off the main thread)
+        self._parse_worker = DataParseWorker(path, parent=self)
+        self._parse_worker.resultReady.connect(self._on_data_parsed)
+        self._parse_worker.errorOccurred.connect(self._on_data_parse_error)
+        self._parse_worker.start()
+
+        # Start plot generation in parallel (its own background thread)
+        self.dataPlotsCard.set_data_path(path)
+
+    def _on_data_parsed(self, info: DataInfo):
+        """Handle successful data inspection."""
+        self.dataInfoCard.set_data_info(info)
+        InfoBar.success(
+            title=self.tr("Data loaded"),
+            content=f"{info.num_samples:,} samples, {info.dimensionality} data",
+            parent=self.window(),
+            position=InfoBarPosition.TOP,
+            duration=3000,
+        )
+
+    def _on_data_parse_error(self, error: str):
+        """Handle data inspection error."""
+        InfoBar.error(
+            title=self.tr("Error"),
+            content=error,
+            parent=self.window(),
+            position=InfoBarPosition.TOP,
+            duration=5000,
+        )
 
     def set_output_dir(self, folder: str):
         self._output_dir = folder

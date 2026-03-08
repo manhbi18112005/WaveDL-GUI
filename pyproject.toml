@@ -87,6 +87,7 @@ gui = [
     "PySide6>=6.6.0",
     "pyqtgraph>=0.13.0",
     "PySide6-Fluent-Widgets>=1.11.0",
+    "seaborn>=0.13.0",
 ]
 
 [project.scripts]

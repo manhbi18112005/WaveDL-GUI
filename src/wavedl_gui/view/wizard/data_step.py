@@ -20,10 +20,12 @@ from qfluentwidgets import (
     IndeterminateProgressRing,
     InfoBar,
     InfoBarPosition,
+    SmoothScrollArea,
 )
 
 from ...common.config import cfg
 from ...components.data_info_card import DataInfoCard
+from ...components.data_plots_card import DataPlotsCard
 from ...components.hint_widget import HintWidget
 from ...components.shared import (
     FilePickerCard,
@@ -63,7 +65,21 @@ class DataStep(QWidget):
         return self._data_info
 
     def _init_ui(self):
-        root = QVBoxLayout(self)
+        # Outer layout just holds the scroll area
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        self._scroll = SmoothScrollArea(self)
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._scroll.setStyleSheet(
+            "QScrollArea { background: transparent; border: none; }"
+        )
+
+        scroll_widget = QWidget()
+        scroll_widget.setStyleSheet("background: transparent;")
+        root = QVBoxLayout(scroll_widget)
         root.setContentsMargins(60, 36, 60, 36)
         root.setSpacing(0)
 
@@ -72,7 +88,7 @@ class DataStep(QWidget):
             root,
             "Configure Your Data",
             "Select your training data file and choose where to save results.",
-            self,
+            scroll_widget,
         )
 
         # ── Info tip ──
@@ -87,7 +103,7 @@ class DataStep(QWidget):
         root.addSpacing(20)
 
         # ── Training Data card group ──
-        self._data_group = SettingCardGroup("Training Data", self)
+        self._data_group = SettingCardGroup("Training Data", scroll_widget)
         self._file_card = FilePickerCard(
             title="Training Data File",
             description="Select data file (.npz, .mat, or .h5) containing input/output arrays",
@@ -106,7 +122,7 @@ class DataStep(QWidget):
         root.addSpacing(12)
 
         # ── Output Directory card group ──
-        self._output_group = SettingCardGroup("Output Configuration", self)
+        self._output_group = SettingCardGroup("Output Configuration", scroll_widget)
         self._folder_card = FolderPickerCard(
             title="Output Directory",
             description=cfg.get(cfg.outputFolder)
@@ -121,16 +137,25 @@ class DataStep(QWidget):
         root.addSpacing(20)
 
         # ── Spinner ──
-        self._spinner = IndeterminateProgressRing(self)
+        self._spinner = IndeterminateProgressRing(scroll_widget)
         self._spinner.setFixedSize(36, 36)
         self._spinner.hide()
         root.addWidget(self._spinner, 0, Qt.AlignCenter)
 
         # ── Reuse the production DataInfoCard ──
-        self._data_card = DataInfoCard(self)
+        self._data_card = DataInfoCard(scroll_widget)
         root.addWidget(self._data_card)
 
+        root.addSpacing(12)
+
+        # ── Data plots card ──
+        self._plots_card = DataPlotsCard(scroll_widget)
+        root.addWidget(self._plots_card)
+
         root.addStretch()
+
+        self._scroll.setWidget(scroll_widget)
+        outer.addWidget(self._scroll)
 
     # ── slots ─────────────────────────────────────────────────────────────
 
@@ -162,6 +187,7 @@ class DataStep(QWidget):
     def _on_parse_success(self, info: DataInfo):
         self._data_info = info
         self._data_card.set_data_info(info)
+        self._plots_card.set_data_path(info.path)
         self.dataValidated.emit(info)
 
     def _on_parse_error(self, error: str):
