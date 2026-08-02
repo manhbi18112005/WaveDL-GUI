@@ -20,6 +20,22 @@ from wavedl.runtime_protocol import (
 RUN_ID = "123e4567-e89b-12d3-a456-426614174000"
 
 
+def _json_line_with_payload(payload_json):
+    return (
+        '{"protocol":"wavedl-jsonl","version":1,"run_id":"'
+        f'{RUN_ID}","seq":0,"ts":"2026-01-02T03:04:05Z",'
+        f'"type":"hello","payload":{payload_json}}}'
+    )
+
+
+def _json_line_with_version(version_json):
+    return (
+        '{"protocol":"wavedl-jsonl","version":'
+        f'{version_json},"run_id":"{RUN_ID}","seq":0,'
+        '"ts":"2026-01-02T03:04:05Z","type":"hello","payload":{}}'
+    )
+
+
 def test_encode_event_is_compact_strict_json_and_converts_nonfinite_values():
     line = encode_event(
         "metric",
@@ -125,6 +141,44 @@ def test_timestamp_rejects_tzinfo_without_offset():
         )
 
 
+def test_encode_rejects_timestamp_utc_overflow_as_timestamp_error():
+    with pytest.raises(ProtocolEncodeError, match="timestamp"):
+        encode_event(
+            "state",
+            {},
+            run_id=RUN_ID,
+            seq=0,
+            ts="9999-12-31T23:59:59-23:59",
+        )
+
+
+def test_parse_rejects_timestamp_utc_overflow_as_timestamp_error():
+    envelope = _envelope()
+    envelope["ts"] = "9999-12-31T23:59:59-23:59"
+
+    with pytest.raises(ProtocolParseError, match="invalid field: ts"):
+        parse_jsonl_line(json.dumps(envelope))
+
+
+def test_encode_rejects_unknown_negative_zero_offset():
+    with pytest.raises(ProtocolEncodeError, match="timestamp"):
+        encode_event(
+            "state",
+            {},
+            run_id=RUN_ID,
+            seq=0,
+            ts="2026-01-02T03:04:05-00:00",
+        )
+
+
+def test_parse_rejects_unknown_negative_zero_offset():
+    envelope = _envelope()
+    envelope["ts"] = "2026-01-02T03:04:05-00:00"
+
+    with pytest.raises(ProtocolParseError, match="invalid field: ts"):
+        parse_jsonl_line(json.dumps(envelope))
+
+
 @pytest.mark.parametrize("line", ["", "   ", "not json", "null", "[]"])
 def test_parse_rejects_invalid_json_blank_and_non_object(line):
     with pytest.raises(ProtocolParseError):
@@ -156,6 +210,25 @@ def test_parse_rejects_decoded_nonfinite_number():
 
     with pytest.raises(ProtocolParseError, match="non-finite"):
         parse_jsonl_line(line)
+
+
+@pytest.mark.parametrize(
+    ("line", "message"),
+    [
+        (
+            _json_line_with_payload('{"x":1e999}'),
+            "non-finite number at $.payload.x",
+        ),
+        (
+            _json_line_with_version("1e999"),
+            "non-finite number at $.version",
+        ),
+    ],
+)
+def test_parse_reports_exact_nonfinite_paths(line, message):
+    with pytest.raises(ProtocolParseError) as exc_info:
+        parse_jsonl_line(line)
+    assert str(exc_info.value) == message
 
 
 def test_parse_translates_decoder_recursion_failure():
@@ -345,11 +418,3 @@ def _envelope():
         "type": "hello",
         "payload": {},
     }
-
-
-def _json_line_with_payload(payload_json):
-    return (
-        '{"protocol":"wavedl-jsonl","version":1,"run_id":"'
-        f'{RUN_ID}","seq":0,"ts":"2026-01-02T03:04:05Z",'
-        f'"type":"hello","payload":{payload_json}}}'
-    )

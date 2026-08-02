@@ -171,10 +171,15 @@ def _canonical_timestamp(value: str | datetime | None) -> str:
             if parsed.tzinfo is None or parsed.utcoffset() is None:
                 raise ValueError("timestamp must be timezone-aware")
             raise ValueError("timestamp must be RFC3339")
+        if value.endswith("-00:00"):
+            raise ValueError("timestamp has unknown offset")
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         raise ValueError("timestamp must be timezone-aware")
-    return parsed.astimezone(UTC).isoformat().replace("+00:00", "Z")
+    try:
+        return parsed.astimezone(UTC).isoformat().replace("+00:00", "Z")
+    except OverflowError as exc:
+        raise ValueError("timestamp UTC conversion overflow") from exc
 
 
 def _reject_duplicate_keys(pairs):
@@ -186,7 +191,7 @@ def _reject_duplicate_keys(pairs):
     return result
 
 
-def _reject_nonfinite(value, path="$payload"):
+def _reject_nonfinite(value, path="$"):
     if isinstance(value, float) and not math.isfinite(value):
         raise _NonFiniteError(f"non-finite number at {path}")
     if isinstance(value, dict):
