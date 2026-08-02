@@ -55,32 +55,37 @@ def _jsonl_requested(arguments: list[str] | None = None) -> bool:
 def _is_protocol_abbreviation(argument: str) -> bool:
     """Return whether an argument abbreviates --output_protocol."""
     option = argument.split("=", 1)[0]
-    return (
-        option != "--output_protocol"
-        and option.startswith("--output_p")
-        and "--output_protocol".startswith(option)
+    return option != "--output_protocol" and (
+        "--output_protocol".startswith(option) or option.startswith("--output_protocol")
     )
 
 
-def _config_path(arguments: list[str]) -> str | None:
-    """Extract an exact --config path from forwarded training arguments."""
+def _config_paths(arguments: list[str]) -> list[str]:
+    """Extract all exact --config paths from forwarded training arguments."""
+    paths = []
     for index, argument in enumerate(arguments):
         if argument == "--config" and index + 1 < len(arguments):
-            return arguments[index + 1]
-        if argument.startswith("--config="):
-            return argument.split("=", 1)[1]
-    return None
+            paths.append(arguments[index + 1])
+        elif argument.startswith("--config="):
+            paths.append(argument.split("=", 1)[1])
+    return paths
 
 
 def _reject_forbidden_config(arguments: list[str]) -> int | None:
     """Reject YAML protocol selection before launcher fast paths run."""
-    config_path = _config_path(arguments)
-    if config_path is None:
+    config_paths = _config_paths(arguments)
+    if len(config_paths) > 1:
+        print(
+            "wavedl-train: error: --config may only be specified once",
+            file=sys.stderr,
+        )
+        return 2
+    if not config_paths:
         return None
 
     from wavedl.utils.config import load_config
 
-    if "output_protocol" in load_config(config_path):
+    if "output_protocol" in load_config(config_paths[0]):
         print(
             "wavedl-train: error: output_protocol is CLI-only and cannot be set in config",
             file=sys.stderr,

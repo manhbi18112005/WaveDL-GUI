@@ -435,15 +435,27 @@ class TestJsonlSubprocessOutput:
         assert "custom import output" not in result.stdout
         assert "custom import output" in result.stderr
 
+    @pytest.mark.parametrize(
+        "protocol_option",
+        [
+            "--out",
+            "--output",
+            "--output_pro",
+            "--output_protocolx",
+            "--output_protocol_extra",
+        ],
+    )
     @pytest.mark.parametrize("module", ["wavedl.train", "wavedl.launcher"])
-    def test_abbreviated_protocol_option_is_rejected_without_stdout_leak(self, module):
+    def test_protocol_lookalike_is_rejected_without_stdout_leak(
+        self, module, protocol_option
+    ):
         """Protocol abbreviations fail before human output can reach stdout."""
         result = subprocess.run(
             [
                 sys.executable,
                 "-m",
                 module,
-                "--output_p",
+                protocol_option,
                 "jsonl-v1",
                 "--list_models",
             ],
@@ -456,7 +468,112 @@ class TestJsonlSubprocessOutput:
 
         assert result.returncode != 0
         assert not [line for line in result.stdout.splitlines() if line.strip()]
-        assert "output_p" in result.stderr
+        assert protocol_option in result.stderr
+
+    @pytest.mark.parametrize("module", ["wavedl.train", "wavedl.launcher"])
+    def test_exact_output_protocol_remains_accepted(self, module):
+        """The fully spelled protocol option remains valid."""
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                module,
+                "--output_protocol",
+                "jsonl-v1",
+                "--list_models",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(os.path.dirname(__file__)),
+            env=os.environ.copy(),
+            check=False,
+        )
+
+        assert result.returncode == 0
+
+    def test_output_dir_is_not_treated_as_protocol_lookalike(self):
+        """The unrelated output directory option remains valid."""
+        from wavedl.train import parse_args
+
+        with patch.object(
+            sys,
+            "argv",
+            ["wavedl-train", "--output_dir", "/tmp/output"],
+        ):
+            args, _parser = parse_args()
+
+        assert args.output_dir == "/tmp/output"
+
+    def test_training_jsonl_stdout_is_protocol_only(self, tmp_path):
+        """Direct and launcher training paths emit parseable JSONL metrics."""
+        from wavedl.runtime_protocol import parse_jsonl_line
+
+        rng = np.random.default_rng(0)
+        data_path = tmp_path / "tiny.npz"
+        np.savez(
+            data_path,
+            input_train=rng.normal(size=(10, 64, 64)).astype(np.float32),
+            output_train=rng.normal(size=(10, 1)).astype(np.float32),
+        )
+
+        common_args = [
+            "--output_protocol",
+            "jsonl-v1",
+            "--model",
+            "cnn",
+            "--data_path",
+            str(data_path),
+            "--output_dir",
+            str(tmp_path / "results"),
+            "--epochs",
+            "2",
+            "--patience",
+            "2",
+            "--batch_size",
+            "4",
+            "--workers",
+            "0",
+            "--precision",
+            "no",
+            "--no_pretrained",
+            "--scheduler",
+            "cosine",
+            "--save_every",
+            "0",
+            "--fresh",
+        ]
+        commands = [
+            [sys.executable, "-m", "wavedl.train", *common_args],
+            [
+                sys.executable,
+                "-m",
+                "wavedl.launcher",
+                "--num_gpus",
+                "1",
+                *common_args,
+            ],
+        ]
+
+        for command in commands:
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                cwd=os.path.dirname(os.path.dirname(__file__)),
+                env=os.environ.copy(),
+                check=False,
+                timeout=120,
+            )
+
+            assert result.returncode == 0, result.stderr
+            stdout_lines = [line for line in result.stdout.splitlines() if line.strip()]
+            assert stdout_lines
+            events = [parse_jsonl_line(line) for line in stdout_lines]
+            run_ids = {event.run_id for event in events}
+            sequences = [event.seq for event in events]
+            assert all(event.type == "metric" for event in events)
+            assert len(run_ids) == 1
+            assert sequences == list(range(len(events)))
 
     def test_direct_config_rejection_precedes_custom_import_and_fast_path(
         self, tmp_path
@@ -492,10 +609,25 @@ class TestJsonlSubprocessOutput:
         assert "should not import" not in result.stderr
         assert "output_protocol is CLI-only" in result.stderr
 
-    def test_launcher_config_rejection_precedes_list_models_fast_path(self, tmp_path):
-        """The launcher validates forbidden config keys before fast paths."""
-        config_path = tmp_path / "protocol.yaml"
-        config_path.write_text("output_protocol: jsonl-v1\n", encoding="utf-8")
+    @pytest.mark.parametrize("reverse", [False, True])
+    @pytest.mark.parametrize("equals_syntax", [False, True])
+    def test_launcher_rejects_duplicate_configs_before_fast_path(
+        self, tmp_path, reverse, equals_syntax
+    ):
+        """Repeated configs cannot bypass forbidden protocol validation."""
+        safe_config = tmp_path / "safe.yaml"
+        forbidden_config = tmp_path / "forbidden.yaml"
+        safe_config.write_text("model: cnn\n", encoding="utf-8")
+        forbidden_config.write_text("output_protocol: jsonl-v1\n", encoding="utf-8")
+        config_paths = [safe_config, forbidden_config]
+        if reverse:
+            config_paths.reverse()
+        if equals_syntax:
+            config_args = [f"--config={path}" for path in config_paths]
+        else:
+            config_args = [
+                item for path in config_paths for item in ("--config", str(path))
+            ]
 
         result = subprocess.run(
             [
@@ -504,8 +636,7 @@ class TestJsonlSubprocessOutput:
                 "wavedl.launcher",
                 "--output_protocol",
                 "jsonl-v1",
-                "--config",
-                str(config_path),
+                *config_args,
                 "--list_models",
             ],
             capture_output=True,
@@ -518,7 +649,7 @@ class TestJsonlSubprocessOutput:
         assert result.returncode != 0
         assert not [line for line in result.stdout.splitlines() if line.strip()]
         assert "Available models:" not in result.stderr
-        assert "output_protocol is CLI-only" in result.stderr
+        assert "--config may only be specified once" in result.stderr
 
     def test_launcher_rejects_config_selected_protocol(self, tmp_path):
         """The public launcher cannot turn on JSONL through YAML."""
