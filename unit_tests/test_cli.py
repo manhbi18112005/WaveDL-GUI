@@ -15,6 +15,7 @@ Consolidated tests for all CLI entry points in WaveDL:
 Author: Ductho Le (ductho.le@outlook.com)
 """
 
+import math
 import os
 import pickle
 import sys
@@ -59,6 +60,42 @@ class TestTrainParseArgs:
             assert args.lr == 1e-3
             assert args.optimizer == "adamw"
             assert args.scheduler == "plateau"
+            assert args.output_protocol == "legacy"
+
+    def test_jsonl_v1_output_protocol(self):
+        """Test that the opt-in JSONL v1 output protocol is parsed."""
+        from wavedl.train import parse_args
+
+        with patch.object(
+            sys,
+            "argv",
+            [
+                "wavedl-train",
+                "--model",
+                "cnn",
+                "--data_path",
+                "/fake/path.npz",
+                "--output_protocol",
+                "jsonl-v1",
+            ],
+        ):
+            args, _parser = parse_args()
+
+        assert args.output_protocol == "jsonl-v1"
+
+    def test_output_protocol_rejects_invalid_choice(self):
+        """Test that unknown output protocols are rejected."""
+        from wavedl.train import parse_args
+
+        with (
+            patch.object(
+                sys,
+                "argv",
+                ["wavedl-train", "--output_protocol", "invalid"],
+            ),
+            pytest.raises(SystemExit),
+        ):
+            parse_args()
 
     def test_model_argument(self):
         """Test that model argument is parsed correctly."""
@@ -240,6 +277,57 @@ class TestTrainParseArgs:
             assert args.output_dir == "/custom/output"
             assert args.seed == 42
             assert args.workers == 8
+
+
+class TestTrainMetricsOutput:
+    """Tests for training metrics output formatting."""
+
+    def test_legacy_output_preserves_metrics_payload(self):
+        """Legacy output retains its existing prefix and metric names."""
+        from wavedl.train import _format_metrics_output
+
+        metrics = {"epoch": 3, "r2": 0.9, "lr": 0.001, "epoch_time": 2.5}
+
+        output = _format_metrics_output(metrics, "legacy")
+
+        assert (
+            output
+            == '##METRICS##{"epoch": 3, "r2": 0.9, "lr": 0.001, "epoch_time": 2.5}\n'
+        )
+
+    def test_jsonl_v1_output_is_canonical_and_does_not_mutate_metrics(self):
+        """v1 output has a strict event envelope and fresh canonical payload."""
+        from wavedl.runtime_protocol import parse_jsonl_line
+        from wavedl.train import _format_metrics_output
+
+        metrics = {
+            "epoch": 3,
+            "r2": math.nan,
+            "lr": 0.001,
+            "epoch_time": 2.5,
+            "mae_per_param": [0.1, 0.2],
+        }
+        original_metrics = metrics.copy()
+        run_id = "123e4567-e89b-12d3-a456-426614174000"
+
+        output = _format_metrics_output(metrics, "jsonl-v1", run_id=run_id, seq=4)
+        event = parse_jsonl_line(output)
+
+        assert event.protocol == "wavedl-jsonl"
+        assert event.version == 1
+        assert event.type == "metric"
+        assert event.run_id == run_id
+        assert event.seq == 4
+        assert event.payload == {
+            "epoch": 3,
+            "r2_score": None,
+            "learning_rate": 0.001,
+            "time_per_epoch": 2.5,
+            "mae_per_param": [0.1, 0.2],
+        }
+        assert metrics == original_metrics
+        assert math.isnan(metrics["r2"])
+        assert not output.startswith("##METRICS##")
 
 
 # ==============================================================================

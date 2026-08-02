@@ -92,6 +92,7 @@ import sys
 import time
 import warnings
 from typing import TYPE_CHECKING, Any
+from uuid import uuid4
 
 
 if TYPE_CHECKING:
@@ -120,6 +121,7 @@ from sklearn.metrics import r2_score
 from tqdm.auto import tqdm
 
 from wavedl.models import build_model, get_model, list_models
+from wavedl.runtime_protocol import encode_event
 from wavedl.utils import (
     FIGURE_DPI,
     MetricTracker,
@@ -205,6 +207,31 @@ def suppress_accelerate_logging():
 # ==============================================================================
 # ARGUMENT PARSING
 # ==============================================================================
+def _format_metrics_output(
+    metrics: dict[str, Any],
+    output_protocol: str,
+    *,
+    run_id=None,
+    seq: int = 0,
+) -> str:
+    """Format one training metrics line for the selected output protocol."""
+    if output_protocol == "legacy":
+        return f"##METRICS##{json.dumps(metrics)}\n"
+
+    if output_protocol == "jsonl-v1":
+        canonical_names = {
+            "r2": "r2_score",
+            "lr": "learning_rate",
+            "epoch_time": "time_per_epoch",
+        }
+        canonical_metrics = {
+            canonical_names.get(key, key): value for key, value in metrics.items()
+        }
+        return encode_event("metric", canonical_metrics, run_id=run_id, seq=seq)
+
+    raise ValueError(f"Unsupported output protocol: {output_protocol!r}")
+
+
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments with comprehensive options."""
     parser = argparse.ArgumentParser(
@@ -473,6 +500,12 @@ def parse_args() -> argparse.Namespace:
         "--project_name", type=str, default="DL-Training", help="WandB project name"
     )
     parser.add_argument("--run_name", type=str, default=None, help="WandB run name")
+    parser.add_argument(
+        "--output_protocol",
+        choices=["legacy", "jsonl-v1"],
+        default="legacy",
+        help=argparse.SUPPRESS,
+    )
 
     args = parser.parse_args()
     return args, parser  # Returns (Namespace, ArgumentParser)
@@ -988,6 +1021,8 @@ def main():
     # ==========================================================================
     # SYSTEM INITIALIZATION
     # ==========================================================================
+    run_id = uuid4() if args.output_protocol == "jsonl-v1" else None
+    metric_seq = 0
     # Initialize Accelerator for DDP and mixed precision
     accelerator = Accelerator(
         mixed_precision=args.precision,
@@ -1551,7 +1586,18 @@ def main():
                     "patience_counter": patience_ctr,
                     "max_patience": args.patience,
                 }
-                print(f"##METRICS##{json.dumps(gui_metrics)}", flush=True)
+                print(
+                    _format_metrics_output(
+                        gui_metrics,
+                        args.output_protocol,
+                        run_id=run_id,
+                        seq=metric_seq,
+                    ),
+                    end="",
+                    flush=True,
+                )
+                if args.output_protocol == "jsonl-v1":
+                    metric_seq += 1
 
                 # WandB logging
                 if args.wandb and WANDB_AVAILABLE:
