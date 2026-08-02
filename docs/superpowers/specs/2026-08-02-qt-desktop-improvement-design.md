@@ -114,6 +114,17 @@ Updates are staged: check a signed manifest, download to a versioned cache, veri
 5. **M5 — Packaging:** build shell and CPU/MPS/CUDA packs plus existing-environment flow. Gate: clean-machine install, signature verification, runtime probe, and one short run per supported matrix.
 6. **M6 — Release/update:** staged update, rollback, notarization/signing, and documentation. Gate: failed update automatically returns to the prior known-good version.
 
+### M1 completion — 2026-08-02
+
+M1 ships a strict JSONL codec/parser for protocol v1. Legacy metrics remain the
+default; `--output_protocol jsonl-v1` is opt-in and CLI-only, and YAML cannot set
+or override it. The GUI parser accepts both v1 and legacy output, but GUI workers
+deliberately continue to launch legacy mode until M2 runtime negotiation is
+implemented. Direct and launcher JSONL tests, along with GUI parser CI coverage,
+are present. M2 must add runtime hello/probe, manifest lifecycle, and runtime
+selection/supervision. This note does not claim packaging, M2 completion, or
+remote CI execution.
+
 ## 8. Scope exclusions
 
 No Electron, Tauri, QML, or widget-framework replacement; no visual redesign; no remote execution/HPC scheduler protocol; no database sharing with runtime; no arbitrary plugin execution; no live protocol command channel; no automatic CUDA driver installation; and no promise of binary portability across unsupported architectures. Model/training algorithm changes are out of scope except for structured event emission.
