@@ -414,6 +414,10 @@ def test_normalize_legacy_metrics_returns_none_for_non_prefixed_line():
     assert normalize_legacy_metrics_line("ordinary training log") is None
 
 
+def test_legacy_metrics_prefix_is_stable():
+    assert LEGACY_METRICS_PREFIX == "##METRICS##"
+
+
 def test_normalize_legacy_metrics_remaps_legacy_keys_and_preserves_fields():
     line = LEGACY_METRICS_PREFIX + json.dumps(
         {
