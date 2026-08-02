@@ -138,3 +138,6 @@ dist/
 # Apps
 examples/ios_demo
 .agent
+
+# Agent workspaces
+.worktrees/
