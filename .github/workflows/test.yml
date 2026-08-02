@@ -48,3 +48,24 @@ jobs:
 
       - name: Run unit tests (skip slow architecture tests)
         run: pytest unit_tests/ -v --tb=short -m "not slow"
+
+  gui-parser:
+    name: GUI Output Parser Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install GUI test dependencies
+        run: pip install -e ".[dev,gui]"
+
+      - name: Run GUI output parser tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: pytest unit_tests/test_gui_output_parser.py

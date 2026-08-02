@@ -1,9 +1,19 @@
+# ruff: noqa: I001
+
 import copy
 import json
 from dataclasses import asdict
 
+import pytest
+
+pytest.importorskip("PySide6")
+
 from wavedl.runtime_protocol import LEGACY_METRICS_PREFIX, encode_event
-from wavedl_gui.service.training_service import OutputParser, TrainingProgress
+from wavedl_gui.service.training_service import (
+    OutputKind,
+    OutputParser,
+    TrainingProgress,
+)
 
 
 RUN_ID = "123e4567-e89b-12d3-a456-426614174000"
@@ -110,6 +120,81 @@ def test_valid_non_metric_protocol_event_is_visible_and_does_not_update():
 
     assert is_metrics is False
     assert progress.epoch == 4
+
+
+def test_output_classification_distinguishes_logs_protocol_events_and_metrics():
+    parser = OutputParser()
+
+    assert parser._parse_output("ordinary training log").kind is OutputKind.ORDINARY_LOG
+    assert (
+        parser._parse_output('{"protocol":"wavedl-jsonl","version":1}').kind
+        is OutputKind.MALFORMED_PROTOCOL
+    )
+    assert (
+        parser._parse_output(
+            encode_event("log", {"message": "hello"}, run_id=RUN_ID, seq=4)
+        ).kind
+        is OutputKind.PROTOCOL_EVENT
+    )
+    assert (
+        parser._parse_output(v1_metric_line(metric_payload())).kind is OutputKind.METRIC
+    )
+
+
+def test_wrong_metric_types_and_domains_are_non_fatal_and_atomic():
+    parser = OutputParser()
+    parser.parse_line(v1_metric_line(metric_payload()))
+    before = asdict(parser.progress)
+
+    invalid_payloads = [
+        {"epoch": True},
+        {"train_loss": "not-a-number"},
+        {"mae_per_param": {"value": 0.1}},
+        {"time_per_epoch": -1.0},
+        {"epoch": 11, "total_epochs": 10},
+    ]
+    for invalid_payload in invalid_payloads:
+        progress, is_metrics = parser.parse_line(v1_metric_line(invalid_payload))
+        assert is_metrics is False
+        assert asdict(progress) == before
+
+    progress, is_metrics = parser.parse_line(
+        LEGACY_METRICS_PREFIX + json.dumps({"mae_per_param": {"value": 0.1}})
+    )
+    assert is_metrics is False
+    assert asdict(progress) == before
+
+
+def test_none_metric_values_are_tolerated_as_absent():
+    parser = OutputParser()
+    parser.parse_line(v1_metric_line(metric_payload()))
+    before = asdict(parser.progress)
+
+    progress, is_metrics = parser.parse_line(
+        v1_metric_line(
+            {"r2_score": None, "mae_per_param": [0.1, None], "total_time": None}
+        )
+    )
+
+    assert is_metrics is True
+    assert asdict(progress) == before
+
+
+def test_metric_snapshots_are_independent_between_parses():
+    parser = OutputParser()
+
+    first, first_is_metrics = parser.parse_line(v1_metric_line(metric_payload()))
+    second_payload = metric_payload()
+    second_payload["epoch"] = 4
+    second_payload["mae_per_param"] = [0.3, 0.4]
+    second, second_is_metrics = parser.parse_line(v1_metric_line(second_payload))
+
+    assert first_is_metrics is True
+    assert second_is_metrics is True
+    assert first.epoch == 3
+    assert first.mae_per_param == [0.1, 0.14]
+    assert second.epoch == 4
+    assert second.mae_per_param == [0.3, 0.4]
 
 
 def test_metric_application_does_not_retain_caller_owned_values():

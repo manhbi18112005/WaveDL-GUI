@@ -7,12 +7,14 @@ Provides clean process isolation to prevent GUI freezing and enable graceful ter
 
 from __future__ import annotations
 
+import math
+import numbers
 import os
 import re
 import signal
 import subprocess
 import sys
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any
 
@@ -42,6 +44,24 @@ class ProcessState(Enum):
     COMPLETED = auto()
     FAILED = auto()
     CANCELLED = auto()
+
+
+class OutputKind(Enum):
+    """Internal classification for one line of training output."""
+
+    ORDINARY_LOG = auto()
+    MALFORMED_PROTOCOL = auto()
+    METRIC = auto()
+    PROTOCOL_EVENT = auto()
+
+
+@dataclass(frozen=True)
+class _OutputResult:
+    """Parsed output and its event-aware classification."""
+
+    progress: TrainingProgress
+    kind: OutputKind
+    event_type: str | None = None
 
 
 @dataclass
@@ -86,9 +106,14 @@ class OutputParser:
             Tuple of (progress, is_metrics_line). When is_metrics_line is True,
             the caller should suppress this line from the visible log.
         """
+        result = self._parse_output(line)
+        return result.progress, result.kind is OutputKind.METRIC
+
+    def _parse_output(self, line: str) -> _OutputResult:
+        """Classify and parse output while keeping malformed input non-fatal."""
         stripped = line.strip()
         if not stripped:
-            return self.progress, False
+            return _OutputResult(self.progress, OutputKind.ORDINARY_LOG)
 
         try:
             event = parse_jsonl_line(stripped)
@@ -96,24 +121,41 @@ class OutputParser:
             try:
                 metrics = normalize_legacy_metrics_line(stripped)
             except ProtocolParseError:
-                return self.progress, False
+                return _OutputResult(self.progress, OutputKind.MALFORMED_PROTOCOL)
             if metrics is not None:
-                self._apply_metrics(metrics)
-                return self.progress, True
-            return self.progress, False
+                try:
+                    self._apply_metrics(metrics)
+                except ValueError:
+                    return _OutputResult(self.progress, OutputKind.MALFORMED_PROTOCOL)
+                return _OutputResult(self.progress, OutputKind.METRIC, "metric")
+            if stripped.startswith("{"):
+                return _OutputResult(self.progress, OutputKind.MALFORMED_PROTOCOL)
+            return _OutputResult(self.progress, OutputKind.ORDINARY_LOG)
 
         if event.type == "metric":
-            self._apply_metrics(event.payload)
-            return self.progress, True
+            try:
+                self._apply_metrics(event.payload)
+            except ValueError:
+                return _OutputResult(
+                    self.progress, OutputKind.MALFORMED_PROTOCOL, "metric"
+                )
+            return _OutputResult(self.progress, OutputKind.METRIC, event.type)
 
-        return self.progress, False
+        return _OutputResult(self.progress, OutputKind.PROTOCOL_EVENT, event.type)
 
-    def _apply_metrics(self, data: dict[str, Any]) -> None:
-        """Apply canonical metric fields without retaining mutable payload data."""
-        p = self.progress
-        fields = (
+    def _apply_metrics(self, data: dict[str, Any]) -> TrainingProgress:
+        """Validate and atomically apply canonical metrics as a new snapshot."""
+        if not isinstance(data, dict):
+            raise ValueError("Metric payload must be an object")
+
+        candidate = asdict(self.progress)
+        integer_fields = (
             "epoch",
             "total_epochs",
+            "patience_counter",
+            "max_patience",
+        )
+        float_fields = (
             "train_loss",
             "val_loss",
             "best_val_loss",
@@ -124,22 +166,59 @@ class OutputParser:
             "mae_avg",
             "time_per_epoch",
             "total_time",
-            "patience_counter",
-            "max_patience",
         )
-        for field_name in fields:
-            if field_name in data and data[field_name] is not None:
-                setattr(p, field_name, data[field_name])
-        if "mae_per_param" in data and data["mae_per_param"] is not None:
-            p.mae_per_param = list(data["mae_per_param"])
 
-        try:
-            remaining = p.total_epochs - p.epoch
-            p.eta_seconds = (
-                remaining * p.time_per_epoch if p.time_per_epoch > 0 else 0.0
-            )
-        except TypeError:
-            p.eta_seconds = 0.0
+        for field_name in integer_fields:
+            value = data.get(field_name)
+            if value is None:
+                continue
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f"Invalid metric field: {field_name}")
+            candidate[field_name] = value
+
+        for field_name in float_fields:
+            value = data.get(field_name)
+            if value is None:
+                continue
+            if isinstance(value, bool) or not isinstance(value, numbers.Real):
+                raise ValueError(f"Invalid metric field: {field_name}")
+            value = float(value)
+            if not math.isfinite(value):
+                raise ValueError(f"Invalid metric field: {field_name}")
+            if field_name in {"grad_norm", "learning_rate", "mae_avg"} and value < 0:
+                raise ValueError(f"Invalid metric field: {field_name}")
+            if field_name in {"time_per_epoch", "total_time"} and value < 0:
+                raise ValueError(f"Invalid metric field: {field_name}")
+            candidate[field_name] = value
+
+        mae_per_param = data.get("mae_per_param")
+        if mae_per_param is not None:
+            if not isinstance(mae_per_param, list):
+                raise ValueError("Invalid metric field: mae_per_param")
+            if any(value is None for value in mae_per_param):
+                mae_per_param = None
+        if mae_per_param is not None:
+            copied_mae = []
+            for value in mae_per_param:
+                if (
+                    isinstance(value, bool)
+                    or not isinstance(value, numbers.Real)
+                    or not math.isfinite(float(value))
+                    or value < 0
+                ):
+                    raise ValueError("Invalid metric field: mae_per_param")
+                copied_mae.append(float(value))
+            candidate["mae_per_param"] = copied_mae
+
+        if candidate["epoch"] > candidate["total_epochs"]:
+            raise ValueError("epoch cannot exceed total_epochs")
+        candidate["eta_seconds"] = (
+            max(candidate["total_epochs"] - candidate["epoch"], 0)
+            * candidate["time_per_epoch"]
+        )
+
+        self.progress = TrainingProgress(**candidate)
+        return self.progress
 
 
 class TrainingWorker(QThread):
@@ -195,11 +274,14 @@ class TrainingWorker(QThread):
 
                 line = line.rstrip()
 
-                progress, is_metrics = self._parser.parse_line(line)
+                result = self._parser._parse_output(line)
 
-                if is_metrics:
-                    self.progressSig.emit(progress)
-                else:
+                if result.kind is OutputKind.METRIC:
+                    self.progressSig.emit(result.progress)
+                elif result.kind in {
+                    OutputKind.ORDINARY_LOG,
+                    OutputKind.MALFORMED_PROTOCOL,
+                }:
                     self.outputSig.emit(line)
 
             # Wait for process to complete
