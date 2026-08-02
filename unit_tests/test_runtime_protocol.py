@@ -7,12 +7,14 @@ import pytest
 
 from wavedl.runtime_protocol import (
     EVENT_TYPES,
+    LEGACY_METRICS_PREFIX,
     PROTOCOL_NAME,
     PROTOCOL_VERSION,
     ProtocolEncodeError,
     ProtocolParseError,
     RuntimeEvent,
     encode_event,
+    normalize_legacy_metrics_line,
     parse_jsonl_line,
 )
 
@@ -406,6 +408,79 @@ def test_nested_nonfinite_values_become_null():
     assert json.loads(line)["payload"] == {
         "outer": [{"nan": None}, [None, None]],
     }
+
+
+def test_normalize_legacy_metrics_returns_none_for_non_prefixed_line():
+    assert normalize_legacy_metrics_line("ordinary training log") is None
+
+
+def test_normalize_legacy_metrics_remaps_legacy_keys_and_preserves_fields():
+    line = LEGACY_METRICS_PREFIX + json.dumps(
+        {
+            "r2": 0.9,
+            "lr": 0.001,
+            "epoch_time": 2.5,
+            "epoch": 3,
+            "nested": {"values": [1, "kept", True]},
+        }
+    )
+
+    metrics = normalize_legacy_metrics_line(line)
+
+    assert metrics == {
+        "r2_score": 0.9,
+        "learning_rate": 0.001,
+        "time_per_epoch": 2.5,
+        "epoch": 3,
+        "nested": {"values": [1, "kept", True]},
+    }
+
+
+def test_normalize_legacy_metrics_allows_surrounding_whitespace():
+    line = f'  {LEGACY_METRICS_PREFIX} {{"r2": 0.5}}  \n'
+
+    assert normalize_legacy_metrics_line(line) == {"r2_score": 0.5}
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        '{"r2":',
+        "[]",
+        '"metrics"',
+        "null",
+    ],
+)
+def test_normalize_legacy_metrics_rejects_invalid_or_non_object_payload(payload):
+    with pytest.raises(ProtocolParseError):
+        normalize_legacy_metrics_line(LEGACY_METRICS_PREFIX + payload)
+
+
+def test_normalize_legacy_metrics_rejects_duplicate_keys():
+    line = LEGACY_METRICS_PREFIX + '{"r2":0.1,"r2":0.2}'
+
+    with pytest.raises(ProtocolParseError, match="duplicate key"):
+        normalize_legacy_metrics_line(line)
+
+
+def test_normalize_legacy_metrics_rejects_nonfinite_numbers():
+    line = LEGACY_METRICS_PREFIX + '{"r2":1e999}'
+
+    with pytest.raises(ProtocolParseError, match="non-finite"):
+        normalize_legacy_metrics_line(line)
+
+
+def test_normalize_legacy_metrics_does_not_alias_input_data():
+    source = {"r2": 0.9, "nested": {"values": [1]}}
+    line = LEGACY_METRICS_PREFIX + json.dumps(source)
+
+    metrics = normalize_legacy_metrics_line(line)
+    assert metrics is not source
+    assert metrics["nested"] is not source["nested"]
+    assert metrics["nested"]["values"] is not source["nested"]["values"]
+
+    metrics["nested"]["values"].append(2)
+    assert source == {"r2": 0.9, "nested": {"values": [1]}}
 
 
 def _envelope():

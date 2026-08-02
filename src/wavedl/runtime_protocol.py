@@ -12,6 +12,7 @@ from uuid import UUID
 
 PROTOCOL_NAME = "wavedl-jsonl"
 PROTOCOL_VERSION = 1
+LEGACY_METRICS_PREFIX = "##METRICS##"
 EVENT_TYPES = {
     "hello",
     "state",
@@ -35,6 +36,37 @@ class ProtocolParseError(ValueError):
 
 class ProtocolEncodeError(ValueError):
     """Raised when a value cannot be encoded as a protocol v1 event."""
+
+
+def normalize_legacy_metrics_line(line: str) -> dict[str, Any] | None:
+    """Decode and canonicalize a legacy metrics log line."""
+    if not isinstance(line, str):
+        raise ProtocolParseError("Metrics line must be a string")
+    stripped_line = line.strip()
+    if not stripped_line.startswith(LEGACY_METRICS_PREFIX):
+        return None
+    try:
+        metrics = json.loads(
+            stripped_line[len(LEGACY_METRICS_PREFIX) :],
+            object_pairs_hook=_reject_duplicate_keys,
+            parse_constant=_reject_json_constant,
+        )
+        _reject_nonfinite(metrics)
+    except RecursionError as exc:
+        raise ProtocolParseError("Invalid legacy metrics line") from exc
+    except (ValueError, TypeError) as exc:
+        if isinstance(exc, (_DuplicateKeyError, _NonFiniteError)):
+            raise ProtocolParseError(str(exc)) from exc
+        raise ProtocolParseError("Invalid legacy metrics line") from exc
+    if not isinstance(metrics, dict):
+        raise ProtocolParseError("Legacy metrics must be a JSON object")
+
+    legacy_names = {
+        "r2": "r2_score",
+        "lr": "learning_rate",
+        "epoch_time": "time_per_epoch",
+    }
+    return {legacy_names.get(key) or key: value for key, value in metrics.items()}
 
 
 @dataclass(frozen=True)
