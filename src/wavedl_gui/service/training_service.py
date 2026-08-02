@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 from PySide6.QtCore import QObject, QThread, Signal
 
 from wavedl.runtime_protocol import (
+    EVENT_TYPES,
     ProtocolParseError,
     RuntimeEvent,
     normalize_legacy_metrics_line,
@@ -154,6 +155,7 @@ class OutputParser:
             try:
                 self._apply_metrics(event.payload)
             except ValueError:
+                self._record_event(event)
                 return OutputParseResult(
                     self.progress, OutputKind.MALFORMED_PROTOCOL, line, event
                 )
@@ -363,6 +365,8 @@ class TrainingWorker(QThread):
             message = result.event.payload.get("message")
             if message is not None:
                 return str(message)
+        if result.event and result.event.type not in EVENT_TYPES:
+            return f"Unhandled protocol event '{result.event.type}': {result.raw_line}"
         return result.raw_line
 
     def _build_command(self) -> list[str]:

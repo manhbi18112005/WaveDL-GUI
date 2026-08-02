@@ -72,6 +72,7 @@ def _preflight_config(parser: argparse.ArgumentParser, path: str) -> None:
         AttributeError,
         FileNotFoundError,
         OSError,
+        RecursionError,
         TypeError,
         ValueError,
         yaml.YAMLError,

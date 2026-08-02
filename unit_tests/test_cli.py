@@ -735,6 +735,7 @@ class TestConfigPreflightSubprocess:
             ("nonexistent", None),
             ("malformed", "broken: [\n"),
             ("forbidden", "output_protocol: jsonl-v1\n"),
+            ("recursive", "loop: &loop\n  child: *loop\n"),
         ],
     )
     def test_config_failures_are_argparse_errors(
@@ -762,6 +763,29 @@ class TestConfigPreflightSubprocess:
         assert result.returncode == 2
         assert "error:" in result.stderr
         assert "Traceback" not in result.stderr
+
+    def test_train_import_does_not_run_config_preflight(self, tmp_path):
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import sys; "
+                    "sys.argv = ['host-process', '--config', "
+                    f"'{tmp_path / 'missing.yaml'}']; "
+                    "import wavedl.train; print('imported safely')"
+                ),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(os.path.dirname(__file__)),
+            env=os.environ.copy(),
+            check=False,
+        )
+
+        assert result.returncode == 0
+        assert result.stdout.strip() == "imported safely"
+        assert result.stderr == ""
 
 
 class TestTrainConfigOutputProtocol:

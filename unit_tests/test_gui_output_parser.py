@@ -190,7 +190,9 @@ def test_unknown_protocol_event_is_retained_and_routed_as_raw_warning():
     output_lines = []
     worker.outputSig.connect(output_lines.append)
     worker._route_output(line)
-    assert output_lines == [line]
+    assert len(output_lines) == 1
+    assert "Unhandled protocol event 'future_event'" in output_lines[0]
+    assert line in output_lines[0]
 
 
 @pytest.mark.parametrize(
@@ -271,6 +273,26 @@ def test_hello_sequence_zero_then_metric_sequence_one_is_accepted():
     assert hello_is_metric is False
     assert metric_is_metric is True
     assert progress.epoch == 1
+
+
+def test_invalid_metric_consumes_sequence_and_allows_next_protocol_event():
+    parser = OutputParser()
+    worker = TrainingWorker(None)
+    worker._parser = parser
+    output_lines = []
+    worker.outputSig.connect(output_lines.append)
+
+    _, hello_is_metric = parser.parse_line(protocol_line("hello", {}, seq=0))
+    progress, invalid_is_metric = parser.parse_line(
+        v1_metric_line({"epoch": True}, seq=1)
+    )
+    worker._route_output(protocol_line("log", {"message": "recovered"}, seq=2))
+
+    assert hello_is_metric is False
+    assert invalid_is_metric is False
+    assert progress.epoch == 0
+    assert parser._last_seq == 2
+    assert output_lines == ["recovered"]
 
 
 def test_wrong_metric_types_and_domains_are_non_fatal_and_atomic():

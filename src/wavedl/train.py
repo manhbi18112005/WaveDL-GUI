@@ -60,21 +60,37 @@ def _preflight_config_cli() -> None:
         parser.error(f"invalid config '{path}': {exc}")
     if config is not None and not isinstance(config, dict):
         parser.error(f"invalid config '{path}': top-level YAML value must be a mapping")
-    if isinstance(config, dict) and _contains_config_key(config, "output_protocol"):
+    try:
+        has_forbidden_protocol = _contains_config_key(config, "output_protocol")
+    except (RecursionError, ValueError) as exc:
+        parser.error(f"invalid config '{path}': {exc}")
+    if has_forbidden_protocol:
         parser.error("output_protocol is CLI-only and cannot be set in config")
 
 
 def _contains_config_key(value, key: str) -> bool:
-    if isinstance(value, dict):
-        return key in value or any(
-            _contains_config_key(item, key) for item in value.values()
-        )
-    if isinstance(value, list):
-        return any(_contains_config_key(item, key) for item in value)
+    pending = [(value, 0)]
+    seen = set()
+    while pending:
+        current, depth = pending.pop()
+        if depth > 100:
+            raise ValueError("config nesting exceeds supported depth")
+        if isinstance(current, dict):
+            identity = id(current)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            if key in current:
+                return True
+            pending.extend((item, depth + 1) for item in current.values())
+        elif isinstance(current, list):
+            identity = id(current)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            pending.extend((item, depth + 1) for item in current)
     return False
 
-
-_preflight_config_cli()
 
 # =============================================================================
 # HPC Environment Setup (MUST be before any library imports)
@@ -916,6 +932,7 @@ def train_single_trial(
 # ==============================================================================
 def main():
     args, parser = parse_args()
+    _preflight_config_cli()
     human_output = _human_output_file(args.output_protocol)
 
     config_paths = _config_paths(sys.argv[1:])
@@ -934,6 +951,7 @@ def main():
             AttributeError,
             FileNotFoundError,
             OSError,
+            RecursionError,
             TypeError,
             ValueError,
             yaml.YAMLError,
