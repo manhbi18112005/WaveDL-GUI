@@ -611,6 +611,53 @@ class TestJsonlSubprocessOutput:
 
     @pytest.mark.parametrize("reverse", [False, True])
     @pytest.mark.parametrize("equals_syntax", [False, True])
+    def test_train_rejects_duplicate_configs_before_import_and_fast_path(
+        self, tmp_path, reverse, equals_syntax
+    ):
+        """Direct training cannot bypass duplicate config validation."""
+        safe_config = tmp_path / "safe.yaml"
+        forbidden_config = tmp_path / "forbidden.yaml"
+        safe_config.write_text("model: cnn\n", encoding="utf-8")
+        forbidden_config.write_text("output_protocol: jsonl-v1\n", encoding="utf-8")
+        module_path = tmp_path / "prints_at_import.py"
+        module_path.write_text('print("should not import")\n', encoding="utf-8")
+        config_paths = [safe_config, forbidden_config]
+        if reverse:
+            config_paths.reverse()
+        if equals_syntax:
+            config_args = [f"--config={path}" for path in config_paths]
+        else:
+            config_args = [
+                item for path in config_paths for item in ("--config", str(path))
+            ]
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "wavedl.train",
+                "--output_protocol",
+                "jsonl-v1",
+                *config_args,
+                "--import",
+                str(module_path),
+                "--list_models",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(os.path.dirname(__file__)),
+            env=os.environ.copy(),
+            check=False,
+        )
+
+        assert result.returncode != 0
+        assert not [line for line in result.stdout.splitlines() if line.strip()]
+        assert "should not import" not in result.stderr
+        assert "Available models:" not in result.stderr
+        assert "--config may only be specified once" in result.stderr
+
+    @pytest.mark.parametrize("reverse", [False, True])
+    @pytest.mark.parametrize("equals_syntax", [False, True])
     def test_launcher_rejects_duplicate_configs_before_fast_path(
         self, tmp_path, reverse, equals_syntax
     ):

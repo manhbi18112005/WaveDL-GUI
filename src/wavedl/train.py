@@ -253,6 +253,17 @@ def _human_output_file(output_protocol: str):
     return sys.stderr if output_protocol == "jsonl-v1" else sys.stdout
 
 
+def _config_paths(arguments: list[str]) -> list[str]:
+    """Extract all exact --config paths from command-line arguments."""
+    paths = []
+    for index, argument in enumerate(arguments):
+        if argument == "--config" and index + 1 < len(arguments):
+            paths.append(arguments[index + 1])
+        elif argument.startswith("--config="):
+            paths.append(argument.split("=", 1)[1])
+    return paths
+
+
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments with comprehensive options."""
     parser = argparse.ArgumentParser(
@@ -866,6 +877,9 @@ def train_single_trial(
 def main():
     args, parser = parse_args()
     human_output = _human_output_file(args.output_protocol)
+
+    if len(_config_paths(sys.argv[1:])) > 1:
+        parser.error("--config may only be specified once")
 
     config = None
     if args.config:
