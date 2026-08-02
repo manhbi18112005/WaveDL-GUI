@@ -7,7 +7,6 @@ Provides clean process isolation to prevent GUI freezing and enable graceful ter
 
 from __future__ import annotations
 
-import json
 import os
 import re
 import signal
@@ -15,9 +14,15 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import QObject, QThread, Signal
+
+from wavedl.runtime_protocol import (
+    ProtocolParseError,
+    normalize_legacy_metrics_line,
+    parse_jsonl_line,
+)
 
 from ..common.signal_bus import signalBus
 from ..common.utils import get_python_executable
@@ -68,11 +73,8 @@ class TrainingProgress:
         return (self.epoch / self.total_epochs) * 100
 
 
-_METRICS_PREFIX = "##METRICS##"
-
-
 class OutputParser:
-    """Parses structured ##METRICS## JSON lines emitted by train.py."""
+    """Parses structured runtime output lines emitted by train.py."""
 
     def __init__(self):
         self.progress = TrainingProgress()
@@ -88,37 +90,56 @@ class OutputParser:
         if not stripped:
             return self.progress, False
 
-        if stripped.startswith(_METRICS_PREFIX):
-            self._parse_metrics_json(stripped[len(_METRICS_PREFIX) :])
+        try:
+            event = parse_jsonl_line(stripped)
+        except ProtocolParseError:
+            try:
+                metrics = normalize_legacy_metrics_line(stripped)
+            except ProtocolParseError:
+                return self.progress, False
+            if metrics is not None:
+                self._apply_metrics(metrics)
+                return self.progress, True
+            return self.progress, False
+
+        if event.type == "metric":
+            self._apply_metrics(event.payload)
             return self.progress, True
 
         return self.progress, False
 
-    def _parse_metrics_json(self, json_str: str) -> None:
-        try:
-            data = json.loads(json_str)
-        except (json.JSONDecodeError, ValueError):
-            return
-
+    def _apply_metrics(self, data: dict[str, Any]) -> None:
+        """Apply canonical metric fields without retaining mutable payload data."""
         p = self.progress
-        p.epoch = data.get("epoch", p.epoch)
-        p.total_epochs = data.get("total_epochs", p.total_epochs)
-        p.train_loss = data.get("train_loss", p.train_loss)
-        p.val_loss = data.get("val_loss", p.val_loss)
-        p.best_val_loss = data.get("best_val_loss", p.best_val_loss)
-        p.r2_score = data.get("r2", p.r2_score)
-        p.pearson = data.get("pearson", p.pearson)
-        p.grad_norm = data.get("grad_norm", p.grad_norm)
-        p.learning_rate = data.get("lr", p.learning_rate)
-        p.mae_avg = data.get("mae_avg", p.mae_avg)
-        p.mae_per_param = data.get("mae_per_param", p.mae_per_param)
-        p.time_per_epoch = data.get("epoch_time", p.time_per_epoch)
-        p.total_time = data.get("total_time", p.total_time)
-        p.patience_counter = data.get("patience_counter", p.patience_counter)
-        p.max_patience = data.get("max_patience", p.max_patience)
+        fields = (
+            "epoch",
+            "total_epochs",
+            "train_loss",
+            "val_loss",
+            "best_val_loss",
+            "r2_score",
+            "pearson",
+            "grad_norm",
+            "learning_rate",
+            "mae_avg",
+            "time_per_epoch",
+            "total_time",
+            "patience_counter",
+            "max_patience",
+        )
+        for field_name in fields:
+            if field_name in data and data[field_name] is not None:
+                setattr(p, field_name, data[field_name])
+        if "mae_per_param" in data and data["mae_per_param"] is not None:
+            p.mae_per_param = list(data["mae_per_param"])
 
-        remaining = p.total_epochs - p.epoch
-        p.eta_seconds = remaining * p.time_per_epoch if p.time_per_epoch > 0 else 0.0
+        try:
+            remaining = p.total_epochs - p.epoch
+            p.eta_seconds = (
+                remaining * p.time_per_epoch if p.time_per_epoch > 0 else 0.0
+            )
+        except TypeError:
+            p.eta_seconds = 0.0
 
 
 class TrainingWorker(QThread):
