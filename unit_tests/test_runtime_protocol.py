@@ -34,7 +34,7 @@ def test_encode_event_is_compact_strict_json_and_converts_nonfinite_values():
         "version": PROTOCOL_VERSION,
         "run_id": RUN_ID,
         "seq": 0,
-        "ts": "2026-01-02T03:04:05.000Z",
+        "ts": "2026-01-02T03:04:05Z",
         "type": "metric",
         "payload": {"nan": None, "positive": None, "negative": None},
     }
@@ -63,10 +63,42 @@ def test_encode_and_parse_round_trip():
     )
 
 
+def test_encode_normalizes_supplied_timestamp_to_utc():
+    line = encode_event(
+        "state",
+        {},
+        run_id=RUN_ID,
+        seq=0,
+        ts="2026-01-02T03:04:05+07:00",
+    )
+
+    assert json.loads(line)["ts"] == "2026-01-01T20:04:05Z"
+
+
+def test_encode_rejects_naive_supplied_timestamp():
+    with pytest.raises(ValueError, match="timezone"):
+        encode_event(
+            "state",
+            {},
+            run_id=RUN_ID,
+            seq=0,
+            ts="2026-01-02T03:04:05",
+        )
+
+
 @pytest.mark.parametrize("line", ["", "   ", "not json", "null", "[]"])
 def test_parse_rejects_invalid_json_blank_and_non_object(line):
     with pytest.raises(ProtocolParseError):
         parse_jsonl_line(line)
+
+
+@pytest.mark.parametrize("payload", [[], "text", None])
+def test_parse_rejects_non_object_payload(payload):
+    envelope = _envelope()
+    envelope["payload"] = payload
+
+    with pytest.raises(ProtocolParseError):
+        parse_jsonl_line(json.dumps(envelope))
 
 
 def test_parse_rejects_wrong_protocol():
@@ -75,6 +107,16 @@ def test_parse_rejects_wrong_protocol():
 
     with pytest.raises(ProtocolParseError):
         parse_jsonl_line(json.dumps(envelope))
+
+
+def test_parse_ignores_unknown_top_level_fields():
+    envelope = _envelope()
+    envelope["future_field"] = {"ignored": True}
+
+    event = parse_jsonl_line(json.dumps(envelope))
+
+    assert event.type == "hello"
+    assert not hasattr(event, "future_field")
 
 
 @pytest.mark.parametrize(
@@ -94,6 +136,15 @@ def test_parse_rejects_wrong_version_and_type():
         envelope[key] = value
         with pytest.raises(ProtocolParseError):
             parse_jsonl_line(json.dumps(envelope))
+
+
+@pytest.mark.parametrize("version", [True, False, 1.0, "1"])
+def test_parse_rejects_noninteger_protocol_version(version):
+    envelope = _envelope()
+    envelope["version"] = version
+
+    with pytest.raises(ProtocolParseError):
+        parse_jsonl_line(json.dumps(envelope))
 
 
 @pytest.mark.parametrize("seq", [-1, 1.5, True])

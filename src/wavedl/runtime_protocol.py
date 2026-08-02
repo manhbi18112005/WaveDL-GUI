@@ -88,7 +88,11 @@ def parse_jsonl_line(line: str) -> RuntimeEvent:
         raise ProtocolParseError(f"Missing required envelope keys: {sorted(missing)}")
     if envelope["protocol"] != PROTOCOL_NAME:
         raise ProtocolParseError("Wrong protocol")
-    if envelope["version"] != PROTOCOL_VERSION:
+    if (
+        isinstance(envelope["version"], bool)
+        or not isinstance(envelope["version"], int)
+        or envelope["version"] != PROTOCOL_VERSION
+    ):
         raise ProtocolParseError("Wrong protocol version")
     if not isinstance(envelope["type"], str) or envelope["type"] not in EVENT_TYPES:
         raise ProtocolParseError("Unsupported event type")
@@ -137,12 +141,20 @@ def _encode_timestamp(value: str | datetime | None) -> str:
             .isoformat(timespec="milliseconds")
             .replace("+00:00", "Z")
         )
-    _parse_timestamp(value)
-    return value
+    parsed = _parse_timestamp(value)
+    return parsed.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
 def _parse_timestamp(value: str) -> datetime:
-    if not isinstance(value, str) or not _RFC3339.fullmatch(value):
+    if not isinstance(value, str):
+        raise ValueError("timestamp must be RFC3339")
+    if not _RFC3339.fullmatch(value):
+        try:
+            parsed = datetime.fromisoformat(value)
+        except ValueError as exc:
+            raise ValueError("timestamp must be RFC3339") from exc
+        if parsed.tzinfo is None:
+            raise ValueError("timestamp must include timezone")
         raise ValueError("timestamp must be RFC3339")
     parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     if parsed.tzinfo is None:
