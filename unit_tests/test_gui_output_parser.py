@@ -1,5 +1,6 @@
 import copy
 import json
+from dataclasses import asdict
 
 from wavedl.runtime_protocol import LEGACY_METRICS_PREFIX, encode_event
 from wavedl_gui.service.training_service import OutputParser
@@ -38,36 +39,23 @@ def v1_metric_line(payload):
     )
 
 
-def test_v1_metric_event_updates_progress_and_eta():
-    parser = OutputParser()
+def test_v1_and_legacy_metrics_produce_equivalent_full_progress():
+    canonical_payload = metric_payload()
+    legacy_payload = canonical_payload.copy()
+    legacy_payload["r2"] = legacy_payload.pop("r2_score")
+    legacy_payload["lr"] = legacy_payload.pop("learning_rate")
+    legacy_payload["epoch_time"] = legacy_payload.pop("time_per_epoch")
 
-    progress, is_metrics = parser.parse_line(v1_metric_line(metric_payload()))
-
-    assert is_metrics is True
-    assert progress.epoch == 3
-    assert progress.total_epochs == 10
-    assert progress.r2_score == 0.9
-    assert progress.learning_rate == 0.001
-    assert progress.time_per_epoch == 2.5
-    assert progress.eta_seconds == 17.5
-
-
-def test_legacy_metric_line_is_normalized_and_updates_identically():
-    payload = metric_payload()
-    payload["r2"] = payload.pop("r2_score")
-    payload["lr"] = payload.pop("learning_rate")
-    payload["epoch_time"] = payload.pop("time_per_epoch")
-    parser = OutputParser()
-
-    progress, is_metrics = parser.parse_line(
-        LEGACY_METRICS_PREFIX + json.dumps(payload)
+    v1_parser = OutputParser()
+    legacy_parser = OutputParser()
+    v1_progress, v1_is_metrics = v1_parser.parse_line(v1_metric_line(canonical_payload))
+    legacy_progress, legacy_is_metrics = legacy_parser.parse_line(
+        LEGACY_METRICS_PREFIX + json.dumps(legacy_payload)
     )
 
-    assert is_metrics is True
-    assert progress.r2_score == 0.9
-    assert progress.learning_rate == 0.001
-    assert progress.time_per_epoch == 2.5
-    assert progress.eta_seconds == 17.5
+    assert v1_is_metrics is True
+    assert legacy_is_metrics is True
+    assert asdict(v1_progress) == asdict(legacy_progress)
 
 
 def test_blank_and_ordinary_lines_remain_visible_and_preserve_progress():
@@ -105,13 +93,14 @@ def test_valid_non_metric_protocol_event_is_visible_and_does_not_update():
     assert progress.epoch == 4
 
 
-def test_metric_payload_is_not_mutated():
+def test_metric_application_does_not_retain_caller_owned_values():
     payload = metric_payload()
+    payload["nested"] = {"values": [1, {"kept": True}]}
     original = copy.deepcopy(payload)
     parser = OutputParser()
 
-    parser.parse_line(v1_metric_line(payload))
+    parser._apply_metrics(payload)
 
     assert payload == original
-    parser.progress.mae_per_param.append(99.0)
-    assert payload["mae_per_param"] == original["mae_per_param"]
+    payload["mae_per_param"].append(99.0)
+    assert parser.progress.mae_per_param == original["mae_per_param"]
