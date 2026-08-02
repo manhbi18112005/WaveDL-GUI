@@ -3,7 +3,7 @@ import json
 from dataclasses import asdict
 
 from wavedl.runtime_protocol import LEGACY_METRICS_PREFIX, encode_event
-from wavedl_gui.service.training_service import OutputParser
+from wavedl_gui.service.training_service import OutputParser, TrainingProgress
 
 
 RUN_ID = "123e4567-e89b-12d3-a456-426614174000"
@@ -55,7 +55,26 @@ def test_v1_and_legacy_metrics_produce_equivalent_full_progress():
 
     assert v1_is_metrics is True
     assert legacy_is_metrics is True
+    expected = TrainingProgress(
+        epoch=3,
+        total_epochs=10,
+        train_loss=0.2,
+        val_loss=0.25,
+        learning_rate=0.001,
+        best_val_loss=0.18,
+        patience_counter=2,
+        max_patience=5,
+        r2_score=0.9,
+        pearson=0.95,
+        grad_norm=0.4,
+        mae_avg=0.12,
+        mae_per_param=[0.1, 0.14],
+        time_per_epoch=2.5,
+        total_time=7.5,
+        eta_seconds=17.5,
+    )
     assert asdict(v1_progress) == asdict(legacy_progress)
+    assert asdict(v1_progress) == asdict(expected)
 
 
 def test_blank_and_ordinary_lines_remain_visible_and_preserve_progress():
