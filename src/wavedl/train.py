@@ -258,6 +258,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Universal DDP Training Pipeline",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        allow_abbrev=False,
     )
 
     # Model Selection
@@ -866,6 +867,14 @@ def main():
     args, parser = parse_args()
     human_output = _human_output_file(args.output_protocol)
 
+    config = None
+    if args.config:
+        from wavedl.utils.config import load_config
+
+        config = load_config(args.config)
+        if "output_protocol" in config:
+            parser.error("output_protocol is CLI-only and cannot be set in config")
+
     # Import custom model modules if specified
     if args.import_modules:
         import importlib
@@ -935,15 +944,9 @@ def main():
 
     # Load and merge config file if provided
     if args.config:
-        from wavedl.utils.config import (
-            load_config,
-            merge_config_with_args,
-            validate_config,
-        )
+        from wavedl.utils.config import merge_config_with_args, validate_config
 
-        config = load_config(args.config)
-        if "output_protocol" in config:
-            parser.error("output_protocol is CLI-only and cannot be set in config")
+        assert config is not None
         print(f"📄 Loading config from: {args.config}", file=human_output)
 
         # Validate config values

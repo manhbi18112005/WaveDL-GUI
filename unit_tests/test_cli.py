@@ -99,6 +99,20 @@ class TestTrainParseArgs:
         ):
             parse_args()
 
+    def test_output_protocol_rejects_abbreviated_option(self):
+        """The protocol option must be spelled out to select JSONL mode."""
+        from wavedl.train import parse_args
+
+        with (
+            patch.object(
+                sys,
+                "argv",
+                ["wavedl-train", "--output_p", "jsonl-v1"],
+            ),
+            pytest.raises(SystemExit),
+        ):
+            parse_args()
+
     def test_model_argument(self):
         """Test that model argument is parsed correctly."""
         from wavedl.train import parse_args
@@ -420,6 +434,91 @@ class TestJsonlSubprocessOutput:
         assert all(parse_jsonl_line(line) for line in stdout_lines)
         assert "custom import output" not in result.stdout
         assert "custom import output" in result.stderr
+
+    @pytest.mark.parametrize("module", ["wavedl.train", "wavedl.launcher"])
+    def test_abbreviated_protocol_option_is_rejected_without_stdout_leak(self, module):
+        """Protocol abbreviations fail before human output can reach stdout."""
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                module,
+                "--output_p",
+                "jsonl-v1",
+                "--list_models",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(os.path.dirname(__file__)),
+            env=os.environ.copy(),
+            check=False,
+        )
+
+        assert result.returncode != 0
+        assert not [line for line in result.stdout.splitlines() if line.strip()]
+        assert "output_p" in result.stderr
+
+    def test_direct_config_rejection_precedes_custom_import_and_fast_path(
+        self, tmp_path
+    ):
+        """Forbidden config keys fail before imports or list-model output."""
+        config_path = tmp_path / "protocol.yaml"
+        config_path.write_text("output_protocol: jsonl-v1\n", encoding="utf-8")
+        module_path = tmp_path / "prints_at_import.py"
+        module_path.write_text('print("should not import")\n', encoding="utf-8")
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "wavedl.train",
+                "--output_protocol",
+                "jsonl-v1",
+                "--config",
+                str(config_path),
+                "--import",
+                str(module_path),
+                "--list_models",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(os.path.dirname(__file__)),
+            env=os.environ.copy(),
+            check=False,
+        )
+
+        assert result.returncode != 0
+        assert not [line for line in result.stdout.splitlines() if line.strip()]
+        assert "should not import" not in result.stderr
+        assert "output_protocol is CLI-only" in result.stderr
+
+    def test_launcher_config_rejection_precedes_list_models_fast_path(self, tmp_path):
+        """The launcher validates forbidden config keys before fast paths."""
+        config_path = tmp_path / "protocol.yaml"
+        config_path.write_text("output_protocol: jsonl-v1\n", encoding="utf-8")
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "wavedl.launcher",
+                "--output_protocol",
+                "jsonl-v1",
+                "--config",
+                str(config_path),
+                "--list_models",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(os.path.dirname(__file__)),
+            env=os.environ.copy(),
+            check=False,
+        )
+
+        assert result.returncode != 0
+        assert not [line for line in result.stdout.splitlines() if line.strip()]
+        assert "Available models:" not in result.stderr
+        assert "output_protocol is CLI-only" in result.stderr
 
     def test_launcher_rejects_config_selected_protocol(self, tmp_path):
         """The public launcher cannot turn on JSONL through YAML."""

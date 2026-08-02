@@ -52,6 +52,43 @@ def _jsonl_requested(arguments: list[str] | None = None) -> bool:
     )
 
 
+def _is_protocol_abbreviation(argument: str) -> bool:
+    """Return whether an argument abbreviates --output_protocol."""
+    option = argument.split("=", 1)[0]
+    return (
+        option != "--output_protocol"
+        and option.startswith("--output_p")
+        and "--output_protocol".startswith(option)
+    )
+
+
+def _config_path(arguments: list[str]) -> str | None:
+    """Extract an exact --config path from forwarded training arguments."""
+    for index, argument in enumerate(arguments):
+        if argument == "--config" and index + 1 < len(arguments):
+            return arguments[index + 1]
+        if argument.startswith("--config="):
+            return argument.split("=", 1)[1]
+    return None
+
+
+def _reject_forbidden_config(arguments: list[str]) -> int | None:
+    """Reject YAML protocol selection before launcher fast paths run."""
+    config_path = _config_path(arguments)
+    if config_path is None:
+        return None
+
+    from wavedl.utils.config import load_config
+
+    if "output_protocol" in load_config(config_path):
+        print(
+            "wavedl-train: error: output_protocol is CLI-only and cannot be set in config",
+            file=sys.stderr,
+        )
+        return 2
+    return None
+
+
 def detect_gpus(output_protocol: str = "legacy") -> int:
     """Auto-detect available GPUs using nvidia-smi."""
     output = sys.stderr if output_protocol == "jsonl-v1" else sys.stdout
@@ -197,6 +234,7 @@ def parse_args() -> tuple[argparse.Namespace, list[str]]:
     parser = argparse.ArgumentParser(
         description="WaveDL Training Launcher (works on local machines and HPC clusters)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
+        allow_abbrev=False,
         epilog="""
 Examples:
   # Basic training (auto-detects GPUs and environment)
@@ -265,9 +303,20 @@ For full training options, see: python -m wavedl.train --help
         default="no",
         help="PyTorch dynamo backend (default: no)",
     )
+    parser.add_argument(
+        "--output_protocol",
+        choices=["legacy", "jsonl-v1"],
+        default=None,
+        help=argparse.SUPPRESS,
+    )
 
     # Parse known args, pass rest to wavedl.train
     args, remaining = parser.parse_known_args()
+    for argument in remaining:
+        if _is_protocol_abbreviation(argument):
+            parser.error(f"unrecognized arguments: {argument}")
+    if args.output_protocol is not None:
+        remaining.extend(["--output_protocol", args.output_protocol])
     return args, remaining
 
 
@@ -311,13 +360,16 @@ def print_summary(
 
 def main() -> int:
     """Main entry point for wavedl-train command."""
+    args, train_args = parse_args()
+    config_exit_code = _reject_forbidden_config(train_args)
+    if config_exit_code is not None:
+        return config_exit_code
+
     # Fast path for utility flags (avoid accelerate launch overhead)
     exit_code = handle_fast_path_args()
     if exit_code is not None:
         return exit_code
 
-    # Parse arguments
-    args, train_args = parse_args()
     output_protocol = "jsonl-v1" if _jsonl_requested(train_args) else "legacy"
 
     # Setup environment (smart detection)
