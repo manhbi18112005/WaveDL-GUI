@@ -724,6 +724,46 @@ class TestJsonlSubprocessOutput:
         assert "output_protocol is CLI-only" in result.stderr
 
 
+class TestConfigPreflightSubprocess:
+    """Config failures are concise argparse errors on both CLI entry points."""
+
+    @pytest.mark.parametrize("module", ["wavedl.train", "wavedl.launcher"])
+    @pytest.mark.parametrize(
+        ("case", "config_text"),
+        [
+            ("missing", None),
+            ("nonexistent", None),
+            ("malformed", "broken: [\n"),
+            ("forbidden", "output_protocol: jsonl-v1\n"),
+        ],
+    )
+    def test_config_failures_are_argparse_errors(
+        self, tmp_path, module, case, config_text
+    ):
+        config_path = tmp_path / f"{case}.yaml"
+        if config_text is not None:
+            config_path.write_text(config_text, encoding="utf-8")
+        elif case == "nonexistent":
+            config_path = tmp_path / "does-not-exist.yaml"
+
+        args = [sys.executable, "-m", module, "--config"]
+        if case != "missing":
+            args.append(str(config_path))
+        args.append("--list_models")
+        result = subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(os.path.dirname(__file__)),
+            env=os.environ.copy(),
+            check=False,
+        )
+
+        assert result.returncode == 2
+        assert "error:" in result.stderr
+        assert "Traceback" not in result.stderr
+
+
 class TestTrainConfigOutputProtocol:
     """Tests for output protocol configuration precedence and validation."""
 

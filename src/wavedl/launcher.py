@@ -60,38 +60,25 @@ def _is_protocol_abbreviation(argument: str) -> bool:
     )
 
 
-def _config_paths(arguments: list[str]) -> list[str]:
-    """Extract all exact --config paths from forwarded training arguments."""
-    paths = []
-    for index, argument in enumerate(arguments):
-        if argument == "--config" and index + 1 < len(arguments):
-            paths.append(arguments[index + 1])
-        elif argument.startswith("--config="):
-            paths.append(argument.split("=", 1)[1])
-    return paths
+def _preflight_config(parser: argparse.ArgumentParser, path: str) -> None:
+    """Validate a forwarded config before launcher fast paths or execution."""
+    import yaml
 
+    try:
+        from wavedl.utils.config import load_config
 
-def _reject_forbidden_config(arguments: list[str]) -> int | None:
-    """Reject YAML protocol selection before launcher fast paths run."""
-    config_paths = _config_paths(arguments)
-    if len(config_paths) > 1:
-        print(
-            "wavedl-train: error: --config may only be specified once",
-            file=sys.stderr,
-        )
-        return 2
-    if not config_paths:
-        return None
-
-    from wavedl.utils.config import load_config
-
-    if "output_protocol" in load_config(config_paths[0]):
-        print(
-            "wavedl-train: error: output_protocol is CLI-only and cannot be set in config",
-            file=sys.stderr,
-        )
-        return 2
-    return None
+        config = load_config(path)
+    except (
+        AttributeError,
+        FileNotFoundError,
+        OSError,
+        TypeError,
+        ValueError,
+        yaml.YAMLError,
+    ) as exc:
+        parser.error(f"invalid config '{path}': {exc}")
+    if "output_protocol" in config:
+        parser.error("output_protocol is CLI-only and cannot be set in config")
 
 
 def detect_gpus(output_protocol: str = "legacy") -> int:
@@ -314,9 +301,18 @@ For full training options, see: python -m wavedl.train --help
         default=None,
         help=argparse.SUPPRESS,
     )
+    parser.add_argument("--config", action="append", default=[], help=argparse.SUPPRESS)
 
     # Parse known args, pass rest to wavedl.train
     args, remaining = parser.parse_known_args()
+    if len(args.config) > 1:
+        parser.error("--config may only be specified once")
+    if args.config:
+        config_path = args.config[0]
+        if not config_path or config_path.startswith("-"):
+            parser.error("--config requires a path")
+        _preflight_config(parser, config_path)
+        remaining.extend(["--config", config_path])
     for argument in remaining:
         if _is_protocol_abbreviation(argument):
             parser.error(f"unrecognized arguments: {argument}")
@@ -366,9 +362,6 @@ def print_summary(
 def main() -> int:
     """Main entry point for wavedl-train command."""
     args, train_args = parse_args()
-    config_exit_code = _reject_forbidden_config(train_args)
-    if config_exit_code is not None:
-        return config_exit_code
 
     # Fast path for utility flags (avoid accelerate launch overhead)
     exit_code = handle_fast_path_args()

@@ -137,8 +137,8 @@ def parse_jsonl_line(line: str) -> RuntimeEvent:
         or envelope["version"] != PROTOCOL_VERSION
     ):
         raise ProtocolParseError("invalid field: version")
-    if not isinstance(envelope["type"], str) or envelope["type"] not in EVENT_TYPES:
-        raise ProtocolParseError("Unsupported event type")
+    if not isinstance(envelope["type"], str) or not envelope["type"]:
+        raise ProtocolParseError("invalid field: type")
     try:
         normalized_run_id = str(_parse_uuid(envelope["run_id"]))
     except (TypeError, ValueError) as exc:

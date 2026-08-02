@@ -46,22 +46,22 @@ def metric_payload():
     }
 
 
-def v1_metric_line(payload):
+def v1_metric_line(payload, *, seq=0, run_id=RUN_ID):
     return encode_event(
         "metric",
         payload,
-        run_id=RUN_ID,
-        seq=3,
+        run_id=run_id,
+        seq=seq,
         ts="2026-01-02T03:04:05Z",
     )
 
 
-def protocol_line(event_type, payload):
+def protocol_line(event_type, payload, *, seq=0, run_id=RUN_ID):
     return encode_event(
         event_type,
         payload,
-        run_id=RUN_ID,
-        seq=4,
+        run_id=run_id,
+        seq=seq,
         ts="2026-01-02T03:04:05Z",
     )
 
@@ -149,12 +149,13 @@ def test_output_classification_distinguishes_logs_protocol_events_and_metrics():
     )
     assert (
         parser._parse_output(
-            encode_event("log", {"message": "hello"}, run_id=RUN_ID, seq=4)
+            encode_event("log", {"message": "hello"}, run_id=RUN_ID, seq=0)
         ).kind
         is OutputKind.PROTOCOL_EVENT
     )
     assert (
-        parser._parse_output(v1_metric_line(metric_payload())).kind is OutputKind.METRIC
+        parser._parse_output(v1_metric_line(metric_payload(), seq=1)).kind
+        is OutputKind.METRIC
     )
 
 
@@ -170,6 +171,26 @@ def test_public_parse_result_retains_protocol_event_and_raw_line():
     assert result.event == parse_jsonl_line(line)
     assert result.event is not None
     assert result.event.payload == {"message": "watch out", "code": 7}
+
+
+def test_unknown_protocol_event_is_retained_and_routed_as_raw_warning():
+    envelope = json.loads(protocol_line("hello", {"message": "future"}))
+    envelope["type"] = "future_event"
+    line = json.dumps(envelope)
+    parser = OutputParser()
+
+    result = parser.parse_result(line)
+
+    assert result.kind is OutputKind.PROTOCOL_EVENT
+    assert result.event is not None
+    assert result.event.type == "future_event"
+    assert result.raw_line == line
+
+    worker = TrainingWorker(None)
+    output_lines = []
+    worker.outputSig.connect(output_lines.append)
+    worker._route_output(line)
+    assert output_lines == [line]
 
 
 @pytest.mark.parametrize(
@@ -208,6 +229,48 @@ def test_worker_routes_metric_events_to_progress_signal():
     assert len(progress_updates) == 1
     assert progress_updates[0].epoch == 3
     assert output_lines == []
+
+
+def test_protocol_stream_requires_contiguous_identity_and_sequence():
+    parser = OutputParser()
+
+    first, accepted = parser.parse_line(
+        v1_metric_line({"epoch": 1, "total_epochs": 10}, seq=0)
+    )
+    assert accepted is True
+    assert first.epoch == 1
+
+    for line in (
+        v1_metric_line({"epoch": 2, "total_epochs": 10}, seq=0),
+        v1_metric_line({"epoch": 3, "total_epochs": 10}, seq=2),
+        v1_metric_line(
+            {"epoch": 4, "total_epochs": 10},
+            seq=1,
+            run_id="123e4567-e89b-12d3-a456-426614174001",
+        ),
+    ):
+        progress, accepted = parser.parse_line(line)
+        assert accepted is False
+        assert progress.epoch == 1
+
+    progress, accepted = parser.parse_line(
+        v1_metric_line({"epoch": 5, "total_epochs": 10}, seq=1)
+    )
+    assert accepted is True
+    assert progress.epoch == 5
+
+
+def test_hello_sequence_zero_then_metric_sequence_one_is_accepted():
+    parser = OutputParser()
+
+    _, hello_is_metric = parser.parse_line(protocol_line("hello", {}, seq=0))
+    progress, metric_is_metric = parser.parse_line(
+        v1_metric_line({"epoch": 1, "total_epochs": 10}, seq=1)
+    )
+
+    assert hello_is_metric is False
+    assert metric_is_metric is True
+    assert progress.epoch == 1
 
 
 def test_wrong_metric_types_and_domains_are_non_fatal_and_atomic():
@@ -263,7 +326,8 @@ def test_none_metric_values_are_tolerated_as_absent():
 
     progress, is_metrics = parser.parse_line(
         v1_metric_line(
-            {"r2_score": None, "mae_per_param": [0.1, None], "total_time": None}
+            {"r2_score": None, "mae_per_param": [0.1, None], "total_time": None},
+            seq=1,
         )
     )
 
@@ -278,7 +342,7 @@ def test_metric_snapshots_are_independent_between_parses():
     second_payload = metric_payload()
     second_payload["epoch"] = 4
     second_payload["mae_per_param"] = [0.3, 0.4]
-    second, second_is_metrics = parser.parse_line(v1_metric_line(second_payload))
+    second, second_is_metrics = parser.parse_line(v1_metric_line(second_payload, seq=1))
 
     assert first_is_metrics is True
     assert second_is_metrics is True

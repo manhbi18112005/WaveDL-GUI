@@ -271,12 +271,23 @@ def test_parse_rejects_missing_required_key(missing):
         parse_jsonl_line(json.dumps(envelope))
 
 
-def test_parse_rejects_wrong_version_and_type():
-    for key, value in (("version", 2), ("type", "unknown")):
+def test_parse_rejects_wrong_version_and_empty_type():
+    for key, value in (("version", 2), ("type", "")):
         envelope = _envelope()
         envelope[key] = value
         with pytest.raises(ProtocolParseError):
             parse_jsonl_line(json.dumps(envelope))
+
+
+def test_parse_retains_unknown_nonempty_event_type_for_forward_compatibility():
+    envelope = _envelope()
+    envelope["type"] = "future_event"
+    envelope["payload"] = {"value": 7}
+
+    event = parse_jsonl_line(json.dumps(envelope))
+
+    assert event.type == "future_event"
+    assert event.payload == {"value": 7}
 
 
 @pytest.mark.parametrize("version", [True, False, 1.0, "1"])

@@ -100,6 +100,8 @@ class OutputParser:
 
     def __init__(self):
         self.progress = TrainingProgress()
+        self._run_id: str | None = None
+        self._last_seq: int | None = None
 
     def parse_line(self, line: str) -> tuple[TrainingProgress, bool]:
         """Parse a single line of output and update progress.
@@ -145,15 +147,41 @@ class OutputParser:
             return OutputParseResult(self.progress, OutputKind.ORDINARY_LOG, line)
 
         if event.type == "metric":
+            if not self._next_event_is_valid(event):
+                return OutputParseResult(
+                    self.progress, OutputKind.MALFORMED_PROTOCOL, line, event
+                )
             try:
                 self._apply_metrics(event.payload)
             except ValueError:
                 return OutputParseResult(
                     self.progress, OutputKind.MALFORMED_PROTOCOL, line, event
                 )
+            self._record_event(event)
             return OutputParseResult(self.progress, OutputKind.METRIC, line, event)
 
+        if not self._next_event_is_valid(event):
+            return OutputParseResult(
+                self.progress, OutputKind.MALFORMED_PROTOCOL, line, event
+            )
+        self._record_event(event)
         return OutputParseResult(self.progress, OutputKind.PROTOCOL_EVENT, line, event)
+
+    def _next_event_is_valid(self, event: RuntimeEvent) -> bool:
+        """Check v1 run identity and contiguous sequence without mutating state."""
+        if self._run_id is None:
+            return event.seq == 0
+        return (
+            self._last_seq is not None
+            and event.run_id == self._run_id
+            and event.seq == self._last_seq + 1
+        )
+
+    def _record_event(self, event: RuntimeEvent) -> None:
+        """Record an accepted v1 event after its state has been applied."""
+        if self._run_id is None:
+            self._run_id = event.run_id
+        self._last_seq = event.seq
 
     def _apply_metrics(self, data: dict[str, Any]) -> TrainingProgress:
         """Validate and atomically apply canonical metrics as a new snapshot."""

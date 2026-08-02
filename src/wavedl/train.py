@@ -34,6 +34,48 @@ Author: Ductho Le (ductho.le@outlook.com)
 
 from __future__ import annotations
 
+import argparse
+import sys
+
+import yaml
+
+
+def _preflight_config_cli() -> None:
+    """Reject invalid config input before importing the training stack."""
+    parser = argparse.ArgumentParser(prog="wavedl-train", allow_abbrev=False)
+    parser.add_argument("--config", action="append", default=[])
+    args, _ = parser.parse_known_args()
+    if not args.config:
+        return
+    if len(args.config) > 1:
+        parser.error("--config may only be specified once")
+
+    path = args.config[0]
+    if not path or path.startswith("-"):
+        parser.error("--config requires a path")
+    try:
+        with open(path, encoding="utf-8") as config_file:
+            config = yaml.safe_load(config_file)
+    except (OSError, TypeError, ValueError, yaml.YAMLError) as exc:
+        parser.error(f"invalid config '{path}': {exc}")
+    if config is not None and not isinstance(config, dict):
+        parser.error(f"invalid config '{path}': top-level YAML value must be a mapping")
+    if isinstance(config, dict) and _contains_config_key(config, "output_protocol"):
+        parser.error("output_protocol is CLI-only and cannot be set in config")
+
+
+def _contains_config_key(value, key: str) -> bool:
+    if isinstance(value, dict):
+        return key in value or any(
+            _contains_config_key(item, key) for item in value.values()
+        )
+    if isinstance(value, list):
+        return any(_contains_config_key(item, key) for item in value)
+    return False
+
+
+_preflight_config_cli()
+
 # =============================================================================
 # HPC Environment Setup (MUST be before any library imports)
 # =============================================================================
@@ -83,12 +125,10 @@ _setup_per_rank_compile_cache()
 # =============================================================================
 # Standard imports (after environment setup)
 # =============================================================================
-import argparse
 import json
 import logging
 import pickle
 import shutil
-import sys
 import time
 import warnings
 from typing import TYPE_CHECKING, Any
@@ -878,14 +918,27 @@ def main():
     args, parser = parse_args()
     human_output = _human_output_file(args.output_protocol)
 
-    if len(_config_paths(sys.argv[1:])) > 1:
+    config_paths = _config_paths(sys.argv[1:])
+    if len(config_paths) > 1:
         parser.error("--config may only be specified once")
+    if config_paths and (not config_paths[0] or config_paths[0].startswith("-")):
+        parser.error("--config requires a path")
 
     config = None
     if args.config:
         from wavedl.utils.config import load_config
 
-        config = load_config(args.config)
+        try:
+            config = load_config(args.config)
+        except (
+            AttributeError,
+            FileNotFoundError,
+            OSError,
+            TypeError,
+            ValueError,
+            yaml.YAMLError,
+        ) as exc:
+            parser.error(f"invalid config '{args.config}': {exc}")
         if "output_protocol" in config:
             parser.error("output_protocol is CLI-only and cannot be set in config")
 
