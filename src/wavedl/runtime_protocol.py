@@ -2,6 +2,7 @@
 
 import json
 import math
+import numbers
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -24,12 +25,16 @@ EVENT_TYPES = {
 _REQUIRED_KEYS = {"protocol", "version", "run_id", "seq", "ts", "type", "payload"}
 _RFC3339 = re.compile(
     r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}"
-    r"(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$"
+    r"(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$"
 )
 
 
 class ProtocolParseError(ValueError):
     """Raised when a JSONL line is not a valid protocol v1 envelope."""
+
+
+class ProtocolEncodeError(ValueError):
+    """Raised when a value cannot be encoded as a protocol v1 event."""
 
 
 @dataclass(frozen=True)
@@ -54,23 +59,27 @@ def encode_event(
     ts: str | datetime | None = None,
 ) -> str:
     """Encode one protocol event as compact, strict JSONL."""
-    if event_type not in EVENT_TYPES:
-        raise ValueError(f"Unsupported event type: {event_type!r}")
-    normalized_run_id = _parse_uuid(run_id)
-    _validate_seq(seq)
-    if not isinstance(payload, dict):
-        raise ValueError("payload must be an object")
-    timestamp = _encode_timestamp(ts)
-    envelope = {
-        "protocol": PROTOCOL_NAME,
-        "version": PROTOCOL_VERSION,
-        "run_id": str(normalized_run_id),
-        "seq": seq,
-        "ts": timestamp,
-        "type": event_type,
-        "payload": _sanitize(payload),
-    }
-    return json.dumps(envelope, separators=(",", ":"), allow_nan=False) + "\n"
+    try:
+        if event_type not in EVENT_TYPES:
+            raise ValueError(f"Unsupported event type: {event_type!r}")
+        normalized_run_id = _parse_uuid(run_id)
+        _validate_seq(seq)
+        if not isinstance(payload, dict):
+            raise ValueError("payload must be an object")
+        envelope = {
+            "protocol": PROTOCOL_NAME,
+            "version": PROTOCOL_VERSION,
+            "run_id": str(normalized_run_id),
+            "seq": seq,
+            "ts": _canonical_timestamp(ts),
+            "type": event_type,
+            "payload": _sanitize(payload),
+        }
+        return json.dumps(envelope, separators=(",", ":"), allow_nan=False) + "\n"
+    except ProtocolEncodeError:
+        raise
+    except (TypeError, ValueError, OverflowError, RecursionError) as exc:
+        raise ProtocolEncodeError(str(exc)) from exc
 
 
 def parse_jsonl_line(line: str) -> RuntimeEvent:
@@ -78,14 +87,24 @@ def parse_jsonl_line(line: str) -> RuntimeEvent:
     if not isinstance(line, str) or not line.strip():
         raise ProtocolParseError("JSONL line must not be blank")
     try:
-        envelope = json.loads(line, parse_constant=_reject_json_constant)
-    except (ValueError, TypeError, json.JSONDecodeError) as exc:
+        envelope = json.loads(
+            line,
+            object_pairs_hook=_reject_duplicate_keys,
+            parse_constant=_reject_json_constant,
+        )
+        _reject_nonfinite(envelope)
+    except RecursionError as exc:
+        raise ProtocolParseError("Invalid JSONL line") from exc
+    except (ValueError, TypeError) as exc:
+        if isinstance(exc, (_DuplicateKeyError, _NonFiniteError)):
+            raise ProtocolParseError(str(exc)) from exc
         raise ProtocolParseError("Invalid JSONL line") from exc
     if not isinstance(envelope, dict):
         raise ProtocolParseError("Envelope must be a JSON object")
     missing = _REQUIRED_KEYS - envelope.keys()
     if missing:
-        raise ProtocolParseError(f"Missing required envelope keys: {sorted(missing)}")
+        missing_field = sorted(missing)[0]
+        raise ProtocolParseError(f"invalid field: {missing_field}")
     if envelope["protocol"] != PROTOCOL_NAME:
         raise ProtocolParseError("Wrong protocol")
     if (
@@ -93,23 +112,29 @@ def parse_jsonl_line(line: str) -> RuntimeEvent:
         or not isinstance(envelope["version"], int)
         or envelope["version"] != PROTOCOL_VERSION
     ):
-        raise ProtocolParseError("Wrong protocol version")
+        raise ProtocolParseError("invalid field: version")
     if not isinstance(envelope["type"], str) or envelope["type"] not in EVENT_TYPES:
         raise ProtocolParseError("Unsupported event type")
     try:
-        _parse_uuid(envelope["run_id"])
-        _validate_seq(envelope["seq"])
-        _parse_timestamp(envelope["ts"])
+        normalized_run_id = str(_parse_uuid(envelope["run_id"]))
     except (TypeError, ValueError) as exc:
-        raise ProtocolParseError("Invalid envelope field") from exc
+        raise ProtocolParseError("invalid field: run_id") from exc
+    try:
+        _validate_seq(envelope["seq"])
+    except (TypeError, ValueError) as exc:
+        raise ProtocolParseError("invalid field: seq") from exc
+    try:
+        canonical_timestamp = _canonical_timestamp(envelope["ts"])
+    except (TypeError, ValueError) as exc:
+        raise ProtocolParseError("invalid field: ts") from exc
     if not isinstance(envelope["payload"], dict):
-        raise ProtocolParseError("Payload must be a JSON object")
+        raise ProtocolParseError("invalid field: payload")
     return RuntimeEvent(
         protocol=envelope["protocol"],
         version=envelope["version"],
-        run_id=envelope["run_id"],
+        run_id=normalized_run_id,
         seq=envelope["seq"],
-        ts=envelope["ts"],
+        ts=canonical_timestamp,
         type=envelope["type"],
         payload=envelope["payload"],
     )
@@ -128,48 +153,92 @@ def _validate_seq(value: int) -> None:
         raise ValueError("seq must be a nonnegative integer")
 
 
-def _encode_timestamp(value: str | datetime | None) -> str:
+def _canonical_timestamp(value: str | datetime | None) -> str:
     if value is None:
-        return (
-            datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
-        )
+        value = datetime.now(UTC)
     if isinstance(value, datetime):
-        if value.tzinfo is None:
+        if value.tzinfo is None or value.utcoffset() is None:
             raise ValueError("timestamp must be timezone-aware")
-        return (
-            value.astimezone(UTC)
-            .isoformat(timespec="milliseconds")
-            .replace("+00:00", "Z")
-        )
-    parsed = _parse_timestamp(value)
+        parsed = value
+    else:
+        if not isinstance(value, str):
+            raise ValueError("timestamp must be RFC3339")
+        if not _RFC3339.fullmatch(value):
+            try:
+                parsed = datetime.fromisoformat(value)
+            except ValueError as exc:
+                raise ValueError("timestamp must be RFC3339") from exc
+            if parsed.tzinfo is None or parsed.utcoffset() is None:
+                raise ValueError("timestamp must be timezone-aware")
+            raise ValueError("timestamp must be RFC3339")
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError("timestamp must be timezone-aware")
     return parsed.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
-def _parse_timestamp(value: str) -> datetime:
-    if not isinstance(value, str):
-        raise ValueError("timestamp must be RFC3339")
-    if not _RFC3339.fullmatch(value):
-        try:
-            parsed = datetime.fromisoformat(value)
-        except ValueError as exc:
-            raise ValueError("timestamp must be RFC3339") from exc
-        if parsed.tzinfo is None:
-            raise ValueError("timestamp must include timezone")
-        raise ValueError("timestamp must be RFC3339")
-    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    if parsed.tzinfo is None:
-        raise ValueError("timestamp must include timezone")
-    return parsed
+def _reject_duplicate_keys(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise _DuplicateKeyError(f"duplicate key: {key}")
+        result[key] = value
+    return result
 
 
-def _sanitize(value: Any) -> Any:
-    if isinstance(value, dict):
-        return {key: _sanitize(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_sanitize(item) for item in value]
+def _reject_nonfinite(value, path="$payload"):
     if isinstance(value, float) and not math.isfinite(value):
-        return None
+        raise _NonFiniteError(f"non-finite number at {path}")
+    if isinstance(value, dict):
+        for key, item in value.items():
+            _reject_nonfinite(item, f"{path}.{key}")
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            _reject_nonfinite(item, f"{path}[{index}]")
+
+
+def _sanitize(value: Any, active: set[int] | None = None) -> Any:
+    if active is None:
+        active = set()
+    if isinstance(value, dict):
+        identity = id(value)
+        if identity in active:
+            raise ProtocolEncodeError("cyclic payload")
+        active.add(identity)
+        try:
+            result = {}
+            for key, item in value.items():
+                if not isinstance(key, str):
+                    raise ProtocolEncodeError("mapping keys must be strings")
+                result[key] = _sanitize(item, active)
+            return result
+        finally:
+            active.remove(identity)
+    if isinstance(value, (list, tuple)):
+        identity = id(value)
+        if identity in active:
+            raise ProtocolEncodeError("cyclic payload")
+        active.add(identity)
+        try:
+            return [_sanitize(item, active) for item in value]
+        finally:
+            active.remove(identity)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, numbers.Integral):
+        return int(value)
+    if isinstance(value, numbers.Real):
+        converted = float(value)
+        return converted if math.isfinite(converted) else None
     return value
+
+
+class _DuplicateKeyError(ValueError):
+    pass
+
+
+class _NonFiniteError(ValueError):
+    pass
 
 
 def _reject_json_constant(value: str) -> None:
