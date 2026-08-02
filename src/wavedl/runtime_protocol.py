@@ -45,27 +45,23 @@ def normalize_legacy_metrics_line(line: str) -> dict[str, Any] | None:
     stripped_line = line.strip()
     if not stripped_line.startswith(LEGACY_METRICS_PREFIX):
         return None
-    try:
-        metrics = json.loads(
-            stripped_line[len(LEGACY_METRICS_PREFIX) :],
-            object_pairs_hook=_reject_duplicate_keys,
-            parse_constant=_reject_json_constant,
-        )
-        _reject_nonfinite(metrics)
-    except RecursionError as exc:
-        raise ProtocolParseError("Invalid legacy metrics line") from exc
-    except (ValueError, TypeError) as exc:
-        if isinstance(exc, (_DuplicateKeyError, _NonFiniteError)):
-            raise ProtocolParseError(str(exc)) from exc
-        raise ProtocolParseError("Invalid legacy metrics line") from exc
-    if not isinstance(metrics, dict):
-        raise ProtocolParseError("Legacy metrics must be a JSON object")
+    metrics = _load_json_object(
+        stripped_line[len(LEGACY_METRICS_PREFIX) :],
+        nonfinite_policy="sanitize",
+        object_name="Legacy metrics",
+        invalid_message="Invalid legacy metrics line",
+    )
 
     legacy_names = {
         "r2": "r2_score",
         "lr": "learning_rate",
         "epoch_time": "time_per_epoch",
     }
+    for legacy_name, canonical_name in legacy_names.items():
+        if legacy_name in metrics and canonical_name in metrics:
+            raise ProtocolParseError(
+                f"conflicting metric keys: {legacy_name}, {canonical_name}"
+            )
     return {legacy_names.get(key) or key: value for key, value in metrics.items()}
 
 
@@ -118,21 +114,12 @@ def parse_jsonl_line(line: str) -> RuntimeEvent:
     """Parse and validate a single protocol v1 JSONL envelope."""
     if not isinstance(line, str) or not line.strip():
         raise ProtocolParseError("JSONL line must not be blank")
-    try:
-        envelope = json.loads(
-            line,
-            object_pairs_hook=_reject_duplicate_keys,
-            parse_constant=_reject_json_constant,
-        )
-        _reject_nonfinite(envelope)
-    except RecursionError as exc:
-        raise ProtocolParseError("Invalid JSONL line") from exc
-    except (ValueError, TypeError) as exc:
-        if isinstance(exc, (_DuplicateKeyError, _NonFiniteError)):
-            raise ProtocolParseError(str(exc)) from exc
-        raise ProtocolParseError("Invalid JSONL line") from exc
-    if not isinstance(envelope, dict):
-        raise ProtocolParseError("Envelope must be a JSON object")
+    envelope = _load_json_object(
+        line,
+        nonfinite_policy="reject",
+        object_name="Envelope",
+        invalid_message="Invalid JSONL line",
+    )
     missing = _REQUIRED_KEYS - envelope.keys()
     if missing:
         missing_field = sorted(missing)[0]
@@ -223,6 +210,34 @@ def _reject_duplicate_keys(pairs):
     return result
 
 
+def _load_json_object(
+    text: str,
+    *,
+    nonfinite_policy: str,
+    object_name: str,
+    invalid_message: str,
+) -> dict[str, Any]:
+    try:
+        decoded = json.loads(
+            text,
+            object_pairs_hook=_reject_duplicate_keys,
+            parse_constant=_parse_json_constant,
+        )
+        if nonfinite_policy == "reject":
+            _reject_nonfinite(decoded)
+        else:
+            decoded = _sanitize_nonfinite(decoded)
+    except RecursionError as exc:
+        raise ProtocolParseError(invalid_message) from exc
+    except (ValueError, TypeError) as exc:
+        if isinstance(exc, (_DuplicateKeyError, _NonFiniteError)):
+            raise ProtocolParseError(str(exc)) from exc
+        raise ProtocolParseError(invalid_message) from exc
+    if not isinstance(decoded, dict):
+        raise ProtocolParseError(f"{object_name} must be a JSON object")
+    return decoded
+
+
 def _reject_nonfinite(value, path="$"):
     if isinstance(value, float) and not math.isfinite(value):
         raise _NonFiniteError(f"non-finite number at {path}")
@@ -232,6 +247,16 @@ def _reject_nonfinite(value, path="$"):
     elif isinstance(value, list):
         for index, item in enumerate(value):
             _reject_nonfinite(item, f"{path}[{index}]")
+
+
+def _sanitize_nonfinite(value):
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    if isinstance(value, dict):
+        return {key: _sanitize_nonfinite(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_sanitize_nonfinite(item) for item in value]
+    return value
 
 
 def _sanitize(value: Any, active: set[int] | None = None) -> Any:
@@ -278,5 +303,5 @@ class _NonFiniteError(ValueError):
     pass
 
 
-def _reject_json_constant(value: str) -> None:
-    raise ValueError(f"Invalid JSON constant: {value}")
+def _parse_json_constant(value: str) -> float:
+    return float(value)

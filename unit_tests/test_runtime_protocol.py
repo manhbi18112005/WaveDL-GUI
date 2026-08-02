@@ -446,6 +446,19 @@ def test_normalize_legacy_metrics_allows_surrounding_whitespace():
     assert normalize_legacy_metrics_line(line) == {"r2_score": 0.5}
 
 
+def test_normalize_legacy_metrics_sanitizes_producer_nonfinite_values():
+    line = (
+        LEGACY_METRICS_PREFIX
+        + '{"r2":NaN,"history":[1,Infinity,{"loss":-Infinity}],"overflow":1e999}'
+    )
+
+    assert normalize_legacy_metrics_line(line) == {
+        "r2_score": None,
+        "history": [1, None, {"loss": None}],
+        "overflow": None,
+    }
+
+
 @pytest.mark.parametrize(
     "payload",
     [
@@ -467,24 +480,38 @@ def test_normalize_legacy_metrics_rejects_duplicate_keys():
         normalize_legacy_metrics_line(line)
 
 
-def test_normalize_legacy_metrics_rejects_nonfinite_numbers():
-    line = LEGACY_METRICS_PREFIX + '{"r2":1e999}'
+@pytest.mark.parametrize(
+    ("legacy_key", "canonical_key"),
+    [
+        ("r2", "r2_score"),
+        ("lr", "learning_rate"),
+        ("epoch_time", "time_per_epoch"),
+    ],
+)
+@pytest.mark.parametrize("reverse", [False, True])
+def test_normalize_legacy_metrics_rejects_alias_conflicts_in_both_orders(
+    legacy_key, canonical_key, reverse
+):
+    pairs = [(legacy_key, 1), (canonical_key, 2)]
+    if reverse:
+        pairs.reverse()
+    payload = ",".join(f'"{key}":{value}' for key, value in pairs)
 
-    with pytest.raises(ProtocolParseError, match="non-finite"):
-        normalize_legacy_metrics_line(line)
+    with pytest.raises(ProtocolParseError, match="conflicting metric keys"):
+        normalize_legacy_metrics_line(LEGACY_METRICS_PREFIX + "{" + payload + "}")
 
 
-def test_normalize_legacy_metrics_does_not_alias_input_data():
-    source = {"r2": 0.9, "nested": {"values": [1]}}
-    line = LEGACY_METRICS_PREFIX + json.dumps(source)
+def test_normalize_legacy_metrics_preserves_unrelated_nested_and_list_values():
+    line = LEGACY_METRICS_PREFIX + json.dumps(
+        {"r2": 0.9, "nested": {"values": [1, {"kept": True}]}}
+    )
 
     metrics = normalize_legacy_metrics_line(line)
-    assert metrics is not source
-    assert metrics["nested"] is not source["nested"]
-    assert metrics["nested"]["values"] is not source["nested"]["values"]
 
-    metrics["nested"]["values"].append(2)
-    assert source == {"r2": 0.9, "nested": {"values": [1]}}
+    assert metrics == {
+        "r2_score": 0.9,
+        "nested": {"values": [1, {"kept": True}]},
+    }
 
 
 def _envelope():
