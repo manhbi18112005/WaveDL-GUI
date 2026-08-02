@@ -114,16 +114,23 @@ Updates are staged: check a signed manifest, download to a versioned cache, veri
 5. **M5 — Packaging:** build shell and CPU/MPS/CUDA packs plus existing-environment flow. Gate: clean-machine install, signature verification, runtime probe, and one short run per supported matrix.
 6. **M6 — Release/update:** staged update, rollback, notarization/signing, and documentation. Gate: failed update automatically returns to the prior known-good version.
 
-### M1 completion — 2026-08-02
+### Completed M1 protocol-boundary slice — 2026-08-02
 
-M1 ships a strict JSONL codec/parser for protocol v1. Legacy metrics remain the
-default; `--output_protocol jsonl-v1` is opt-in and CLI-only, and YAML cannot set
-or override it. The GUI parser accepts both v1 and legacy output, but GUI workers
-deliberately continue to launch legacy mode until M2 runtime negotiation is
-implemented. Direct and launcher JSONL tests, along with GUI parser CI coverage,
-are present. M2 must add runtime hello/probe, manifest lifecycle, and runtime
-selection/supervision. This note does not claim packaging, M2 completion, or
-remote CI execution.
+The completed slice provides a strict v1 envelope codec/parser and a legacy
+metrics normalizer. Legacy metrics remain the default; `--output_protocol
+jsonl-v1` is opt-in and CLI-only, and YAML cannot set or override it. The GUI
+parser supports both v1 and legacy output, but GUI workers deliberately continue
+to launch legacy mode until M2 runtime negotiation is implemented. Direct and
+launcher JSONL tests, along with GUI parser CI coverage, are present.
+
+The full M1 milestone still requires the complete §2.2 typed payload
+schemas/fixtures for all event types and the run-manifest scope called for by
+the M1 definition above. M2 remains responsible for train/test/plot lifecycle
+event emission, hello/probe, the run-manifest lifecycle, and its deterministic-
+status gate. M3 owns the platform-neutral process supervisor, explicit runtime
+selection, child-tree cancellation, and its cross-platform gate. These M2 and
+M3 responsibilities are not complete here; this note also makes no claim about
+packaging or remote CI execution.
 
 ## 8. Scope exclusions
 
