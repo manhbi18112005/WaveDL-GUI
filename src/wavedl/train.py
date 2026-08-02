@@ -56,7 +56,7 @@ def _preflight_config_cli() -> None:
     try:
         with open(path, encoding="utf-8") as config_file:
             config = yaml.safe_load(config_file)
-    except (OSError, TypeError, ValueError, yaml.YAMLError) as exc:
+    except (OSError, RecursionError, TypeError, ValueError, yaml.YAMLError) as exc:
         parser.error(f"invalid config '{path}': {exc}")
     if config is not None and not isinstance(config, dict):
         parser.error(f"invalid config '{path}': top-level YAML value must be a mapping")

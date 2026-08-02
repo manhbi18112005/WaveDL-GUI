@@ -764,6 +764,34 @@ class TestConfigPreflightSubprocess:
         assert "error:" in result.stderr
         assert "Traceback" not in result.stderr
 
+    @pytest.mark.parametrize("module", ["wavedl.train", "wavedl.launcher"])
+    def test_deep_yaml_safe_load_failure_is_an_argparse_error(self, tmp_path, module):
+        config_path = tmp_path / "deep.yaml"
+        config_path.write_text(
+            "value: " + ("[" * 2000) + "0" + ("]" * 2000) + "\n",
+            encoding="utf-8",
+        )
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                module,
+                "--config",
+                str(config_path),
+                "--list_models",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(os.path.dirname(__file__)),
+            env=os.environ.copy(),
+            check=False,
+        )
+
+        assert result.returncode == 2
+        assert "error:" in result.stderr
+        assert "Traceback" not in result.stderr
+
     def test_train_import_does_not_run_config_preflight(self, tmp_path):
         result = subprocess.run(
             [

@@ -308,23 +308,35 @@ def test_wrong_metric_types_and_domains_are_non_fatal_and_atomic():
         {"epoch": 11, "total_epochs": 10},
     ]
     for invalid_payload in invalid_payloads:
-        progress, is_metrics = parser.parse_line(v1_metric_line(invalid_payload))
+        parser = OutputParser()
+        parser.parse_line(v1_metric_line(metric_payload()))
+        result = parser.parse_result(v1_metric_line(invalid_payload, seq=1))
+        progress, is_metrics = result.progress, result.kind is OutputKind.METRIC
         assert is_metrics is False
         assert asdict(progress) == before
+        assert result.kind is OutputKind.MALFORMED_PROTOCOL
+        assert result.event is not None
+        assert result.event.type == "metric"
+        assert parser._last_seq == 1
 
-    progress, is_metrics = parser.parse_line(
+    result = parser.parse_result(
         LEGACY_METRICS_PREFIX + json.dumps({"mae_per_param": {"value": 0.1}})
     )
-    assert is_metrics is False
-    assert asdict(progress) == before
+    assert result.kind is OutputKind.MALFORMED_PROTOCOL
+    assert result.event is None
+    assert result.progress.epoch == before["epoch"]
+    assert asdict(result.progress) == before
 
 
 @pytest.mark.parametrize(
     "line",
     [
-        v1_metric_line({"learning_rate": 10**1000}),
+        v1_metric_line({"learning_rate": 10**1000}, seq=1),
         LEGACY_METRICS_PREFIX + json.dumps({"lr": 10**1000}),
-        v1_metric_line({"epoch": 0, "total_epochs": 10**1000, "time_per_epoch": 1.0}),
+        v1_metric_line(
+            {"epoch": 0, "total_epochs": 10**1000, "time_per_epoch": 1.0},
+            seq=1,
+        ),
         LEGACY_METRICS_PREFIX
         + json.dumps({"epoch": 0, "total_epochs": 10**1000, "epoch_time": 1.0}),
     ],
@@ -334,9 +346,15 @@ def test_huge_metric_numbers_are_visible_logs_without_state_corruption(line):
     parser.parse_line(v1_metric_line(metric_payload()))
     before = asdict(parser.progress)
 
-    progress, is_metrics = parser.parse_line(line)
+    result = parser.parse_result(line)
+    progress, is_metrics = result.progress, result.kind is OutputKind.METRIC
 
     assert is_metrics is False
+    assert result.kind is OutputKind.MALFORMED_PROTOCOL
+    if result.event is not None:
+        assert result.event.type == "metric"
+        assert result.event.seq == 1
+        assert parser._last_seq == 1
     assert asdict(progress) == before
     assert math.isfinite(progress.eta_seconds)
 
