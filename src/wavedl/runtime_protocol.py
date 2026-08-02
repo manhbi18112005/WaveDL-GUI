@@ -13,6 +13,11 @@ from uuid import UUID
 PROTOCOL_NAME = "wavedl-jsonl"
 PROTOCOL_VERSION = 1
 LEGACY_METRICS_PREFIX = "##METRICS##"
+METRIC_KEY_ALIASES = {
+    "r2": "r2_score",
+    "lr": "learning_rate",
+    "epoch_time": "time_per_epoch",
+}
 EVENT_TYPES = {
     "hello",
     "state",
@@ -52,17 +57,17 @@ def normalize_legacy_metrics_line(line: str) -> dict[str, Any] | None:
         invalid_message="Invalid legacy metrics line",
     )
 
-    legacy_names = {
-        "r2": "r2_score",
-        "lr": "learning_rate",
-        "epoch_time": "time_per_epoch",
-    }
-    for legacy_name, canonical_name in legacy_names.items():
+    return canonicalize_metric_keys(metrics)
+
+
+def canonicalize_metric_keys(metrics: dict[str, Any]) -> dict[str, Any]:
+    """Rename legacy metric aliases while rejecting conflicting values."""
+    for legacy_name, canonical_name in METRIC_KEY_ALIASES.items():
         if legacy_name in metrics and canonical_name in metrics:
             raise ProtocolParseError(
                 f"conflicting metric keys: {legacy_name}, {canonical_name}"
             )
-    return {legacy_names.get(key) or key: value for key, value in metrics.items()}
+    return {METRIC_KEY_ALIASES.get(key, key): value for key, value in metrics.items()}
 
 
 @dataclass(frozen=True)

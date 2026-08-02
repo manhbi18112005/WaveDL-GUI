@@ -92,7 +92,7 @@ import sys
 import time
 import warnings
 from typing import TYPE_CHECKING, Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 
 if TYPE_CHECKING:
@@ -121,7 +121,7 @@ from sklearn.metrics import r2_score
 from tqdm.auto import tqdm
 
 from wavedl.models import build_model, get_model, list_models
-from wavedl.runtime_protocol import encode_event
+from wavedl.runtime_protocol import canonicalize_metric_keys, encode_event
 from wavedl.utils import (
     FIGURE_DPI,
     MetricTracker,
@@ -219,17 +219,38 @@ def _format_metrics_output(
         return f"##METRICS##{json.dumps(metrics)}\n"
 
     if output_protocol == "jsonl-v1":
-        canonical_names = {
-            "r2": "r2_score",
-            "lr": "learning_rate",
-            "epoch_time": "time_per_epoch",
-        }
-        canonical_metrics = {
-            canonical_names.get(key, key): value for key, value in metrics.items()
-        }
+        if run_id is None:
+            raise ValueError("jsonl-v1 output requires a run ID")
+        canonical_metrics = canonicalize_metric_keys(metrics)
         return encode_event("metric", canonical_metrics, run_id=run_id, seq=seq)
 
     raise ValueError(f"Unsupported output protocol: {output_protocol!r}")
+
+
+class _MetricsEmitter:
+    """Emit metrics with one run identity and a monotonic sequence."""
+
+    def __init__(self, output_protocol: str):
+        self.output_protocol = output_protocol
+        self.run_id: UUID | None = uuid4() if output_protocol == "jsonl-v1" else None
+        self.seq = 0
+
+    def format(self, metrics: dict[str, Any]) -> str:
+        """Format one metrics event and advance its sequence when applicable."""
+        output = _format_metrics_output(
+            metrics,
+            self.output_protocol,
+            run_id=self.run_id,
+            seq=self.seq,
+        )
+        if self.output_protocol == "jsonl-v1":
+            self.seq += 1
+        return output
+
+
+def _human_output_file(output_protocol: str):
+    """Return the stream reserved for human-readable output."""
+    return sys.stderr if output_protocol == "jsonl-v1" else sys.stdout
 
 
 def parse_args() -> argparse.Namespace:
@@ -843,6 +864,12 @@ def train_single_trial(
 # ==============================================================================
 def main():
     args, parser = parse_args()
+    cli_output_protocol = args.output_protocol
+    cli_output_protocol_explicit = any(
+        option == "--output_protocol" or option.startswith("--output_protocol=")
+        for option in sys.argv[1:]
+    )
+    human_output = _human_output_file(args.output_protocol)
 
     # Import custom model modules if specified
     if args.import_modules:
@@ -866,11 +893,14 @@ def main():
                         module = importlib.util.module_from_spec(spec)
                         sys.modules[unique_name] = module
                         spec.loader.exec_module(module)
-                        print(f"✓ Imported custom module from: {module_name}")
+                        print(
+                            f"✓ Imported custom module from: {module_name}",
+                            file=human_output,
+                        )
                 else:
                     # Import as regular module
                     importlib.import_module(module_name)
-                    print(f"✓ Imported module: {module_name}")
+                    print(f"✓ Imported module: {module_name}", file=human_output)
             except (ImportError, FileNotFoundError, SyntaxError, PermissionError) as e:
                 print(f"✗ Failed to import '{module_name}': {e}", file=sys.stderr)
                 if isinstance(e, FileNotFoundError):
@@ -892,7 +922,7 @@ def main():
 
     # Handle --list_models flag
     if args.list_models:
-        print("Available models:")
+        print("Available models:", file=human_output)
         for name in list_models():
             ModelClass = get_model(name)
             # Get first non-empty docstring line
@@ -903,7 +933,7 @@ def main():
                 doc_first_line = lines[0] if lines else "No description"
             else:
                 doc_first_line = "No description"
-            print(f"  - {name}: {doc_first_line}")
+            print(f"  - {name}: {doc_first_line}", file=human_output)
         sys.exit(0)
 
     # Load and merge config file if provided
@@ -914,20 +944,37 @@ def main():
             validate_config,
         )
 
-        print(f"📄 Loading config from: {args.config}")
         config = load_config(args.config)
+        config_output_protocol = config.get("output_protocol", args.output_protocol)
+        human_output = _human_output_file(config_output_protocol)
+        print(f"📄 Loading config from: {args.config}", file=human_output)
 
         # Validate config values
         warnings_list = validate_config(config)
+        protocol_warnings = [
+            warning for warning in warnings_list if "output_protocol" in warning
+        ]
+        if protocol_warnings:
+            parser.error("Invalid config: " + "; ".join(protocol_warnings))
         for w in warnings_list:
-            print(f"  ⚠ {w}")
+            print(f"  ⚠ {w}", file=human_output)
 
         # Merge config with CLI args (CLI takes precedence via parser defaults detection)
-        args = merge_config_with_args(config, args, parser=parser)
+        args = merge_config_with_args(
+            config,
+            args,
+            parser=parser,
+            protected_keys=(
+                {"output_protocol"} if cli_output_protocol_explicit else set()
+            ),
+        )
+        if cli_output_protocol_explicit:
+            args.output_protocol = cli_output_protocol
+        human_output = _human_output_file(args.output_protocol)
 
     # Handle --cv flag (cross-validation mode)
     if args.cv > 0:
-        print(f"🔄 Cross-Validation Mode: {args.cv} folds")
+        print(f"🔄 Cross-Validation Mode: {args.cv} folds", file=human_output)
         from wavedl.utils.cross_validation import run_cross_validation
 
         # Load data for CV using memory-efficient loader
@@ -1021,8 +1068,7 @@ def main():
     # ==========================================================================
     # SYSTEM INITIALIZATION
     # ==========================================================================
-    run_id = uuid4() if args.output_protocol == "jsonl-v1" else None
-    metric_seq = 0
+    metrics_emitter = _MetricsEmitter(args.output_protocol)
     # Initialize Accelerator for DDP and mixed precision
     accelerator = Accelerator(
         mixed_precision=args.precision,
@@ -1039,7 +1085,10 @@ def main():
         torch.backends.cudnn.allow_tf32 = False
         torch.use_deterministic_algorithms(True, warn_only=True)
         if accelerator.is_main_process:
-            print("🔒 Deterministic mode enabled (slower but reproducible)")
+            print(
+                "🔒 Deterministic mode enabled (slower but reproducible)",
+                file=human_output,
+            )
 
     # Configure logging (rank 0 only prints to console)
     logging.basicConfig(
@@ -1587,17 +1636,10 @@ def main():
                     "max_patience": args.patience,
                 }
                 print(
-                    _format_metrics_output(
-                        gui_metrics,
-                        args.output_protocol,
-                        run_id=run_id,
-                        seq=metric_seq,
-                    ),
+                    metrics_emitter.format(gui_metrics),
                     end="",
                     flush=True,
                 )
-                if args.output_protocol == "jsonl-v1":
-                    metric_seq += 1
 
                 # WandB logging
                 if args.wandb and WANDB_AVAILABLE:

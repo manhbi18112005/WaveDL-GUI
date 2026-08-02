@@ -13,6 +13,7 @@ from wavedl.runtime_protocol import (
     ProtocolEncodeError,
     ProtocolParseError,
     RuntimeEvent,
+    canonicalize_metric_keys,
     encode_event,
     normalize_legacy_metrics_line,
     parse_jsonl_line,
@@ -499,6 +500,27 @@ def test_normalize_legacy_metrics_rejects_alias_conflicts_in_both_orders(
 
     with pytest.raises(ProtocolParseError, match="conflicting metric keys"):
         normalize_legacy_metrics_line(LEGACY_METRICS_PREFIX + "{" + payload + "}")
+
+
+@pytest.mark.parametrize(
+    ("legacy_key", "canonical_key"),
+    [
+        ("r2", "r2_score"),
+        ("lr", "learning_rate"),
+        ("epoch_time", "time_per_epoch"),
+    ],
+)
+@pytest.mark.parametrize("reverse", [False, True])
+def test_canonicalize_metric_keys_rejects_alias_conflicts_in_both_orders(
+    legacy_key, canonical_key, reverse
+):
+    """Canonical metric output must not discard conflicting values."""
+    pairs = [(legacy_key, 1), (canonical_key, 2)]
+    if reverse:
+        pairs.reverse()
+
+    with pytest.raises(ProtocolParseError, match="conflicting metric keys"):
+        canonicalize_metric_keys(dict(pairs))
 
 
 def test_normalize_legacy_metrics_preserves_unrelated_nested_and_list_values():

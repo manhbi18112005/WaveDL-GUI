@@ -15,9 +15,11 @@ Consolidated tests for all CLI entry points in WaveDL:
 Author: Ductho Le (ductho.le@outlook.com)
 """
 
+import copy
 import math
 import os
 import pickle
+import subprocess
 import sys
 from unittest.mock import MagicMock, patch
 
@@ -305,9 +307,10 @@ class TestTrainMetricsOutput:
             "r2": math.nan,
             "lr": 0.001,
             "epoch_time": 2.5,
-            "mae_per_param": [0.1, 0.2],
+            "mae_per_param": [0.1, {"value": 0.2}],
+            "nested": {"values": [1, {"finite": True}]},
         }
-        original_metrics = metrics.copy()
+        original_metrics = copy.deepcopy(metrics)
         run_id = "123e4567-e89b-12d3-a456-426614174000"
 
         output = _format_metrics_output(metrics, "jsonl-v1", run_id=run_id, seq=4)
@@ -323,11 +326,111 @@ class TestTrainMetricsOutput:
             "r2_score": None,
             "learning_rate": 0.001,
             "time_per_epoch": 2.5,
-            "mae_per_param": [0.1, 0.2],
+            "mae_per_param": [0.1, {"value": 0.2}],
+            "nested": {"values": [1, {"finite": True}]},
         }
         assert metrics == original_metrics
         assert math.isnan(metrics["r2"])
         assert not output.startswith("##METRICS##")
+
+    def test_jsonl_emitter_reuses_run_id_and_increments_sequence(self):
+        """One emitter owns a stable run identity and monotonic sequence."""
+        from wavedl.runtime_protocol import parse_jsonl_line
+        from wavedl.train import _MetricsEmitter
+
+        emitter = _MetricsEmitter("jsonl-v1")
+
+        first = parse_jsonl_line(emitter.format({"epoch": 1}))
+        second = parse_jsonl_line(emitter.format({"epoch": 2}))
+
+        assert first.run_id == second.run_id
+        assert first.seq == 0
+        assert second.seq == 1
+
+    def test_jsonl_emitter_starts_new_run_with_fresh_identity(self):
+        """A new emitter starts a new run at sequence zero."""
+        from wavedl.runtime_protocol import parse_jsonl_line
+        from wavedl.train import _MetricsEmitter
+
+        first_run = parse_jsonl_line(_MetricsEmitter("jsonl-v1").format({"epoch": 1}))
+        second_run = parse_jsonl_line(_MetricsEmitter("jsonl-v1").format({"epoch": 1}))
+
+        assert first_run.run_id != second_run.run_id
+        assert first_run.seq == 0
+        assert second_run.seq == 0
+
+
+class TestJsonlSubprocessOutput:
+    """Tests that JSONL mode keeps stdout machine-readable."""
+
+    @pytest.mark.parametrize("module", ["wavedl.train", "wavedl.launcher"])
+    def test_list_models_stdout_is_protocol_only(self, module):
+        """Human-readable list-model output is not mixed into JSONL stdout."""
+        from wavedl.runtime_protocol import parse_jsonl_line
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                module,
+                "--list_models",
+                "--output_protocol",
+                "jsonl-v1",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(os.path.dirname(__file__)),
+            env=os.environ.copy(),
+            check=False,
+        )
+
+        assert result.returncode == 0
+        stdout_lines = [line for line in result.stdout.splitlines() if line.strip()]
+        assert all(parse_jsonl_line(line) for line in stdout_lines)
+        assert "Available models:" not in result.stdout
+        assert "Available models:" in result.stderr
+
+
+class TestTrainConfigOutputProtocol:
+    """Tests for output protocol configuration precedence and validation."""
+
+    def test_invalid_config_protocol_fails_before_accelerator_initialization(
+        self, tmp_path, capsys
+    ):
+        """Invalid YAML protocol values fail before runtime initialization."""
+        from wavedl import train
+
+        config_path = tmp_path / "invalid.yaml"
+        config_path.write_text("output_protocol: invalid\n", encoding="utf-8")
+
+        with (
+            patch.object(
+                sys,
+                "argv",
+                ["wavedl-train", "--config", str(config_path)],
+            ),
+            patch.object(train, "Accelerator", side_effect=AssertionError),
+            pytest.raises(SystemExit),
+        ):
+            train.main()
+
+        assert "output_protocol" in capsys.readouterr().err
+
+    def test_explicit_cli_protocol_is_protected_from_config(self):
+        """An explicit CLI protocol wins over a YAML protocol value."""
+        from argparse import Namespace
+
+        from wavedl.utils.config import merge_config_with_args
+
+        args = Namespace(output_protocol="jsonl-v1")
+
+        merged = merge_config_with_args(
+            {"output_protocol": "legacy"},
+            args,
+            protected_keys={"output_protocol"},
+        )
+
+        assert merged.output_protocol == "jsonl-v1"
 
 
 # ==============================================================================
