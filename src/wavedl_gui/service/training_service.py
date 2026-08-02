@@ -182,7 +182,10 @@ class OutputParser:
                 continue
             if isinstance(value, bool) or not isinstance(value, numbers.Real):
                 raise ValueError(f"Invalid metric field: {field_name}")
-            value = float(value)
+            try:
+                value = float(value)
+            except (OverflowError, TypeError, ValueError) as exc:
+                raise ValueError(f"Invalid metric field: {field_name}") from exc
             if not math.isfinite(value):
                 raise ValueError(f"Invalid metric field: {field_name}")
             if field_name in {"grad_norm", "learning_rate", "mae_avg"} and value < 0:
@@ -203,19 +206,28 @@ class OutputParser:
                 if (
                     isinstance(value, bool)
                     or not isinstance(value, numbers.Real)
-                    or not math.isfinite(float(value))
                     or value < 0
                 ):
                     raise ValueError("Invalid metric field: mae_per_param")
-                copied_mae.append(float(value))
+                try:
+                    converted_value = float(value)
+                except (OverflowError, TypeError, ValueError) as exc:
+                    raise ValueError("Invalid metric field: mae_per_param") from exc
+                if not math.isfinite(converted_value):
+                    raise ValueError("Invalid metric field: mae_per_param")
+                copied_mae.append(converted_value)
             candidate["mae_per_param"] = copied_mae
 
         if candidate["epoch"] > candidate["total_epochs"]:
             raise ValueError("epoch cannot exceed total_epochs")
-        candidate["eta_seconds"] = (
-            max(candidate["total_epochs"] - candidate["epoch"], 0)
-            * candidate["time_per_epoch"]
-        )
+        remaining = max(candidate["total_epochs"] - candidate["epoch"], 0)
+        try:
+            eta_seconds = remaining * candidate["time_per_epoch"]
+        except (OverflowError, TypeError, ValueError) as exc:
+            raise ValueError("Invalid metric ETA") from exc
+        if not math.isfinite(eta_seconds):
+            raise ValueError("Invalid metric ETA")
+        candidate["eta_seconds"] = eta_seconds
 
         self.progress = TrainingProgress(**candidate)
         return self.progress

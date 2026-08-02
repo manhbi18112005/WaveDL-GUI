@@ -2,6 +2,7 @@
 
 import copy
 import json
+import math
 from dataclasses import asdict
 
 import pytest
@@ -163,6 +164,28 @@ def test_wrong_metric_types_and_domains_are_non_fatal_and_atomic():
     )
     assert is_metrics is False
     assert asdict(progress) == before
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        v1_metric_line({"learning_rate": 10**1000}),
+        LEGACY_METRICS_PREFIX + json.dumps({"lr": 10**1000}),
+        v1_metric_line({"epoch": 0, "total_epochs": 10**1000, "time_per_epoch": 1.0}),
+        LEGACY_METRICS_PREFIX
+        + json.dumps({"epoch": 0, "total_epochs": 10**1000, "epoch_time": 1.0}),
+    ],
+)
+def test_huge_metric_numbers_are_visible_logs_without_state_corruption(line):
+    parser = OutputParser()
+    parser.parse_line(v1_metric_line(metric_payload()))
+    before = asdict(parser.progress)
+
+    progress, is_metrics = parser.parse_line(line)
+
+    assert is_metrics is False
+    assert asdict(progress) == before
+    assert math.isfinite(progress.eta_seconds)
 
 
 def test_none_metric_values_are_tolerated_as_absent():
