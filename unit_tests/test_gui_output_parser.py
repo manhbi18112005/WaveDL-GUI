@@ -9,10 +9,16 @@ import pytest
 
 pytest.importorskip("PySide6")
 
-from wavedl.runtime_protocol import LEGACY_METRICS_PREFIX, encode_event
+from wavedl.runtime_protocol import (
+    LEGACY_METRICS_PREFIX,
+    encode_event,
+    parse_jsonl_line,
+)
 from wavedl_gui.service.training_service import (
     OutputKind,
+    OutputParseResult,
     OutputParser,
+    TrainingWorker,
     TrainingProgress,
 )
 
@@ -46,6 +52,16 @@ def v1_metric_line(payload):
         payload,
         run_id=RUN_ID,
         seq=3,
+        ts="2026-01-02T03:04:05Z",
+    )
+
+
+def protocol_line(event_type, payload):
+    return encode_event(
+        event_type,
+        payload,
+        run_id=RUN_ID,
+        seq=4,
         ts="2026-01-02T03:04:05Z",
     )
 
@@ -140,6 +156,58 @@ def test_output_classification_distinguishes_logs_protocol_events_and_metrics():
     assert (
         parser._parse_output(v1_metric_line(metric_payload())).kind is OutputKind.METRIC
     )
+
+
+def test_public_parse_result_retains_protocol_event_and_raw_line():
+    line = protocol_line("warning", {"message": "watch out", "code": 7})
+    parser = OutputParser()
+
+    result = parser.parse_result(line)
+
+    assert isinstance(result, OutputParseResult)
+    assert result.kind is OutputKind.PROTOCOL_EVENT
+    assert result.raw_line == line
+    assert result.event == parse_jsonl_line(line)
+    assert result.event is not None
+    assert result.event.payload == {"message": "watch out", "code": 7}
+
+
+@pytest.mark.parametrize(
+    ("event_type", "payload", "expected"),
+    [
+        ("log", {"message": "training started"}, "training started"),
+        ("warning", {"message": "low memory"}, "low memory"),
+        ("error", {"message": "failed batch"}, "failed batch"),
+        ("state", {"state": "running"}, None),
+        ("artifact", {"path": "model.pt"}, None),
+        ("exit", {"code": 0}, None),
+    ],
+)
+def test_worker_routes_protocol_events_without_a_subprocess(
+    event_type, payload, expected
+):
+    line = protocol_line(event_type, payload)
+    worker = TrainingWorker(None)
+    output_lines = []
+    worker.outputSig.connect(output_lines.append)
+
+    worker._route_output(line)
+
+    assert output_lines == [expected if expected is not None else line]
+
+
+def test_worker_routes_metric_events_to_progress_signal():
+    worker = TrainingWorker(None)
+    progress_updates = []
+    output_lines = []
+    worker.progressSig.connect(progress_updates.append)
+    worker.outputSig.connect(output_lines.append)
+
+    worker._route_output(v1_metric_line(metric_payload()))
+
+    assert len(progress_updates) == 1
+    assert progress_updates[0].epoch == 3
+    assert output_lines == []
 
 
 def test_wrong_metric_types_and_domains_are_non_fatal_and_atomic():

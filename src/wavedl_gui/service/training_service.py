@@ -22,6 +22,7 @@ from PySide6.QtCore import QObject, QThread, Signal
 
 from wavedl.runtime_protocol import (
     ProtocolParseError,
+    RuntimeEvent,
     normalize_legacy_metrics_line,
     parse_jsonl_line,
 )
@@ -55,15 +56,6 @@ class OutputKind(Enum):
     PROTOCOL_EVENT = auto()
 
 
-@dataclass(frozen=True)
-class _OutputResult:
-    """Parsed output and its event-aware classification."""
-
-    progress: TrainingProgress
-    kind: OutputKind
-    event_type: str | None = None
-
-
 @dataclass
 class TrainingProgress:
     """Real-time training progress information."""
@@ -93,6 +85,16 @@ class TrainingProgress:
         return (self.epoch / self.total_epochs) * 100
 
 
+@dataclass(frozen=True)
+class OutputParseResult:
+    """Public event-aware result for one parsed output line."""
+
+    progress: TrainingProgress
+    kind: OutputKind
+    raw_line: str
+    event: RuntimeEvent | None = None
+
+
 class OutputParser:
     """Parses structured runtime output lines emitted by train.py."""
 
@@ -106,14 +108,18 @@ class OutputParser:
             Tuple of (progress, is_metrics_line). When is_metrics_line is True,
             the caller should suppress this line from the visible log.
         """
-        result = self._parse_output(line)
+        result = self.parse_result(line)
         return result.progress, result.kind is OutputKind.METRIC
 
-    def _parse_output(self, line: str) -> _OutputResult:
+    def parse_result(self, line: str) -> OutputParseResult:
+        """Parse one line and retain protocol events for downstream routing."""
+        return self._parse_output(line)
+
+    def _parse_output(self, line: str) -> OutputParseResult:
         """Classify and parse output while keeping malformed input non-fatal."""
         stripped = line.strip()
         if not stripped:
-            return _OutputResult(self.progress, OutputKind.ORDINARY_LOG)
+            return OutputParseResult(self.progress, OutputKind.ORDINARY_LOG, line)
 
         try:
             event = parse_jsonl_line(stripped)
@@ -121,27 +127,33 @@ class OutputParser:
             try:
                 metrics = normalize_legacy_metrics_line(stripped)
             except ProtocolParseError:
-                return _OutputResult(self.progress, OutputKind.MALFORMED_PROTOCOL)
+                return OutputParseResult(
+                    self.progress, OutputKind.MALFORMED_PROTOCOL, line
+                )
             if metrics is not None:
                 try:
                     self._apply_metrics(metrics)
                 except ValueError:
-                    return _OutputResult(self.progress, OutputKind.MALFORMED_PROTOCOL)
-                return _OutputResult(self.progress, OutputKind.METRIC, "metric")
+                    return OutputParseResult(
+                        self.progress, OutputKind.MALFORMED_PROTOCOL, line
+                    )
+                return OutputParseResult(self.progress, OutputKind.METRIC, line)
             if stripped.startswith("{"):
-                return _OutputResult(self.progress, OutputKind.MALFORMED_PROTOCOL)
-            return _OutputResult(self.progress, OutputKind.ORDINARY_LOG)
+                return OutputParseResult(
+                    self.progress, OutputKind.MALFORMED_PROTOCOL, line
+                )
+            return OutputParseResult(self.progress, OutputKind.ORDINARY_LOG, line)
 
         if event.type == "metric":
             try:
                 self._apply_metrics(event.payload)
             except ValueError:
-                return _OutputResult(
-                    self.progress, OutputKind.MALFORMED_PROTOCOL, "metric"
+                return OutputParseResult(
+                    self.progress, OutputKind.MALFORMED_PROTOCOL, line, event
                 )
-            return _OutputResult(self.progress, OutputKind.METRIC, event.type)
+            return OutputParseResult(self.progress, OutputKind.METRIC, line, event)
 
-        return _OutputResult(self.progress, OutputKind.PROTOCOL_EVENT, event.type)
+        return OutputParseResult(self.progress, OutputKind.PROTOCOL_EVENT, line, event)
 
     def _apply_metrics(self, data: dict[str, Any]) -> TrainingProgress:
         """Validate and atomically apply canonical metrics as a new snapshot."""
@@ -286,15 +298,7 @@ class TrainingWorker(QThread):
 
                 line = line.rstrip()
 
-                result = self._parser._parse_output(line)
-
-                if result.kind is OutputKind.METRIC:
-                    self.progressSig.emit(result.progress)
-                elif result.kind in {
-                    OutputKind.ORDINARY_LOG,
-                    OutputKind.MALFORMED_PROTOCOL,
-                }:
-                    self.outputSig.emit(line)
+                self._route_output(line)
 
             # Wait for process to complete
             return_code = self.process.wait()
@@ -312,6 +316,26 @@ class TrainingWorker(QThread):
         except Exception as e:
             self.stateSig.emit(ProcessState.FAILED)
             self.finishedSig.emit(False, str(e))
+
+    def _route_output(self, line: str):
+        """Route parsed output to progress or visible log signals."""
+        result = self._parser.parse_result(line)
+
+        if result.kind is OutputKind.METRIC:
+            self.progressSig.emit(result.progress)
+        elif result.kind in {OutputKind.ORDINARY_LOG, OutputKind.MALFORMED_PROTOCOL}:
+            self.outputSig.emit(result.raw_line)
+        elif result.kind is OutputKind.PROTOCOL_EVENT:
+            self.outputSig.emit(self._protocol_event_message(result))
+
+    @staticmethod
+    def _protocol_event_message(result: OutputParseResult) -> str:
+        """Render routable protocol events without losing unhandled events."""
+        if result.event and result.event.type in {"log", "warning", "error"}:
+            message = result.event.payload.get("message")
+            if message is not None:
+                return str(message)
+        return result.raw_line
 
     def _build_command(self) -> list[str]:
         python = get_python_executable()
