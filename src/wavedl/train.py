@@ -189,7 +189,7 @@ torch.backends.cudnn.benchmark = True
 # ==============================================================================
 # LOGGING UTILITIES
 # ==============================================================================
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stdout
 
 
 @contextmanager
@@ -864,11 +864,6 @@ def train_single_trial(
 # ==============================================================================
 def main():
     args, parser = parse_args()
-    cli_output_protocol = args.output_protocol
-    cli_output_protocol_explicit = any(
-        option == "--output_protocol" or option.startswith("--output_protocol=")
-        for option in sys.argv[1:]
-    )
     human_output = _human_output_file(args.output_protocol)
 
     # Import custom model modules if specified
@@ -892,14 +887,16 @@ def main():
                     if spec and spec.loader:
                         module = importlib.util.module_from_spec(spec)
                         sys.modules[unique_name] = module
-                        spec.loader.exec_module(module)
+                        with redirect_stdout(human_output):
+                            spec.loader.exec_module(module)
                         print(
                             f"✓ Imported custom module from: {module_name}",
                             file=human_output,
                         )
                 else:
                     # Import as regular module
-                    importlib.import_module(module_name)
+                    with redirect_stdout(human_output):
+                        importlib.import_module(module_name)
                     print(f"✓ Imported module: {module_name}", file=human_output)
             except (ImportError, FileNotFoundError, SyntaxError, PermissionError) as e:
                 print(f"✗ Failed to import '{module_name}': {e}", file=sys.stderr)
@@ -945,8 +942,8 @@ def main():
         )
 
         config = load_config(args.config)
-        config_output_protocol = config.get("output_protocol", args.output_protocol)
-        human_output = _human_output_file(config_output_protocol)
+        if "output_protocol" in config:
+            parser.error("output_protocol is CLI-only and cannot be set in config")
         print(f"📄 Loading config from: {args.config}", file=human_output)
 
         # Validate config values
@@ -960,17 +957,7 @@ def main():
             print(f"  ⚠ {w}", file=human_output)
 
         # Merge config with CLI args (CLI takes precedence via parser defaults detection)
-        args = merge_config_with_args(
-            config,
-            args,
-            parser=parser,
-            protected_keys=(
-                {"output_protocol"} if cli_output_protocol_explicit else set()
-            ),
-        )
-        if cli_output_protocol_explicit:
-            args.output_protocol = cli_output_protocol
-        human_output = _human_output_file(args.output_protocol)
+        args = merge_config_with_args(config, args, parser=parser)
 
     # Handle --cv flag (cross-validation mode)
     if args.cv > 0:

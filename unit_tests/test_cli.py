@@ -390,47 +390,88 @@ class TestJsonlSubprocessOutput:
         assert "Available models:" not in result.stdout
         assert "Available models:" in result.stderr
 
+    def test_custom_import_prints_are_redirected_in_jsonl_mode(self, tmp_path):
+        """Import-time human output does not contaminate JSONL stdout."""
+        from wavedl.runtime_protocol import parse_jsonl_line
+
+        module_path = tmp_path / "prints_at_import.py"
+        module_path.write_text('print("custom import output")\n', encoding="utf-8")
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "wavedl.train",
+                "--import",
+                str(module_path),
+                "--output_protocol",
+                "jsonl-v1",
+                "--list_models",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(os.path.dirname(__file__)),
+            env=os.environ.copy(),
+            check=False,
+        )
+
+        assert result.returncode == 0
+        stdout_lines = [line for line in result.stdout.splitlines() if line.strip()]
+        assert all(parse_jsonl_line(line) for line in stdout_lines)
+        assert "custom import output" not in result.stdout
+        assert "custom import output" in result.stderr
+
+    def test_launcher_rejects_config_selected_protocol(self, tmp_path):
+        """The public launcher cannot turn on JSONL through YAML."""
+        config_path = tmp_path / "protocol.yaml"
+        config_path.write_text("output_protocol: jsonl-v1\n", encoding="utf-8")
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "wavedl.launcher",
+                "--num_gpus",
+                "1",
+                "--config",
+                str(config_path),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(os.path.dirname(__file__)),
+            env=os.environ.copy(),
+            check=False,
+        )
+
+        assert result.returncode != 0
+        assert "output_protocol is CLI-only" in result.stderr
+
 
 class TestTrainConfigOutputProtocol:
     """Tests for output protocol configuration precedence and validation."""
 
-    def test_invalid_config_protocol_fails_before_accelerator_initialization(
-        self, tmp_path, capsys
+    @pytest.mark.parametrize("cli_args", [[], ["--output_protocol", "jsonl-v1"]])
+    def test_config_protocol_is_rejected_before_accelerator_initialization(
+        self, tmp_path, capsys, cli_args
     ):
-        """Invalid YAML protocol values fail before runtime initialization."""
+        """YAML cannot select or override the CLI-only output protocol."""
         from wavedl import train
 
-        config_path = tmp_path / "invalid.yaml"
-        config_path.write_text("output_protocol: invalid\n", encoding="utf-8")
+        config_path = tmp_path / "protocol.yaml"
+        config_path.write_text("output_protocol: jsonl-v1\n", encoding="utf-8")
 
         with (
             patch.object(
                 sys,
                 "argv",
-                ["wavedl-train", "--config", str(config_path)],
+                ["wavedl-train", "--config", str(config_path), *cli_args],
             ),
             patch.object(train, "Accelerator", side_effect=AssertionError),
             pytest.raises(SystemExit),
         ):
             train.main()
 
-        assert "output_protocol" in capsys.readouterr().err
-
-    def test_explicit_cli_protocol_is_protected_from_config(self):
-        """An explicit CLI protocol wins over a YAML protocol value."""
-        from argparse import Namespace
-
-        from wavedl.utils.config import merge_config_with_args
-
-        args = Namespace(output_protocol="jsonl-v1")
-
-        merged = merge_config_with_args(
-            {"output_protocol": "legacy"},
-            args,
-            protected_keys={"output_protocol"},
-        )
-
-        assert merged.output_protocol == "jsonl-v1"
+        assert "output_protocol is CLI-only" in capsys.readouterr().err
 
 
 # ==============================================================================

@@ -96,7 +96,6 @@ def merge_config_with_args(
     args: argparse.Namespace,
     parser: argparse.ArgumentParser | None = None,
     ignore_unknown: bool = True,
-    protected_keys: set[str] | None = None,
 ) -> argparse.Namespace:
     """
     Merge YAML config with CLI arguments. CLI args take precedence.
@@ -107,7 +106,6 @@ def merge_config_with_args(
         parser: Optional ArgumentParser to detect defaults (if not provided,
                 uses heuristic comparison with common default values)
         ignore_unknown: If True, skip config keys not in args
-        protected_keys: Config keys that must not override effective CLI values.
 
     Returns:
         Updated argparse Namespace
@@ -137,13 +135,11 @@ def merge_config_with_args(
         # Without parser, we can't reliably detect CLI overrides
         # So we apply all config values (legacy behavior)
 
-    protected_keys = protected_keys or set()
-
     # Apply config values only where CLI didn't override
     for key, value in config.items():
         if hasattr(args, key):
             # Skip if user explicitly set this via CLI
-            if key in cli_overrides or key in protected_keys:
+            if key in cli_overrides:
                 logging.debug(f"Config key '{key}' skipped: CLI override detected")
                 continue
             setattr(args, key, value)
@@ -225,7 +221,6 @@ def validate_config(
         "loss": list_losses(),
         "optimizer": list_optimizers(),
         "scheduler": list_schedulers(),
-        "output_protocol": ["legacy", "jsonl-v1"],
     }
 
     for key, valid_values in valid_options.items():
@@ -308,7 +303,6 @@ def validate_config(
         "wandb_watch",
         "project_name",
         "run_name",
-        "output_protocol",
         # Config
         "config",
         "list_models",
