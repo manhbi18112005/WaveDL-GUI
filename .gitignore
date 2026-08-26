@@ -141,3 +141,4 @@ examples/ios_demo
 
 # Agent workspaces
 .worktrees/
+.serena/
