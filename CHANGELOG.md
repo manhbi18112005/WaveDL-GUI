@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Training**: Interrupted runs no longer rewind to the last validation improvement. `best_checkpoint` only advances when val loss improves and periodic saves defaulted to every 50 epochs, so a plateaued run killed without unwinding (Colab disconnect, SLURM timeout, spot reclaim) resumed from the last *improvement* — in one reported case discarding 9 epochs (~5 GPU-hours). A rolling `last_checkpoint` is now refreshed every `--save_every` epochs regardless of whether the model is improving, and auto-resume selects whichever complete checkpoint reached the highest epoch.
+- **Training**: Checkpoints are written crash-safely — staged in a sibling `.tmp` directory, sealed with a sentinel file, then swapped into place, with the outgoing generation retained as `.prev` until the swap lands. Previously `save_state()` wrote in place, so a kill mid-write destroyed the previous good checkpoint. Most impactful on FUSE/network mounts (Google Drive, NFS) where flushes are asynchronous. Incomplete checkpoints are detected and skipped on resume instead of being loaded.
+- **Training**: `SIGTERM`/`SIGHUP` now trigger the emergency-checkpoint path. Python raises `KeyboardInterrupt` only for `SIGINT`, so graceful preemption previously bypassed every `except`/`finally` block.
+- **Training**: `training_history.csv` is written every epoch (atomically) instead of only on checkpoint saves, so the training curve no longer lags the model state.
+- **Training**: `suppress_accelerate_logging()` now silences the `accelerate` parent logger; it targeted only `accelerate.checkpointing` and never suppressed the "Saving current state" line from `accelerate.accelerator`.
+
+### Changed
+- **Training**: `--save_every` default `50` → `1`, and it now controls the rolling `last_checkpoint` (which overwrites in place, keeping disk usage constant) rather than accumulating `epoch_N_checkpoint` directories. Raise it to reduce checkpoint I/O on short epochs or slow filesystems. Existing `epoch_*_checkpoint` directories are still honoured on resume.
+
 ## [1.8.1] - 2026-06-18
 
 ### Added

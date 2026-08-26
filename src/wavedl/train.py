@@ -87,6 +87,7 @@ import argparse
 import logging
 import pickle
 import shutil
+import signal
 import sys
 import time
 import warnings
@@ -193,14 +194,166 @@ from contextlib import contextmanager
 
 @contextmanager
 def suppress_accelerate_logging():
-    """Temporarily suppress accelerate's verbose checkpoint save messages."""
-    accelerate_logger = logging.getLogger("accelerate.checkpointing")
+    """Temporarily suppress accelerate's verbose checkpoint save messages.
+
+    Silences the `accelerate` parent logger rather than a single child: the
+    per-file notices come from `accelerate.checkpointing`, but the "Saving
+    current state to ..." line comes from `accelerate.accelerator`. With a
+    checkpoint written every epoch, missing one of those floods the log.
+    """
+    accelerate_logger = logging.getLogger("accelerate")
     original_level = accelerate_logger.level
     accelerate_logger.setLevel(logging.WARNING)
     try:
         yield
     finally:
         accelerate_logger.setLevel(original_level)
+
+
+# ==============================================================================
+# CRASH-SAFE CHECKPOINT I/O
+# ==============================================================================
+# Checkpoints are staged in a sibling `.tmp` directory and swapped into place
+# only once fully written, with a sentinel file emitted last.  A directory
+# without the sentinel is known-incomplete and is never resumed from.
+#
+# This matters most on network/FUSE filesystems (Google Drive on Colab, NFS),
+# where writes flush asynchronously: saving in place means a VM teardown
+# mid-save leaves the *previous* good checkpoint already partly overwritten,
+# turning a recoverable interruption into total loss of the run.
+CHECKPOINT_SENTINEL = ".checkpoint_complete"
+
+
+def checkpoint_is_usable(ckpt_dir: str) -> bool:
+    """Return True if `ckpt_dir` holds a checkpoint safe to resume from.
+
+    Checkpoints written by this module carry a sentinel file. Checkpoints
+    written by older versions predate it, so their metadata file — which the
+    old writer emitted only after ``save_state()`` returned — is accepted as a
+    completeness proxy rather than stranding a user's existing run.
+    """
+    if not os.path.isdir(ckpt_dir):
+        return False
+    if os.path.isfile(os.path.join(ckpt_dir, CHECKPOINT_SENTINEL)):
+        return True
+    return os.path.isfile(os.path.join(ckpt_dir, "training_meta.pkl"))
+
+
+def resolve_checkpoint(ckpt_dir: str) -> str | None:
+    """Resolve `ckpt_dir` to a usable checkpoint, falling back to its `.prev`.
+
+    A crash during the final swap can leave the canonical path missing or
+    incomplete while the previous generation survives under `.prev`.
+    """
+    if checkpoint_is_usable(ckpt_dir):
+        return ckpt_dir
+    prev_dir = f"{ckpt_dir}.prev"
+    if checkpoint_is_usable(prev_dir):
+        return prev_dir
+    return None
+
+
+def _finalize_checkpoint(tmp_dir: str, final_dir: str) -> None:
+    """Mark a staged checkpoint complete and swap it into place (rank 0 only).
+
+    The outgoing checkpoint is retained under `.prev` until the swap lands, so
+    an interruption at any point still leaves one complete checkpoint on disk.
+    """
+    sentinel = os.path.join(tmp_dir, CHECKPOINT_SENTINEL)
+    with open(sentinel, "w") as f:
+        f.write("ok\n")
+        f.flush()
+        os.fsync(f.fileno())
+
+    prev_dir = f"{final_dir}.prev"
+    shutil.rmtree(prev_dir, ignore_errors=True)
+    if os.path.exists(final_dir):
+        os.rename(final_dir, prev_dir)
+    os.rename(tmp_dir, final_dir)
+    shutil.rmtree(prev_dir, ignore_errors=True)
+
+
+def save_checkpoint_atomic(
+    accelerator,
+    final_dir: str,
+    meta: dict,
+    extra_files: dict[str, str] | None = None,
+) -> None:
+    """Write an accelerate checkpoint to `final_dir` crash-safely.
+
+    Collective: every rank must call this, since ``save_state()`` is collective.
+
+    Args:
+        accelerator: Accelerator instance
+        final_dir: Destination checkpoint directory
+        meta: Training metadata to pickle alongside the state
+        extra_files: Optional ``{dest_name: src_path}`` copied into the
+            checkpoint before it is sealed (e.g. the target scaler)
+    """
+    tmp_dir = f"{final_dir}.tmp"
+
+    if accelerator.is_main_process:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        os.makedirs(tmp_dir, exist_ok=True)
+    accelerator.wait_for_everyone()
+
+    with suppress_accelerate_logging():
+        accelerator.save_state(tmp_dir, safe_serialization=False)
+
+    if accelerator.is_main_process:
+        with open(os.path.join(tmp_dir, "training_meta.pkl"), "wb") as f:
+            pickle.dump(meta, f)
+            f.flush()
+            os.fsync(f.fileno())
+
+        for dest_name, src_path in (extra_files or {}).items():
+            if os.path.exists(src_path):
+                shutil.copy2(src_path, os.path.join(tmp_dir, dest_name))
+
+        _finalize_checkpoint(tmp_dir, final_dir)
+
+    accelerator.wait_for_everyone()
+
+
+def write_csv_atomic(df, path: str) -> None:
+    """Write a DataFrame to `path` via a temp file + rename.
+
+    Prevents a truncated history CSV if the process dies mid-write — on resume
+    a half-written file would silently drop or corrupt epoch rows.
+    """
+    tmp_path = f"{path}.tmp"
+    df.to_csv(tmp_path, index=False)
+    os.replace(tmp_path, path)
+
+
+def install_shutdown_handlers(logger) -> None:
+    """Route SIGTERM/SIGHUP into the KeyboardInterrupt emergency-save path.
+
+    Python raises KeyboardInterrupt only for SIGINT. An unhandled SIGTERM
+    terminates the process outright, skipping every ``except``/``finally``
+    block — which is exactly what happens on Colab disconnect, SLURM job
+    timeout, and spot-instance reclaim.
+
+    Best-effort: a hard SIGKILL or an abrupt VM teardown cannot be trapped,
+    which is why the rolling checkpoint below is the primary safety net.
+    """
+
+    def _handler(signum, _frame):
+        try:
+            name = signal.Signals(signum).name
+        except ValueError:
+            name = str(signum)
+        logger.warning(f"Received {name} — saving emergency checkpoint...")
+        raise KeyboardInterrupt(f"terminated by {name}")
+
+    for sig_name in ("SIGTERM", "SIGHUP"):
+        sig = getattr(signal, sig_name, None)
+        if sig is None:
+            continue  # not available on this platform (e.g. SIGHUP on Windows)
+        try:
+            signal.signal(sig, _handler)
+        except (ValueError, OSError):
+            pass  # not on the main thread; handler cannot be installed
 
 
 # ==============================================================================
@@ -404,8 +557,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--save_every",
         type=int,
-        default=50,
-        help="Save checkpoint every N epochs (0=disable)",
+        default=1,
+        help=(
+            "Refresh the rolling last_checkpoint every N epochs (0=disable). "
+            "This is the resume point after a crash or preemption, so it caps "
+            "how much progress an interruption can cost. Raise it to cut "
+            "checkpoint I/O on short epochs or slow filesystems"
+        ),
     )
     parser.add_argument(
         "--output_dir", type=str, default=".", help="Output directory for checkpoints"
@@ -510,23 +668,21 @@ def _save_best_checkpoint(
         logger: Logger instance
     """
     ckpt_dir = os.path.join(args.output_dir, "best_checkpoint")
-    with suppress_accelerate_logging():
-        accelerator.save_state(ckpt_dir, safe_serialization=False)
+    save_checkpoint_atomic(
+        accelerator,
+        ckpt_dir,
+        {
+            "epoch": epoch + 1,
+            "best_val_loss": best_val_loss,
+            "patience_ctr": 0,
+            "model_name": args.model,
+            "in_shape": in_shape,
+            "out_dim": out_dim,
+        },
+        extra_files={"scaler.pkl": os.path.join(args.output_dir, "scaler.pkl")},
+    )
 
     if accelerator.is_main_process:
-        with open(os.path.join(ckpt_dir, "training_meta.pkl"), "wb") as f:
-            pickle.dump(
-                {
-                    "epoch": epoch + 1,
-                    "best_val_loss": best_val_loss,
-                    "patience_ctr": 0,
-                    "model_name": args.model,
-                    "in_shape": in_shape,
-                    "out_dim": out_dim,
-                },
-                f,
-            )
-
         # Save standalone weights
         try:
             unwrapped = accelerator.unwrap_model(model)
@@ -535,16 +691,9 @@ def _save_best_checkpoint(
             if hasattr(unwrapped, "_orig_mod"):
                 unwrapped = unwrapped._orig_mod
 
-        torch.save(
-            unwrapped.state_dict(),
-            os.path.join(args.output_dir, "best_model_weights.pth"),
-        )
-
-        # Copy scaler for checkpoint portability
-        scaler_src = os.path.join(args.output_dir, "scaler.pkl")
-        scaler_dst = os.path.join(ckpt_dir, "scaler.pkl")
-        if os.path.exists(scaler_src):
-            shutil.copy2(scaler_src, scaler_dst)
+        weights_path = os.path.join(args.output_dir, "best_model_weights.pth")
+        torch.save(unwrapped.state_dict(), f"{weights_path}.tmp")
+        os.replace(f"{weights_path}.tmp", weights_path)
 
         logger.info(f"   💾 Best model saved (val_loss: {best_val_loss:.6f})")
 
@@ -1064,6 +1213,9 @@ def main():
                 f"(CPUs: {cpu_count}, GPUs: {num_gpus})"
             )
 
+    # Trap preemption signals so a terminated run still writes a checkpoint.
+    install_shutdown_handlers(logger)
+
     if accelerator.is_main_process:
         logger.info(f"🚀 Cluster Status: {accelerator.num_processes}x GPUs detected")
         # Show the actual precision negotiated by Accelerator (may differ from
@@ -1085,7 +1237,14 @@ def main():
                 f"(effective batch size: {effective_bs})"
             )
         if args.save_every > 0:
-            logger.info(f"   Periodic Checkpointing: Every {args.save_every} epochs")
+            logger.info(
+                f"   Crash-recovery checkpoint: Every {args.save_every} epoch(s)"
+            )
+        else:
+            logger.warning(
+                "   ⚠️ Rolling checkpoint disabled (--save_every 0) — an "
+                "interruption will rewind to the last val-loss improvement"
+            )
         if args.resume:
             logger.info(f"   📂 Resuming from: {args.resume}")
 
@@ -1304,14 +1463,19 @@ def main():
 
     # Define checkpoint paths
     best_ckpt_path = os.path.join(args.output_dir, "best_checkpoint")
+    last_ckpt_path = os.path.join(args.output_dir, "last_checkpoint")
     interrupted_ckpt_path = os.path.join(args.output_dir, "interrupted_checkpoint")
     complete_flag_path = os.path.join(args.output_dir, "training_complete.flag")
 
     # Auto-resume logic (if not --fresh and no explicit --resume)
-    # Priority: interrupted_checkpoint > latest periodic/best checkpoint
-    # The interrupted checkpoint captures the latest state after Ctrl+C.
-    # Periodic checkpoints may be newer than best_checkpoint after a
-    # non-KeyboardInterrupt crash (e.g., OOM, hardware failure).
+    # Resume from whichever complete checkpoint reached the highest epoch:
+    # last_checkpoint (rolling, refreshed every --save_every epochs),
+    # best_checkpoint (only refreshed when val loss improves), the emergency
+    # interrupted_checkpoint, or legacy epoch_*_checkpoint directories.
+    #
+    # Ranking by epoch rather than by fixed precedence is what keeps a plateaued
+    # run recoverable: best_checkpoint can be hundreds of epochs stale while
+    # last_checkpoint is current, and vice versa right after an improvement.
     training_already_complete = False
     if not args.fresh and args.resume is None:
         if os.path.exists(complete_flag_path):
@@ -1322,50 +1486,50 @@ def main():
                 logger.info(
                     "✅ Training already completed (early stopping). Use --fresh to retrain."
                 )
-        elif os.path.exists(interrupted_ckpt_path):
-            # Prefer interrupted checkpoint (most recent optimizer/scheduler state)
-            args.resume = interrupted_ckpt_path
-            if accelerator.is_main_process:
-                logger.info(
-                    f"🔄 Auto-resuming from interrupted checkpoint: {interrupted_ckpt_path}"
-                )
         else:
-            # Find the latest checkpoint by epoch number across best and
-            # periodic checkpoints.  A crash after a periodic save should
-            # not rewind to an earlier best_checkpoint.
             latest_ckpt = None
             latest_epoch = -1
+            skipped_incomplete = []
 
-            # Check best_checkpoint
-            if os.path.exists(best_ckpt_path):
-                meta_file = os.path.join(best_ckpt_path, "training_meta.pkl")
+            candidates = [last_ckpt_path, best_ckpt_path, interrupted_ckpt_path]
+            candidates += [
+                os.path.join(args.output_dir, entry)
+                for entry in os.listdir(args.output_dir)
+                if entry.startswith("epoch_") and entry.endswith("_checkpoint")
+            ]
+
+            for candidate in candidates:
+                # A bare candidate path may exist but be half-written; resolve
+                # to it or to its retained `.prev` generation.
+                resolved = resolve_checkpoint(candidate)
+                if resolved is None:
+                    if os.path.isdir(candidate):
+                        skipped_incomplete.append(os.path.basename(candidate))
+                    continue
+
+                meta_file = os.path.join(resolved, "training_meta.pkl")
                 if os.path.exists(meta_file):
-                    with open(meta_file, "rb") as f:
-                        m = pickle.load(f)
-                    ep = m.get("epoch", 0)
-                    if ep > latest_epoch:
-                        latest_epoch = ep
-                        latest_ckpt = best_ckpt_path
+                    try:
+                        with open(meta_file, "rb") as f:
+                            m = pickle.load(f)
+                        ep = m.get("epoch", 0)
+                    except Exception as meta_err:
+                        logger.warning(
+                            f"   ⚠️ Unreadable metadata in {resolved}: {meta_err}"
+                        )
+                        continue
                 else:
-                    # No metadata — treat as epoch 0 fallback
-                    latest_ckpt = best_ckpt_path
-                    latest_epoch = 0
+                    ep = 0  # No metadata — usable only as a last resort
 
-            # Scan periodic epoch_*_checkpoint directories
-            for entry in os.listdir(args.output_dir):
-                if not entry.startswith("epoch_") or not entry.endswith("_checkpoint"):
-                    continue
-                ckpt_candidate = os.path.join(args.output_dir, entry)
-                if not os.path.isdir(ckpt_candidate):
-                    continue
-                meta_file = os.path.join(ckpt_candidate, "training_meta.pkl")
-                if os.path.exists(meta_file):
-                    with open(meta_file, "rb") as f:
-                        m = pickle.load(f)
-                    ep = m.get("epoch", 0)
-                    if ep > latest_epoch:
-                        latest_epoch = ep
-                        latest_ckpt = ckpt_candidate
+                if ep > latest_epoch:
+                    latest_epoch = ep
+                    latest_ckpt = resolved
+
+            if accelerator.is_main_process and skipped_incomplete:
+                logger.warning(
+                    f"   ⚠️ Ignored incomplete checkpoint(s): "
+                    f"{', '.join(sorted(skipped_incomplete))}"
+                )
 
             if latest_ckpt is not None:
                 args.resume = latest_ckpt
@@ -1378,8 +1542,11 @@ def main():
     # Track whether we need to clean up a consumed interrupted checkpoint.
     # Deferred until the first new checkpoint is written so we don't lose
     # our only recovery point if the resumed process crashes during setup.
-    _cleanup_interrupted_pending = (
-        args.resume == interrupted_ckpt_path and os.path.exists(interrupted_ckpt_path)
+    # Matches the `.prev` fallback too, since resolve_checkpoint() may hand back
+    # interrupted_checkpoint.prev when the canonical directory is half-written.
+    _cleanup_interrupted_pending = args.resume in (
+        interrupted_ckpt_path,
+        f"{interrupted_ckpt_path}.prev",
     )
 
     if args.resume:
@@ -1756,28 +1923,32 @@ def main():
 
             # Step 3: Save checkpoint with all ranks participating
             if is_best_epoch:
-                ckpt_dir = os.path.join(args.output_dir, "best_checkpoint")
-                with suppress_accelerate_logging():
-                    accelerator.save_state(ckpt_dir, safe_serialization=False)
+                # best_val_loss/patience_ctr are updated only after the write
+                # lands, so a crash mid-save cannot leave the tracked best
+                # ahead of the checkpoint that actually holds those weights.
+                # Only rank 0 writes the metadata, and it holds the
+                # authoritative values, so no cross-rank broadcast is needed.
+                save_checkpoint_atomic(
+                    accelerator,
+                    best_ckpt_path,
+                    {
+                        "epoch": epoch + 1,
+                        "best_val_loss": avg_val_loss,
+                        "patience_ctr": 0,
+                        # Model info for auto-detection during inference
+                        "model_name": args.model,
+                        "in_shape": in_shape,
+                        "out_dim": out_dim,
+                    },
+                    extra_files={
+                        "scaler.pkl": os.path.join(args.output_dir, "scaler.pkl")
+                    },
+                )
 
-                # Step 4: Rank 0 handles metadata and updates tracking variables
+                # Step 4: Rank 0 handles side-car files and tracking variables
                 if accelerator.is_main_process:
-                    best_val_loss = avg_val_loss  # Update AFTER checkpoint saved
+                    best_val_loss = avg_val_loss
                     patience_ctr = 0
-
-                    with open(os.path.join(ckpt_dir, "training_meta.pkl"), "wb") as f:
-                        pickle.dump(
-                            {
-                                "epoch": epoch + 1,
-                                "best_val_loss": best_val_loss,
-                                "patience_ctr": patience_ctr,
-                                # Model info for auto-detection during inference
-                                "model_name": args.model,
-                                "in_shape": in_shape,
-                                "out_dim": out_dim,
-                            },
-                            f,
-                        )
 
                     # Unwrap model for saving (handle torch.compile compatibility)
                     try:
@@ -1790,74 +1961,63 @@ def main():
                         if hasattr(unwrapped, "_orig_mod"):
                             unwrapped = unwrapped._orig_mod
 
-                    torch.save(
-                        unwrapped.state_dict(),
-                        os.path.join(args.output_dir, "best_model_weights.pth"),
+                    weights_path = os.path.join(
+                        args.output_dir, "best_model_weights.pth"
                     )
-
-                    # Copy scaler to checkpoint for portability (always overwrite to stay current)
-                    scaler_src = os.path.join(args.output_dir, "scaler.pkl")
-                    scaler_dst = os.path.join(ckpt_dir, "scaler.pkl")
-                    if os.path.exists(scaler_src):
-                        shutil.copy2(scaler_src, scaler_dst)
+                    torch.save(unwrapped.state_dict(), f"{weights_path}.tmp")
+                    os.replace(f"{weights_path}.tmp", weights_path)
 
                     logger.info(
                         f"   💾 Best model saved (val_loss: {best_val_loss:.6f})"
                     )
-
-                    # Also save CSV on best model (ensures progress is saved)
-                    pd.DataFrame(history).to_csv(
-                        os.path.join(args.output_dir, "training_history.csv"),
-                        index=False,
-                    )
-
-                    # Deferred cleanup: now that a fresh checkpoint exists,
-                    # it's safe to remove the consumed interrupted checkpoint.
-                    if _cleanup_interrupted_pending:
-                        shutil.rmtree(interrupted_ckpt_path, ignore_errors=True)
-                        _cleanup_interrupted_pending = False
-                        logger.info("   🗑️  Cleaned up consumed interrupted checkpoint")
             else:
                 if accelerator.is_main_process:
                     patience_ctr += 1
 
-            # Periodic checkpoint (all ranks participate in save_state)
-            periodic_checkpoint_needed = (
+            # ------------------------------------------------------------------
+            # Rolling "last" checkpoint — the crash-recovery point.
+            # ------------------------------------------------------------------
+            # best_checkpoint only advances when val loss improves, so on a
+            # plateau it can fall arbitrarily far behind. This one always
+            # reflects recent progress, bounding the cost of an interruption to
+            # --save_every epochs regardless of whether the model is improving.
+            # It overwrites in place, so disk usage stays constant.
+            save_last_needed = (
                 args.save_every > 0 and (epoch + 1) % args.save_every == 0
             )
-            if periodic_checkpoint_needed:
-                ckpt_name = f"epoch_{epoch + 1}_checkpoint"
-                ckpt_dir = os.path.join(args.output_dir, ckpt_name)
-                with suppress_accelerate_logging():
-                    accelerator.save_state(ckpt_dir, safe_serialization=False)
+            if save_last_needed:
+                save_checkpoint_atomic(
+                    accelerator,
+                    last_ckpt_path,
+                    {
+                        "epoch": epoch + 1,
+                        "best_val_loss": best_val_loss,
+                        "patience_ctr": patience_ctr,
+                        # Model info for auto-detection during inference
+                        "model_name": args.model,
+                        "in_shape": in_shape,
+                        "out_dim": out_dim,
+                    },
+                    extra_files={
+                        "scaler.pkl": os.path.join(args.output_dir, "scaler.pkl")
+                    },
+                )
 
-                if accelerator.is_main_process:
-                    with open(os.path.join(ckpt_dir, "training_meta.pkl"), "wb") as f:
-                        pickle.dump(
-                            {
-                                "epoch": epoch + 1,
-                                "best_val_loss": best_val_loss,
-                                "patience_ctr": patience_ctr,
-                                # Model info for auto-detection during inference
-                                "model_name": args.model,
-                                "in_shape": in_shape,
-                                "out_dim": out_dim,
-                            },
-                            f,
-                        )
-                    logger.info(f"   📁 Periodic checkpoint: {ckpt_name}")
+            # History CSV is small and cheap — write it every epoch so the
+            # training curve never lags the checkpoints.
+            if accelerator.is_main_process:
+                write_csv_atomic(
+                    pd.DataFrame(history),
+                    os.path.join(args.output_dir, "training_history.csv"),
+                )
 
-                    # Deferred cleanup (same as best checkpoint path above)
-                    if _cleanup_interrupted_pending:
-                        shutil.rmtree(interrupted_ckpt_path, ignore_errors=True)
-                        _cleanup_interrupted_pending = False
-                        logger.info("   🗑️  Cleaned up consumed interrupted checkpoint")
-
-                    # Save CSV with each checkpoint (keeps logs in sync with model state)
-                    pd.DataFrame(history).to_csv(
-                        os.path.join(args.output_dir, "training_history.csv"),
-                        index=False,
-                    )
+                # Deferred cleanup: now that a fresh checkpoint exists, it's
+                # safe to drop the consumed interrupted checkpoint.
+                if _cleanup_interrupted_pending and (is_best_epoch or save_last_needed):
+                    shutil.rmtree(interrupted_ckpt_path, ignore_errors=True)
+                    shutil.rmtree(f"{interrupted_ckpt_path}.prev", ignore_errors=True)
+                    _cleanup_interrupted_pending = False
+                    logger.info("   🗑️  Cleaned up consumed interrupted checkpoint")
 
             # Learning rate scheduling (epoch-based schedulers only)
             # NOTE: All epoch-based schedulers must step only on main process
@@ -1913,23 +2073,26 @@ def main():
         if accelerator.is_main_process:
             logger.warning("Training interrupted. Saving emergency checkpoint...")
             try:
-                os.makedirs(interrupted_ckpt_path, exist_ok=True)
+                # Stage into `.tmp` and swap, so an interrupt arriving during
+                # the emergency save cannot corrupt a previous emergency
+                # checkpoint that is still the best recovery point available.
+                tmp_dir = f"{interrupted_ckpt_path}.tmp"
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+                os.makedirs(tmp_dir, exist_ok=True)
                 unwrapped = accelerator.unwrap_model(model)
                 torch.save(
                     unwrapped.state_dict(),
-                    os.path.join(interrupted_ckpt_path, "model_weights.pth"),
+                    os.path.join(tmp_dir, "model_weights.pth"),
                 )
                 torch.save(
                     optimizer.state_dict(),
-                    os.path.join(interrupted_ckpt_path, "optimizer.pt"),
+                    os.path.join(tmp_dir, "optimizer.pt"),
                 )
                 torch.save(
                     scheduler.state_dict(),
-                    os.path.join(interrupted_ckpt_path, "scheduler.pt"),
+                    os.path.join(tmp_dir, "scheduler.pt"),
                 )
-                with open(
-                    os.path.join(interrupted_ckpt_path, "training_meta.pkl"), "wb"
-                ) as f:
+                with open(os.path.join(tmp_dir, "training_meta.pkl"), "wb") as f:
                     pickle.dump(
                         {
                             "epoch": epoch,
@@ -1941,6 +2104,9 @@ def main():
                         },
                         f,
                     )
+                    f.flush()
+                    os.fsync(f.fileno())
+                _finalize_checkpoint(tmp_dir, interrupted_ckpt_path)
                 logger.info(
                     f"   💾 Emergency checkpoint saved (will resume from epoch {epoch + 1})"
                 )
@@ -1963,9 +2129,9 @@ def main():
     finally:
         # Final CSV write to capture all epochs (handles non-multiple-of-10 endings)
         if accelerator.is_main_process and len(history) > 0:
-            pd.DataFrame(history).to_csv(
+            write_csv_atomic(
+                pd.DataFrame(history),
                 os.path.join(args.output_dir, "training_history.csv"),
-                index=False,
             )
 
         # Generate training curves plot (PNG + SVG)

@@ -207,6 +207,10 @@ wavedl-train --list_models
 > - **Local machines**: Uses standard cache locations (~/.cache)
 >
 > **Auto-Resume**: If training crashes or is interrupted, simply re-run with the same `--output_dir`. The framework automatically detects incomplete training and resumes from the last checkpoint.
+>
+> A rolling `last_checkpoint/` is refreshed every `--save_every` epochs (default: every epoch) whether or not validation loss improved, so an interruption costs at most `--save_every` epochs even during a long plateau. Auto-resume picks whichever complete checkpoint reached the highest epoch across `last_checkpoint/`, `best_checkpoint/`, and `interrupted_checkpoint/`.
+>
+> Checkpoints are staged in a `.tmp` directory and swapped into place only once fully written, so a machine that dies mid-save cannot corrupt the previous one — important on Google Drive and other network mounts, where writes flush asynchronously. Raise `--save_every` if checkpoint I/O is significant relative to your epoch time.
 
 <details>
 <summary><b>Advanced: Direct Accelerate Launch</b></summary>
@@ -559,7 +563,7 @@ print(f'\n✓ All {len(urls) + len(timm_models)} pretrained weight files cached!
 | `--seed` | `2025` | Random seed |
 | `--output_dir` | `.` | Output directory for checkpoints |
 | `--resume` | `None` | Checkpoint to resume (auto-detected if not set) |
-| `--save_every` | `50` | Checkpoint frequency |
+| `--save_every` | `1` | Rolling crash-recovery checkpoint frequency (epochs; `0` disables) |
 | `--fresh` | `False` | Force fresh training, ignore existing checkpoints |
 | `--single_channel` | `False` | Confirm data is single-channel (for shallow 3D volumes like `(8, 128, 128)`) |
 

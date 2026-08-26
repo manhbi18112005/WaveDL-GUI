@@ -878,13 +878,53 @@ class TestTrainSuppressLogging:
 
         from wavedl.train import suppress_accelerate_logging
 
-        accelerate_logger = logging.getLogger("accelerate.checkpointing")
+        accelerate_logger = logging.getLogger("accelerate")
         original_level = accelerate_logger.level
 
         with suppress_accelerate_logging():
             assert accelerate_logger.level == logging.WARNING
 
         assert accelerate_logger.level == original_level
+
+    def test_suppress_silences_both_accelerate_loggers(self):
+        """Both accelerate child loggers must go quiet at INFO.
+
+        `accelerate.checkpointing` emits the per-file notices, but the
+        "Saving current state to ..." line comes from `accelerate.accelerator`.
+        Suppressing only the former floods the log once checkpoints are
+        written every epoch.
+        """
+        import logging
+
+        from wavedl.train import suppress_accelerate_logging
+
+        parent = logging.getLogger("accelerate")
+        children = [
+            logging.getLogger("accelerate.checkpointing"),
+            logging.getLogger("accelerate.accelerator"),
+        ]
+        saved = [parent.level] + [c.level for c in children]
+        try:
+            # Pin the inherited baseline to INFO so the assertions below do not
+            # depend on whatever level the root logger happens to carry.
+            parent.setLevel(logging.INFO)
+            for child in children:
+                child.setLevel(logging.NOTSET)  # inherit from parent
+
+            with suppress_accelerate_logging():
+                for child in children:
+                    assert not child.isEnabledFor(logging.INFO), (
+                        f"{child.name} still emits INFO while suppressed"
+                    )
+
+            for child in children:
+                assert child.isEnabledFor(logging.INFO), (
+                    f"{child.name} was not restored after suppression"
+                )
+        finally:
+            parent.setLevel(saved[0])
+            for child, level in zip(children, saved[1:]):
+                child.setLevel(level)
 
 
 # ==============================================================================
