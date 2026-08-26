@@ -114,6 +114,24 @@ Updates are staged: check a signed manifest, download to a versioned cache, veri
 5. **M5 — Packaging:** build shell and CPU/MPS/CUDA packs plus existing-environment flow. Gate: clean-machine install, signature verification, runtime probe, and one short run per supported matrix.
 6. **M6 — Release/update:** staged update, rollback, notarization/signing, and documentation. Gate: failed update automatically returns to the prior known-good version.
 
+### Completed M1 protocol-boundary slice — 2026-08-02
+
+The completed slice provides a strict v1 envelope codec/parser and a legacy
+metrics normalizer. Legacy metrics remain the default; `--output_protocol
+jsonl-v1` is opt-in and CLI-only, and YAML cannot set or override it. The GUI
+parser supports both v1 and legacy output, but GUI workers deliberately continue
+to launch legacy mode until M2 runtime negotiation is implemented. Direct and
+launcher JSONL tests, along with GUI parser CI coverage, are present.
+
+The full M1 milestone still requires the complete §2.2 typed payload
+schemas/fixtures for all event types and the run-manifest scope called for by
+the M1 definition above. M2 remains responsible for train/test/plot lifecycle
+event emission, hello/probe, the run-manifest lifecycle, and its deterministic-
+status gate. M3 owns the platform-neutral process supervisor, explicit runtime
+selection, child-tree cancellation, and its cross-platform gate. These M2 and
+M3 responsibilities are not complete here; this note also makes no claim about
+packaging or remote CI execution.
+
 ## 8. Scope exclusions
 
 No Electron, Tauri, QML, or widget-framework replacement; no visual redesign; no remote execution/HPC scheduler protocol; no database sharing with runtime; no arbitrary plugin execution; no live protocol command channel; no automatic CUDA driver installation; and no promise of binary portability across unsupported architectures. Model/training algorithm changes are out of scope except for structured event emission.

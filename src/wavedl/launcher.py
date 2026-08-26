@@ -38,10 +38,55 @@ import sys
 from pathlib import Path
 
 
-def detect_gpus() -> int:
+def _jsonl_requested(arguments: list[str] | None = None) -> bool:
+    """Return whether the forwarded training command requests JSONL v1."""
+    arguments = sys.argv[1:] if arguments is None else arguments
+    return any(
+        argument == "--output_protocol=jsonl-v1"
+        or (
+            argument == "jsonl-v1"
+            and index > 0
+            and arguments[index - 1] == "--output_protocol"
+        )
+        for index, argument in enumerate(arguments)
+    )
+
+
+def _is_protocol_abbreviation(argument: str) -> bool:
+    """Return whether an argument abbreviates --output_protocol."""
+    option = argument.split("=", 1)[0]
+    return option != "--output_protocol" and (
+        "--output_protocol".startswith(option) or option.startswith("--output_protocol")
+    )
+
+
+def _preflight_config(parser: argparse.ArgumentParser, path: str) -> None:
+    """Validate a forwarded config before launcher fast paths or execution."""
+    import yaml
+
+    try:
+        from wavedl.utils.config import load_config
+
+        config = load_config(path)
+    except (
+        AttributeError,
+        FileNotFoundError,
+        OSError,
+        RecursionError,
+        TypeError,
+        ValueError,
+        yaml.YAMLError,
+    ) as exc:
+        parser.error(f"invalid config '{path}': {exc}")
+    if "output_protocol" in config:
+        parser.error("output_protocol is CLI-only and cannot be set in config")
+
+
+def detect_gpus(output_protocol: str = "legacy") -> int:
     """Auto-detect available GPUs using nvidia-smi."""
+    output = sys.stderr if output_protocol == "jsonl-v1" else sys.stdout
     if shutil.which("nvidia-smi") is None:
-        print("Warning: nvidia-smi not found, defaulting to NUM_GPUS=1")
+        print("Warning: nvidia-smi not found, defaulting to NUM_GPUS=1", file=output)
         return 1
 
     try:
@@ -54,12 +99,12 @@ def detect_gpus() -> int:
         gpu_output = result.stdout.strip()
         gpu_count = len(gpu_output.split("\n")) if gpu_output else 0
         if gpu_count > 0:
-            print(f"Auto-detected {gpu_count} GPU(s)")
+            print(f"Auto-detected {gpu_count} GPU(s)", file=output)
             return gpu_count
     except (subprocess.CalledProcessError, FileNotFoundError):
         pass
 
-    print("Warning: No GPUs detected, defaulting to NUM_GPUS=1")
+    print("Warning: No GPUs detected, defaulting to NUM_GPUS=1", file=output)
     return 1
 
 
@@ -89,13 +134,14 @@ def is_hpc_environment() -> bool:
     return not os.access(home, os.W_OK)
 
 
-def setup_environment() -> None:
+def setup_environment(output_protocol: str = "legacy") -> None:
     """Configure environment for HPC or local machine.
 
     Automatically detects the environment and configures accordingly:
     - HPC: Uses CWD-based caching, offline WandB (compute nodes lack internet)
     - Local: Uses standard cache locations (~/.cache), doesn't override WandB
     """
+    output = sys.stderr if output_protocol == "jsonl-v1" else sys.stdout
     is_hpc = is_hpc_environment()
 
     if is_hpc:
@@ -140,12 +186,15 @@ def setup_environment() -> None:
         os.environ.setdefault("WANDB_CACHE_DIR", f"{cache_base}/.wandb_cache")
         os.environ.setdefault("WANDB_CONFIG_DIR", f"{cache_base}/.wandb_config")
 
-        print("🖥️  HPC environment detected - using local caching")
+        print("🖥️  HPC environment detected - using local caching", file=output)
     else:
         # Local machine: use standard locations, don't override user settings
         # TORCH_HOME defaults to ~/.cache/torch (PyTorch default)
         # WANDB_MODE defaults to online (WandB default)
-        print("💻 Local environment detected - using standard cache locations")
+        print(
+            "💻 Local environment detected - using standard cache locations",
+            file=output,
+        )
 
     # Suppress non-critical warnings (both environments)
     os.environ.setdefault(
@@ -164,9 +213,10 @@ def handle_fast_path_args() -> int | None:
     if "--list_models" in sys.argv:
         from wavedl.models import list_models
 
-        print("Available models:")
+        output = sys.stderr if _jsonl_requested() else sys.stdout
+        print("Available models:", file=output)
         for name in list_models():
-            print(f"  {name}")
+            print(f"  {name}", file=output)
         return 0
 
     return None  # Continue to full launch
@@ -177,6 +227,7 @@ def parse_args() -> tuple[argparse.Namespace, list[str]]:
     parser = argparse.ArgumentParser(
         description="WaveDL Training Launcher (works on local machines and HPC clusters)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
+        allow_abbrev=False,
         epilog="""
 Examples:
   # Basic training (auto-detects GPUs and environment)
@@ -245,57 +296,83 @@ For full training options, see: python -m wavedl.train --help
         default="no",
         help="PyTorch dynamo backend (default: no)",
     )
+    parser.add_argument(
+        "--output_protocol",
+        choices=["legacy", "jsonl-v1"],
+        default=None,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument("--config", action="append", default=[], help=argparse.SUPPRESS)
 
     # Parse known args, pass rest to wavedl.train
     args, remaining = parser.parse_known_args()
+    if len(args.config) > 1:
+        parser.error("--config may only be specified once")
+    if args.config:
+        config_path = args.config[0]
+        if not config_path or config_path.startswith("-"):
+            parser.error("--config requires a path")
+        _preflight_config(parser, config_path)
+        remaining.extend(["--config", config_path])
+    for argument in remaining:
+        if _is_protocol_abbreviation(argument):
+            parser.error(f"unrecognized arguments: {argument}")
+    if args.output_protocol is not None:
+        remaining.extend(["--output_protocol", args.output_protocol])
     return args, remaining
 
 
 def print_summary(
-    exit_code: int, wandb_enabled: bool, wandb_mode: str, wandb_dir: str
+    exit_code: int,
+    wandb_enabled: bool,
+    wandb_mode: str,
+    wandb_dir: str,
+    output_protocol: str = "legacy",
 ) -> None:
     """Print post-training summary and instructions."""
-    print()
-    print("=" * 40)
+    output = sys.stderr if output_protocol == "jsonl-v1" else sys.stdout
+    print(file=output)
+    print("=" * 40, file=output)
 
     if exit_code == 0:
-        print("✅ Training completed successfully!")
-        print("=" * 40)
+        print("✅ Training completed successfully!", file=output)
+        print("=" * 40, file=output)
 
         # Only show WandB sync instructions if user enabled wandb
         if wandb_enabled and wandb_mode == "offline":
-            print()
-            print("📊 WandB Sync Instructions:")
-            print("   From the login node, run:")
-            print(f"   wandb sync {wandb_dir}/wandb/offline-run-*")
-            print()
-            print("   This will upload your training logs to wandb.ai")
+            print(file=output)
+            print("📊 WandB Sync Instructions:", file=output)
+            print("   From the login node, run:", file=output)
+            print(f"   wandb sync {wandb_dir}/wandb/offline-run-*", file=output)
+            print(file=output)
+            print("   This will upload your training logs to wandb.ai", file=output)
     else:
-        print(f"❌ Training failed with exit code: {exit_code}")
-        print("=" * 40)
-        print()
-        print("Common issues:")
-        print("  - Missing data file (check --data_path)")
-        print("  - Insufficient GPU memory (reduce --batch_size)")
-        print("  - Invalid model name (run: wavedl-train --list_models)")
-        print()
+        print(f"❌ Training failed with exit code: {exit_code}", file=output)
+        print("=" * 40, file=output)
+        print(file=output)
+        print("Common issues:", file=output)
+        print("  - Missing data file (check --data_path)", file=output)
+        print("  - Insufficient GPU memory (reduce --batch_size)", file=output)
+        print("  - Invalid model name (run: wavedl-train --list_models)", file=output)
+        print(file=output)
 
-    print("=" * 40)
-    print()
+    print("=" * 40, file=output)
+    print(file=output)
 
 
 def main() -> int:
     """Main entry point for wavedl-train command."""
+    args, train_args = parse_args()
+
     # Fast path for utility flags (avoid accelerate launch overhead)
     exit_code = handle_fast_path_args()
     if exit_code is not None:
         return exit_code
 
-    # Parse arguments
-    args, train_args = parse_args()
+    output_protocol = "jsonl-v1" if _jsonl_requested(train_args) else "legacy"
 
     # Setup environment (smart detection)
-    setup_environment()
+    setup_environment(output_protocol)
 
     # Check if wavedl package is importable
     try:
@@ -307,9 +384,12 @@ def main() -> int:
     # Auto-detect GPUs if not specified
     if args.num_gpus is not None:
         num_gpus = args.num_gpus
-        print(f"Using NUM_GPUS={num_gpus} (set via command line)")
+        print(
+            f"Using NUM_GPUS={num_gpus} (set via command line)",
+            file=sys.stderr if output_protocol == "jsonl-v1" else sys.stdout,
+        )
     else:
-        num_gpus = detect_gpus()
+        num_gpus = detect_gpus(output_protocol)
 
     # Build accelerate launch command
     cmd = [
@@ -348,7 +428,10 @@ def main() -> int:
         result = subprocess.run(cmd, check=False)
         exit_code = result.returncode
     except KeyboardInterrupt:
-        print("\n\n⚠️  Training interrupted by user")
+        print(
+            "\n\n⚠️  Training interrupted by user",
+            file=sys.stderr if output_protocol == "jsonl-v1" else sys.stdout,
+        )
         exit_code = 130
 
     # Print summary
@@ -358,6 +441,7 @@ def main() -> int:
         wandb_enabled,
         os.environ.get("WANDB_MODE", "online"),
         os.environ.get("WANDB_DIR", "/tmp/wandb"),
+        output_protocol,
     )
 
     return exit_code

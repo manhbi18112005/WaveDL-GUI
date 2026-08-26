@@ -15,8 +15,11 @@ Consolidated tests for all CLI entry points in WaveDL:
 Author: Ductho Le (ductho.le@outlook.com)
 """
 
+import copy
+import math
 import os
 import pickle
+import subprocess
 import sys
 from unittest.mock import MagicMock, patch
 
@@ -59,6 +62,56 @@ class TestTrainParseArgs:
             assert args.lr == 1e-3
             assert args.optimizer == "adamw"
             assert args.scheduler == "plateau"
+            assert args.output_protocol == "legacy"
+
+    def test_jsonl_v1_output_protocol(self):
+        """Test that the opt-in JSONL v1 output protocol is parsed."""
+        from wavedl.train import parse_args
+
+        with patch.object(
+            sys,
+            "argv",
+            [
+                "wavedl-train",
+                "--model",
+                "cnn",
+                "--data_path",
+                "/fake/path.npz",
+                "--output_protocol",
+                "jsonl-v1",
+            ],
+        ):
+            args, _parser = parse_args()
+
+        assert args.output_protocol == "jsonl-v1"
+
+    def test_output_protocol_rejects_invalid_choice(self):
+        """Test that unknown output protocols are rejected."""
+        from wavedl.train import parse_args
+
+        with (
+            patch.object(
+                sys,
+                "argv",
+                ["wavedl-train", "--output_protocol", "invalid"],
+            ),
+            pytest.raises(SystemExit),
+        ):
+            parse_args()
+
+    def test_output_protocol_rejects_abbreviated_option(self):
+        """The protocol option must be spelled out to select JSONL mode."""
+        from wavedl.train import parse_args
+
+        with (
+            patch.object(
+                sys,
+                "argv",
+                ["wavedl-train", "--output_p", "jsonl-v1"],
+            ),
+            pytest.raises(SystemExit),
+        ):
+            parse_args()
 
     def test_model_argument(self):
         """Test that model argument is parsed correctly."""
@@ -240,6 +293,554 @@ class TestTrainParseArgs:
             assert args.output_dir == "/custom/output"
             assert args.seed == 42
             assert args.workers == 8
+
+
+class TestTrainMetricsOutput:
+    """Tests for training metrics output formatting."""
+
+    def test_legacy_output_preserves_metrics_payload(self):
+        """Legacy output retains its existing prefix and metric names."""
+        from wavedl.train import _format_metrics_output
+
+        metrics = {"epoch": 3, "r2": 0.9, "lr": 0.001, "epoch_time": 2.5}
+
+        output = _format_metrics_output(metrics, "legacy")
+
+        assert (
+            output
+            == '##METRICS##{"epoch": 3, "r2": 0.9, "lr": 0.001, "epoch_time": 2.5}\n'
+        )
+
+    def test_jsonl_v1_output_is_canonical_and_does_not_mutate_metrics(self):
+        """v1 output has a strict event envelope and fresh canonical payload."""
+        from wavedl.runtime_protocol import parse_jsonl_line
+        from wavedl.train import _format_metrics_output
+
+        metrics = {
+            "epoch": 3,
+            "r2": math.nan,
+            "lr": 0.001,
+            "epoch_time": 2.5,
+            "mae_per_param": [0.1, {"value": 0.2}],
+            "nested": {"values": [1, {"finite": True}]},
+        }
+        original_metrics = copy.deepcopy(metrics)
+        run_id = "123e4567-e89b-12d3-a456-426614174000"
+
+        output = _format_metrics_output(metrics, "jsonl-v1", run_id=run_id, seq=4)
+        event = parse_jsonl_line(output)
+
+        assert event.protocol == "wavedl-jsonl"
+        assert event.version == 1
+        assert event.type == "metric"
+        assert event.run_id == run_id
+        assert event.seq == 4
+        assert event.payload == {
+            "epoch": 3,
+            "r2_score": None,
+            "learning_rate": 0.001,
+            "time_per_epoch": 2.5,
+            "mae_per_param": [0.1, {"value": 0.2}],
+            "nested": {"values": [1, {"finite": True}]},
+        }
+        assert metrics == original_metrics
+        assert math.isnan(metrics["r2"])
+        assert not output.startswith("##METRICS##")
+
+    def test_jsonl_emitter_reuses_run_id_and_increments_sequence(self):
+        """One emitter owns a stable run identity and monotonic sequence."""
+        from wavedl.runtime_protocol import parse_jsonl_line
+        from wavedl.train import _MetricsEmitter
+
+        emitter = _MetricsEmitter("jsonl-v1")
+
+        first = parse_jsonl_line(emitter.format({"epoch": 1}))
+        second = parse_jsonl_line(emitter.format({"epoch": 2}))
+
+        assert first.run_id == second.run_id
+        assert first.seq == 0
+        assert second.seq == 1
+
+    def test_jsonl_emitter_starts_new_run_with_fresh_identity(self):
+        """A new emitter starts a new run at sequence zero."""
+        from wavedl.runtime_protocol import parse_jsonl_line
+        from wavedl.train import _MetricsEmitter
+
+        first_run = parse_jsonl_line(_MetricsEmitter("jsonl-v1").format({"epoch": 1}))
+        second_run = parse_jsonl_line(_MetricsEmitter("jsonl-v1").format({"epoch": 1}))
+
+        assert first_run.run_id != second_run.run_id
+        assert first_run.seq == 0
+        assert second_run.seq == 0
+
+
+class TestJsonlSubprocessOutput:
+    """Tests that JSONL mode keeps stdout machine-readable."""
+
+    @pytest.mark.parametrize("module", ["wavedl.train", "wavedl.launcher"])
+    def test_list_models_stdout_is_protocol_only(self, module):
+        """Human-readable list-model output is not mixed into JSONL stdout."""
+        from wavedl.runtime_protocol import parse_jsonl_line
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                module,
+                "--list_models",
+                "--output_protocol",
+                "jsonl-v1",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(os.path.dirname(__file__)),
+            env=os.environ.copy(),
+            check=False,
+        )
+
+        assert result.returncode == 0
+        stdout_lines = [line for line in result.stdout.splitlines() if line.strip()]
+        assert all(parse_jsonl_line(line) for line in stdout_lines)
+        assert "Available models:" not in result.stdout
+        assert "Available models:" in result.stderr
+
+    def test_custom_import_prints_are_redirected_in_jsonl_mode(self, tmp_path):
+        """Import-time human output does not contaminate JSONL stdout."""
+        from wavedl.runtime_protocol import parse_jsonl_line
+
+        module_path = tmp_path / "prints_at_import.py"
+        module_path.write_text('print("custom import output")\n', encoding="utf-8")
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "wavedl.train",
+                "--import",
+                str(module_path),
+                "--output_protocol",
+                "jsonl-v1",
+                "--list_models",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(os.path.dirname(__file__)),
+            env=os.environ.copy(),
+            check=False,
+        )
+
+        assert result.returncode == 0
+        stdout_lines = [line for line in result.stdout.splitlines() if line.strip()]
+        assert all(parse_jsonl_line(line) for line in stdout_lines)
+        assert "custom import output" not in result.stdout
+        assert "custom import output" in result.stderr
+
+    @pytest.mark.parametrize(
+        "protocol_option",
+        [
+            "--out",
+            "--output",
+            "--output_pro",
+            "--output_protocolx",
+            "--output_protocol_extra",
+        ],
+    )
+    @pytest.mark.parametrize("module", ["wavedl.train", "wavedl.launcher"])
+    def test_protocol_lookalike_is_rejected_without_stdout_leak(
+        self, module, protocol_option
+    ):
+        """Protocol abbreviations fail before human output can reach stdout."""
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                module,
+                protocol_option,
+                "jsonl-v1",
+                "--list_models",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(os.path.dirname(__file__)),
+            env=os.environ.copy(),
+            check=False,
+        )
+
+        assert result.returncode != 0
+        assert not [line for line in result.stdout.splitlines() if line.strip()]
+        assert protocol_option in result.stderr
+
+    @pytest.mark.parametrize("module", ["wavedl.train", "wavedl.launcher"])
+    def test_exact_output_protocol_remains_accepted(self, module):
+        """The fully spelled protocol option remains valid."""
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                module,
+                "--output_protocol",
+                "jsonl-v1",
+                "--list_models",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(os.path.dirname(__file__)),
+            env=os.environ.copy(),
+            check=False,
+        )
+
+        assert result.returncode == 0
+
+    def test_output_dir_is_not_treated_as_protocol_lookalike(self):
+        """The unrelated output directory option remains valid."""
+        from wavedl.train import parse_args
+
+        with patch.object(
+            sys,
+            "argv",
+            ["wavedl-train", "--output_dir", "/tmp/output"],
+        ):
+            args, _parser = parse_args()
+
+        assert args.output_dir == "/tmp/output"
+
+    def test_training_jsonl_stdout_is_protocol_only(self, tmp_path):
+        """Direct and launcher training paths emit parseable JSONL metrics."""
+        from wavedl.runtime_protocol import parse_jsonl_line
+
+        rng = np.random.default_rng(0)
+        data_path = tmp_path / "tiny.npz"
+        np.savez(
+            data_path,
+            input_train=rng.normal(size=(10, 64, 64)).astype(np.float32),
+            output_train=rng.normal(size=(10, 1)).astype(np.float32),
+        )
+
+        common_args = [
+            "--output_protocol",
+            "jsonl-v1",
+            "--model",
+            "cnn",
+            "--data_path",
+            str(data_path),
+            "--output_dir",
+            str(tmp_path / "results"),
+            "--epochs",
+            "2",
+            "--patience",
+            "2",
+            "--batch_size",
+            "4",
+            "--workers",
+            "0",
+            "--precision",
+            "no",
+            "--no_pretrained",
+            "--scheduler",
+            "cosine",
+            "--save_every",
+            "0",
+            "--fresh",
+        ]
+        commands = [
+            [sys.executable, "-m", "wavedl.train", *common_args],
+            [
+                sys.executable,
+                "-m",
+                "wavedl.launcher",
+                "--num_gpus",
+                "1",
+                *common_args,
+            ],
+        ]
+
+        for command in commands:
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                cwd=os.path.dirname(os.path.dirname(__file__)),
+                env=os.environ.copy(),
+                check=False,
+                timeout=120,
+            )
+
+            assert result.returncode == 0, result.stderr
+            stdout_lines = [line for line in result.stdout.splitlines() if line.strip()]
+            assert stdout_lines
+            events = [parse_jsonl_line(line) for line in stdout_lines]
+            run_ids = {event.run_id for event in events}
+            sequences = [event.seq for event in events]
+            assert all(event.type == "metric" for event in events)
+            assert len(run_ids) == 1
+            assert sequences == list(range(len(events)))
+
+    def test_direct_config_rejection_precedes_custom_import_and_fast_path(
+        self, tmp_path
+    ):
+        """Forbidden config keys fail before imports or list-model output."""
+        config_path = tmp_path / "protocol.yaml"
+        config_path.write_text("output_protocol: jsonl-v1\n", encoding="utf-8")
+        module_path = tmp_path / "prints_at_import.py"
+        module_path.write_text('print("should not import")\n', encoding="utf-8")
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "wavedl.train",
+                "--output_protocol",
+                "jsonl-v1",
+                "--config",
+                str(config_path),
+                "--import",
+                str(module_path),
+                "--list_models",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(os.path.dirname(__file__)),
+            env=os.environ.copy(),
+            check=False,
+        )
+
+        assert result.returncode != 0
+        assert not [line for line in result.stdout.splitlines() if line.strip()]
+        assert "should not import" not in result.stderr
+        assert "output_protocol is CLI-only" in result.stderr
+
+    @pytest.mark.parametrize("reverse", [False, True])
+    @pytest.mark.parametrize("equals_syntax", [False, True])
+    def test_train_rejects_duplicate_configs_before_import_and_fast_path(
+        self, tmp_path, reverse, equals_syntax
+    ):
+        """Direct training cannot bypass duplicate config validation."""
+        safe_config = tmp_path / "safe.yaml"
+        forbidden_config = tmp_path / "forbidden.yaml"
+        safe_config.write_text("model: cnn\n", encoding="utf-8")
+        forbidden_config.write_text("output_protocol: jsonl-v1\n", encoding="utf-8")
+        module_path = tmp_path / "prints_at_import.py"
+        module_path.write_text('print("should not import")\n', encoding="utf-8")
+        config_paths = [safe_config, forbidden_config]
+        if reverse:
+            config_paths.reverse()
+        if equals_syntax:
+            config_args = [f"--config={path}" for path in config_paths]
+        else:
+            config_args = [
+                item for path in config_paths for item in ("--config", str(path))
+            ]
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "wavedl.train",
+                "--output_protocol",
+                "jsonl-v1",
+                *config_args,
+                "--import",
+                str(module_path),
+                "--list_models",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(os.path.dirname(__file__)),
+            env=os.environ.copy(),
+            check=False,
+        )
+
+        assert result.returncode != 0
+        assert not [line for line in result.stdout.splitlines() if line.strip()]
+        assert "should not import" not in result.stderr
+        assert "Available models:" not in result.stderr
+        assert "--config may only be specified once" in result.stderr
+
+    @pytest.mark.parametrize("reverse", [False, True])
+    @pytest.mark.parametrize("equals_syntax", [False, True])
+    def test_launcher_rejects_duplicate_configs_before_fast_path(
+        self, tmp_path, reverse, equals_syntax
+    ):
+        """Repeated configs cannot bypass forbidden protocol validation."""
+        safe_config = tmp_path / "safe.yaml"
+        forbidden_config = tmp_path / "forbidden.yaml"
+        safe_config.write_text("model: cnn\n", encoding="utf-8")
+        forbidden_config.write_text("output_protocol: jsonl-v1\n", encoding="utf-8")
+        config_paths = [safe_config, forbidden_config]
+        if reverse:
+            config_paths.reverse()
+        if equals_syntax:
+            config_args = [f"--config={path}" for path in config_paths]
+        else:
+            config_args = [
+                item for path in config_paths for item in ("--config", str(path))
+            ]
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "wavedl.launcher",
+                "--output_protocol",
+                "jsonl-v1",
+                *config_args,
+                "--list_models",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(os.path.dirname(__file__)),
+            env=os.environ.copy(),
+            check=False,
+        )
+
+        assert result.returncode != 0
+        assert not [line for line in result.stdout.splitlines() if line.strip()]
+        assert "Available models:" not in result.stderr
+        assert "--config may only be specified once" in result.stderr
+
+    def test_launcher_rejects_config_selected_protocol(self, tmp_path):
+        """The public launcher cannot turn on JSONL through YAML."""
+        config_path = tmp_path / "protocol.yaml"
+        config_path.write_text("output_protocol: jsonl-v1\n", encoding="utf-8")
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "wavedl.launcher",
+                "--num_gpus",
+                "1",
+                "--config",
+                str(config_path),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(os.path.dirname(__file__)),
+            env=os.environ.copy(),
+            check=False,
+        )
+
+        assert result.returncode != 0
+        assert "output_protocol is CLI-only" in result.stderr
+
+
+class TestConfigPreflightSubprocess:
+    """Config failures are concise argparse errors on both CLI entry points."""
+
+    @pytest.mark.parametrize("module", ["wavedl.train", "wavedl.launcher"])
+    @pytest.mark.parametrize(
+        ("case", "config_text"),
+        [
+            ("missing", None),
+            ("nonexistent", None),
+            ("malformed", "broken: [\n"),
+            ("forbidden", "output_protocol: jsonl-v1\n"),
+            ("recursive", "loop: &loop\n  child: *loop\n"),
+        ],
+    )
+    def test_config_failures_are_argparse_errors(
+        self, tmp_path, module, case, config_text
+    ):
+        config_path = tmp_path / f"{case}.yaml"
+        if config_text is not None:
+            config_path.write_text(config_text, encoding="utf-8")
+        elif case == "nonexistent":
+            config_path = tmp_path / "does-not-exist.yaml"
+
+        args = [sys.executable, "-m", module, "--config"]
+        if case != "missing":
+            args.append(str(config_path))
+        args.append("--list_models")
+        result = subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(os.path.dirname(__file__)),
+            env=os.environ.copy(),
+            check=False,
+        )
+
+        assert result.returncode == 2
+        assert "error:" in result.stderr
+        assert "Traceback" not in result.stderr
+
+    @pytest.mark.parametrize("module", ["wavedl.train", "wavedl.launcher"])
+    def test_deep_yaml_safe_load_failure_is_an_argparse_error(self, tmp_path, module):
+        config_path = tmp_path / "deep.yaml"
+        config_path.write_text(
+            "value: " + ("[" * 2000) + "0" + ("]" * 2000) + "\n",
+            encoding="utf-8",
+        )
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                module,
+                "--config",
+                str(config_path),
+                "--list_models",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(os.path.dirname(__file__)),
+            env=os.environ.copy(),
+            check=False,
+        )
+
+        assert result.returncode == 2
+        assert "error:" in result.stderr
+        assert "Traceback" not in result.stderr
+
+    def test_train_import_does_not_run_config_preflight(self, tmp_path):
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import sys; "
+                    "sys.argv = ['host-process', '--config', "
+                    f"'{tmp_path / 'missing.yaml'}']; "
+                    "import wavedl.train; print('imported safely')"
+                ),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(os.path.dirname(__file__)),
+            env=os.environ.copy(),
+            check=False,
+        )
+
+        assert result.returncode == 0
+        assert result.stdout.strip() == "imported safely"
+        assert result.stderr == ""
+
+
+class TestTrainConfigOutputProtocol:
+    """Tests for output protocol configuration precedence and validation."""
+
+    @pytest.mark.parametrize("cli_args", [[], ["--output_protocol", "jsonl-v1"]])
+    def test_config_protocol_is_rejected_before_accelerator_initialization(
+        self, tmp_path, capsys, cli_args
+    ):
+        """YAML cannot select or override the CLI-only output protocol."""
+        from wavedl import train
+
+        config_path = tmp_path / "protocol.yaml"
+        config_path.write_text("output_protocol: jsonl-v1\n", encoding="utf-8")
+
+        with (
+            patch.object(
+                sys,
+                "argv",
+                ["wavedl-train", "--config", str(config_path), *cli_args],
+            ),
+            patch.object(train, "Accelerator", side_effect=AssertionError),
+            pytest.raises(SystemExit),
+        ):
+            train.main()
+
+        assert "output_protocol is CLI-only" in capsys.readouterr().err
 
 
 # ==============================================================================

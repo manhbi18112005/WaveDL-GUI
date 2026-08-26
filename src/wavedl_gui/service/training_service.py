@@ -7,17 +7,26 @@ Provides clean process isolation to prevent GUI freezing and enable graceful ter
 
 from __future__ import annotations
 
-import json
+import math
+import numbers
 import os
 import re
 import signal
 import subprocess
 import sys
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from enum import Enum, auto
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import QObject, QThread, Signal
+
+from wavedl.runtime_protocol import (
+    EVENT_TYPES,
+    ProtocolParseError,
+    RuntimeEvent,
+    normalize_legacy_metrics_line,
+    parse_jsonl_line,
+)
 
 from ..common.signal_bus import signalBus
 from ..common.utils import get_python_executable
@@ -37,6 +46,15 @@ class ProcessState(Enum):
     COMPLETED = auto()
     FAILED = auto()
     CANCELLED = auto()
+
+
+class OutputKind(Enum):
+    """Internal classification for one line of training output."""
+
+    ORDINARY_LOG = auto()
+    MALFORMED_PROTOCOL = auto()
+    METRIC = auto()
+    PROTOCOL_EVENT = auto()
 
 
 @dataclass
@@ -68,14 +86,23 @@ class TrainingProgress:
         return (self.epoch / self.total_epochs) * 100
 
 
-_METRICS_PREFIX = "##METRICS##"
+@dataclass(frozen=True)
+class OutputParseResult:
+    """Public event-aware result for one parsed output line."""
+
+    progress: TrainingProgress
+    kind: OutputKind
+    raw_line: str
+    event: RuntimeEvent | None = None
 
 
 class OutputParser:
-    """Parses structured ##METRICS## JSON lines emitted by train.py."""
+    """Parses structured runtime output lines emitted by train.py."""
 
     def __init__(self):
         self.progress = TrainingProgress()
+        self._run_id: str | None = None
+        self._last_seq: int | None = None
 
     def parse_line(self, line: str) -> tuple[TrainingProgress, bool]:
         """Parse a single line of output and update progress.
@@ -84,41 +111,168 @@ class OutputParser:
             Tuple of (progress, is_metrics_line). When is_metrics_line is True,
             the caller should suppress this line from the visible log.
         """
+        result = self.parse_result(line)
+        return result.progress, result.kind is OutputKind.METRIC
+
+    def parse_result(self, line: str) -> OutputParseResult:
+        """Parse one line and retain protocol events for downstream routing."""
+        return self._parse_output(line)
+
+    def _parse_output(self, line: str) -> OutputParseResult:
+        """Classify and parse output while keeping malformed input non-fatal."""
         stripped = line.strip()
         if not stripped:
-            return self.progress, False
+            return OutputParseResult(self.progress, OutputKind.ORDINARY_LOG, line)
 
-        if stripped.startswith(_METRICS_PREFIX):
-            self._parse_metrics_json(stripped[len(_METRICS_PREFIX) :])
-            return self.progress, True
-
-        return self.progress, False
-
-    def _parse_metrics_json(self, json_str: str) -> None:
         try:
-            data = json.loads(json_str)
-        except (json.JSONDecodeError, ValueError):
-            return
+            event = parse_jsonl_line(stripped)
+        except ProtocolParseError:
+            try:
+                metrics = normalize_legacy_metrics_line(stripped)
+            except ProtocolParseError:
+                return OutputParseResult(
+                    self.progress, OutputKind.MALFORMED_PROTOCOL, line
+                )
+            if metrics is not None:
+                try:
+                    self._apply_metrics(metrics)
+                except ValueError:
+                    return OutputParseResult(
+                        self.progress, OutputKind.MALFORMED_PROTOCOL, line
+                    )
+                return OutputParseResult(self.progress, OutputKind.METRIC, line)
+            if stripped.startswith("{"):
+                return OutputParseResult(
+                    self.progress, OutputKind.MALFORMED_PROTOCOL, line
+                )
+            return OutputParseResult(self.progress, OutputKind.ORDINARY_LOG, line)
 
-        p = self.progress
-        p.epoch = data.get("epoch", p.epoch)
-        p.total_epochs = data.get("total_epochs", p.total_epochs)
-        p.train_loss = data.get("train_loss", p.train_loss)
-        p.val_loss = data.get("val_loss", p.val_loss)
-        p.best_val_loss = data.get("best_val_loss", p.best_val_loss)
-        p.r2_score = data.get("r2", p.r2_score)
-        p.pearson = data.get("pearson", p.pearson)
-        p.grad_norm = data.get("grad_norm", p.grad_norm)
-        p.learning_rate = data.get("lr", p.learning_rate)
-        p.mae_avg = data.get("mae_avg", p.mae_avg)
-        p.mae_per_param = data.get("mae_per_param", p.mae_per_param)
-        p.time_per_epoch = data.get("epoch_time", p.time_per_epoch)
-        p.total_time = data.get("total_time", p.total_time)
-        p.patience_counter = data.get("patience_counter", p.patience_counter)
-        p.max_patience = data.get("max_patience", p.max_patience)
+        if event.type == "metric":
+            if not self._next_event_is_valid(event):
+                return OutputParseResult(
+                    self.progress, OutputKind.MALFORMED_PROTOCOL, line, event
+                )
+            try:
+                self._apply_metrics(event.payload)
+            except ValueError:
+                self._record_event(event)
+                return OutputParseResult(
+                    self.progress, OutputKind.MALFORMED_PROTOCOL, line, event
+                )
+            self._record_event(event)
+            return OutputParseResult(self.progress, OutputKind.METRIC, line, event)
 
-        remaining = p.total_epochs - p.epoch
-        p.eta_seconds = remaining * p.time_per_epoch if p.time_per_epoch > 0 else 0.0
+        if not self._next_event_is_valid(event):
+            return OutputParseResult(
+                self.progress, OutputKind.MALFORMED_PROTOCOL, line, event
+            )
+        self._record_event(event)
+        return OutputParseResult(self.progress, OutputKind.PROTOCOL_EVENT, line, event)
+
+    def _next_event_is_valid(self, event: RuntimeEvent) -> bool:
+        """Check v1 run identity and contiguous sequence without mutating state."""
+        if self._run_id is None:
+            return event.seq == 0
+        return (
+            self._last_seq is not None
+            and event.run_id == self._run_id
+            and event.seq == self._last_seq + 1
+        )
+
+    def _record_event(self, event: RuntimeEvent) -> None:
+        """Record an accepted v1 event after its state has been applied."""
+        if self._run_id is None:
+            self._run_id = event.run_id
+        self._last_seq = event.seq
+
+    def _apply_metrics(self, data: dict[str, Any]) -> TrainingProgress:
+        """Validate and atomically apply canonical metrics as a new snapshot."""
+        if not isinstance(data, dict):
+            raise ValueError("Metric payload must be an object")
+
+        candidate = asdict(self.progress)
+        integer_fields = (
+            "epoch",
+            "total_epochs",
+            "patience_counter",
+            "max_patience",
+        )
+        float_fields = (
+            "train_loss",
+            "val_loss",
+            "best_val_loss",
+            "r2_score",
+            "pearson",
+            "grad_norm",
+            "learning_rate",
+            "mae_avg",
+            "time_per_epoch",
+            "total_time",
+        )
+
+        for field_name in integer_fields:
+            value = data.get(field_name)
+            if value is None:
+                continue
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f"Invalid metric field: {field_name}")
+            candidate[field_name] = value
+
+        for field_name in float_fields:
+            value = data.get(field_name)
+            if value is None:
+                continue
+            if isinstance(value, bool) or not isinstance(value, numbers.Real):
+                raise ValueError(f"Invalid metric field: {field_name}")
+            try:
+                value = float(value)
+            except (OverflowError, TypeError, ValueError) as exc:
+                raise ValueError(f"Invalid metric field: {field_name}") from exc
+            if not math.isfinite(value):
+                raise ValueError(f"Invalid metric field: {field_name}")
+            if field_name in {"grad_norm", "learning_rate", "mae_avg"} and value < 0:
+                raise ValueError(f"Invalid metric field: {field_name}")
+            if field_name in {"time_per_epoch", "total_time"} and value < 0:
+                raise ValueError(f"Invalid metric field: {field_name}")
+            candidate[field_name] = value
+
+        mae_per_param = data.get("mae_per_param")
+        if mae_per_param is not None:
+            if not isinstance(mae_per_param, list):
+                raise ValueError("Invalid metric field: mae_per_param")
+            if any(value is None for value in mae_per_param):
+                mae_per_param = None
+        if mae_per_param is not None:
+            copied_mae = []
+            for value in mae_per_param:
+                if (
+                    isinstance(value, bool)
+                    or not isinstance(value, numbers.Real)
+                    or value < 0
+                ):
+                    raise ValueError("Invalid metric field: mae_per_param")
+                try:
+                    converted_value = float(value)
+                except (OverflowError, TypeError, ValueError) as exc:
+                    raise ValueError("Invalid metric field: mae_per_param") from exc
+                if not math.isfinite(converted_value):
+                    raise ValueError("Invalid metric field: mae_per_param")
+                copied_mae.append(converted_value)
+            candidate["mae_per_param"] = copied_mae
+
+        if candidate["epoch"] > candidate["total_epochs"]:
+            raise ValueError("epoch cannot exceed total_epochs")
+        remaining = max(candidate["total_epochs"] - candidate["epoch"], 0)
+        try:
+            eta_seconds = remaining * candidate["time_per_epoch"]
+        except (OverflowError, TypeError, ValueError) as exc:
+            raise ValueError("Invalid metric ETA") from exc
+        if not math.isfinite(eta_seconds):
+            raise ValueError("Invalid metric ETA")
+        candidate["eta_seconds"] = eta_seconds
+
+        self.progress = TrainingProgress(**candidate)
+        return self.progress
 
 
 class TrainingWorker(QThread):
@@ -174,12 +328,7 @@ class TrainingWorker(QThread):
 
                 line = line.rstrip()
 
-                progress, is_metrics = self._parser.parse_line(line)
-
-                if is_metrics:
-                    self.progressSig.emit(progress)
-                else:
-                    self.outputSig.emit(line)
+                self._route_output(line)
 
             # Wait for process to complete
             return_code = self.process.wait()
@@ -197,6 +346,28 @@ class TrainingWorker(QThread):
         except Exception as e:
             self.stateSig.emit(ProcessState.FAILED)
             self.finishedSig.emit(False, str(e))
+
+    def _route_output(self, line: str):
+        """Route parsed output to progress or visible log signals."""
+        result = self._parser.parse_result(line)
+
+        if result.kind is OutputKind.METRIC:
+            self.progressSig.emit(result.progress)
+        elif result.kind in {OutputKind.ORDINARY_LOG, OutputKind.MALFORMED_PROTOCOL}:
+            self.outputSig.emit(result.raw_line)
+        elif result.kind is OutputKind.PROTOCOL_EVENT:
+            self.outputSig.emit(self._protocol_event_message(result))
+
+    @staticmethod
+    def _protocol_event_message(result: OutputParseResult) -> str:
+        """Render routable protocol events without losing unhandled events."""
+        if result.event and result.event.type in {"log", "warning", "error"}:
+            message = result.event.payload.get("message")
+            if message is not None:
+                return str(message)
+        if result.event and result.event.type not in EVENT_TYPES:
+            return f"Unhandled protocol event '{result.event.type}': {result.raw_line}"
+        return result.raw_line
 
     def _build_command(self) -> list[str]:
         python = get_python_executable()

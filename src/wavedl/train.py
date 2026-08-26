@@ -34,6 +34,64 @@ Author: Ductho Le (ductho.le@outlook.com)
 
 from __future__ import annotations
 
+import argparse
+import sys
+
+import yaml
+
+
+def _preflight_config_cli() -> None:
+    """Reject invalid config input before importing the training stack."""
+    parser = argparse.ArgumentParser(prog="wavedl-train", allow_abbrev=False)
+    parser.add_argument("--config", action="append", default=[])
+    args, _ = parser.parse_known_args()
+    if not args.config:
+        return
+    if len(args.config) > 1:
+        parser.error("--config may only be specified once")
+
+    path = args.config[0]
+    if not path or path.startswith("-"):
+        parser.error("--config requires a path")
+    try:
+        with open(path, encoding="utf-8") as config_file:
+            config = yaml.safe_load(config_file)
+    except (OSError, RecursionError, TypeError, ValueError, yaml.YAMLError) as exc:
+        parser.error(f"invalid config '{path}': {exc}")
+    if config is not None and not isinstance(config, dict):
+        parser.error(f"invalid config '{path}': top-level YAML value must be a mapping")
+    try:
+        has_forbidden_protocol = _contains_config_key(config, "output_protocol")
+    except (RecursionError, ValueError) as exc:
+        parser.error(f"invalid config '{path}': {exc}")
+    if has_forbidden_protocol:
+        parser.error("output_protocol is CLI-only and cannot be set in config")
+
+
+def _contains_config_key(value, key: str) -> bool:
+    pending = [(value, 0)]
+    seen = set()
+    while pending:
+        current, depth = pending.pop()
+        if depth > 100:
+            raise ValueError("config nesting exceeds supported depth")
+        if isinstance(current, dict):
+            identity = id(current)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            if key in current:
+                return True
+            pending.extend((item, depth + 1) for item in current.values())
+        elif isinstance(current, list):
+            identity = id(current)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            pending.extend((item, depth + 1) for item in current)
+    return False
+
+
 # =============================================================================
 # HPC Environment Setup (MUST be before any library imports)
 # =============================================================================
@@ -83,15 +141,14 @@ _setup_per_rank_compile_cache()
 # =============================================================================
 # Standard imports (after environment setup)
 # =============================================================================
-import argparse
 import json
 import logging
 import pickle
 import shutil
-import sys
 import time
 import warnings
 from typing import TYPE_CHECKING, Any
+from uuid import UUID, uuid4
 
 
 if TYPE_CHECKING:
@@ -120,6 +177,7 @@ from sklearn.metrics import r2_score
 from tqdm.auto import tqdm
 
 from wavedl.models import build_model, get_model, list_models
+from wavedl.runtime_protocol import canonicalize_metric_keys, encode_event
 from wavedl.utils import (
     FIGURE_DPI,
     MetricTracker,
@@ -187,7 +245,7 @@ torch.backends.cudnn.benchmark = True
 # ==============================================================================
 # LOGGING UTILITIES
 # ==============================================================================
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stdout
 
 
 @contextmanager
@@ -205,11 +263,69 @@ def suppress_accelerate_logging():
 # ==============================================================================
 # ARGUMENT PARSING
 # ==============================================================================
+def _format_metrics_output(
+    metrics: dict[str, Any],
+    output_protocol: str,
+    *,
+    run_id=None,
+    seq: int = 0,
+) -> str:
+    """Format one training metrics line for the selected output protocol."""
+    if output_protocol == "legacy":
+        return f"##METRICS##{json.dumps(metrics)}\n"
+
+    if output_protocol == "jsonl-v1":
+        if run_id is None:
+            raise ValueError("jsonl-v1 output requires a run ID")
+        canonical_metrics = canonicalize_metric_keys(metrics)
+        return encode_event("metric", canonical_metrics, run_id=run_id, seq=seq)
+
+    raise ValueError(f"Unsupported output protocol: {output_protocol!r}")
+
+
+class _MetricsEmitter:
+    """Emit metrics with one run identity and a monotonic sequence."""
+
+    def __init__(self, output_protocol: str):
+        self.output_protocol = output_protocol
+        self.run_id: UUID | None = uuid4() if output_protocol == "jsonl-v1" else None
+        self.seq = 0
+
+    def format(self, metrics: dict[str, Any]) -> str:
+        """Format one metrics event and advance its sequence when applicable."""
+        output = _format_metrics_output(
+            metrics,
+            self.output_protocol,
+            run_id=self.run_id,
+            seq=self.seq,
+        )
+        if self.output_protocol == "jsonl-v1":
+            self.seq += 1
+        return output
+
+
+def _human_output_file(output_protocol: str):
+    """Return the stream reserved for human-readable output."""
+    return sys.stderr if output_protocol == "jsonl-v1" else sys.stdout
+
+
+def _config_paths(arguments: list[str]) -> list[str]:
+    """Extract all exact --config paths from command-line arguments."""
+    paths = []
+    for index, argument in enumerate(arguments):
+        if argument == "--config" and index + 1 < len(arguments):
+            paths.append(arguments[index + 1])
+        elif argument.startswith("--config="):
+            paths.append(argument.split("=", 1)[1])
+    return paths
+
+
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments with comprehensive options."""
     parser = argparse.ArgumentParser(
         description="Universal DDP Training Pipeline",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        allow_abbrev=False,
     )
 
     # Model Selection
@@ -473,6 +589,12 @@ def parse_args() -> argparse.Namespace:
         "--project_name", type=str, default="DL-Training", help="WandB project name"
     )
     parser.add_argument("--run_name", type=str, default=None, help="WandB run name")
+    parser.add_argument(
+        "--output_protocol",
+        choices=["legacy", "jsonl-v1"],
+        default="legacy",
+        help=argparse.SUPPRESS,
+    )
 
     args = parser.parse_args()
     return args, parser  # Returns (Namespace, ArgumentParser)
@@ -810,6 +932,33 @@ def train_single_trial(
 # ==============================================================================
 def main():
     args, parser = parse_args()
+    _preflight_config_cli()
+    human_output = _human_output_file(args.output_protocol)
+
+    config_paths = _config_paths(sys.argv[1:])
+    if len(config_paths) > 1:
+        parser.error("--config may only be specified once")
+    if config_paths and (not config_paths[0] or config_paths[0].startswith("-")):
+        parser.error("--config requires a path")
+
+    config = None
+    if args.config:
+        from wavedl.utils.config import load_config
+
+        try:
+            config = load_config(args.config)
+        except (
+            AttributeError,
+            FileNotFoundError,
+            OSError,
+            RecursionError,
+            TypeError,
+            ValueError,
+            yaml.YAMLError,
+        ) as exc:
+            parser.error(f"invalid config '{args.config}': {exc}")
+        if "output_protocol" in config:
+            parser.error("output_protocol is CLI-only and cannot be set in config")
 
     # Import custom model modules if specified
     if args.import_modules:
@@ -832,12 +981,17 @@ def main():
                     if spec and spec.loader:
                         module = importlib.util.module_from_spec(spec)
                         sys.modules[unique_name] = module
-                        spec.loader.exec_module(module)
-                        print(f"✓ Imported custom module from: {module_name}")
+                        with redirect_stdout(human_output):
+                            spec.loader.exec_module(module)
+                        print(
+                            f"✓ Imported custom module from: {module_name}",
+                            file=human_output,
+                        )
                 else:
                     # Import as regular module
-                    importlib.import_module(module_name)
-                    print(f"✓ Imported module: {module_name}")
+                    with redirect_stdout(human_output):
+                        importlib.import_module(module_name)
+                    print(f"✓ Imported module: {module_name}", file=human_output)
             except (ImportError, FileNotFoundError, SyntaxError, PermissionError) as e:
                 print(f"✗ Failed to import '{module_name}': {e}", file=sys.stderr)
                 if isinstance(e, FileNotFoundError):
@@ -859,7 +1013,7 @@ def main():
 
     # Handle --list_models flag
     if args.list_models:
-        print("Available models:")
+        print("Available models:", file=human_output)
         for name in list_models():
             ModelClass = get_model(name)
             # Get first non-empty docstring line
@@ -870,31 +1024,32 @@ def main():
                 doc_first_line = lines[0] if lines else "No description"
             else:
                 doc_first_line = "No description"
-            print(f"  - {name}: {doc_first_line}")
+            print(f"  - {name}: {doc_first_line}", file=human_output)
         sys.exit(0)
 
     # Load and merge config file if provided
     if args.config:
-        from wavedl.utils.config import (
-            load_config,
-            merge_config_with_args,
-            validate_config,
-        )
+        from wavedl.utils.config import merge_config_with_args, validate_config
 
-        print(f"📄 Loading config from: {args.config}")
-        config = load_config(args.config)
+        assert config is not None
+        print(f"📄 Loading config from: {args.config}", file=human_output)
 
         # Validate config values
         warnings_list = validate_config(config)
+        protocol_warnings = [
+            warning for warning in warnings_list if "output_protocol" in warning
+        ]
+        if protocol_warnings:
+            parser.error("Invalid config: " + "; ".join(protocol_warnings))
         for w in warnings_list:
-            print(f"  ⚠ {w}")
+            print(f"  ⚠ {w}", file=human_output)
 
         # Merge config with CLI args (CLI takes precedence via parser defaults detection)
         args = merge_config_with_args(config, args, parser=parser)
 
     # Handle --cv flag (cross-validation mode)
     if args.cv > 0:
-        print(f"🔄 Cross-Validation Mode: {args.cv} folds")
+        print(f"🔄 Cross-Validation Mode: {args.cv} folds", file=human_output)
         from wavedl.utils.cross_validation import run_cross_validation
 
         # Load data for CV using memory-efficient loader
@@ -988,6 +1143,7 @@ def main():
     # ==========================================================================
     # SYSTEM INITIALIZATION
     # ==========================================================================
+    metrics_emitter = _MetricsEmitter(args.output_protocol)
     # Initialize Accelerator for DDP and mixed precision
     accelerator = Accelerator(
         mixed_precision=args.precision,
@@ -1004,7 +1160,10 @@ def main():
         torch.backends.cudnn.allow_tf32 = False
         torch.use_deterministic_algorithms(True, warn_only=True)
         if accelerator.is_main_process:
-            print("🔒 Deterministic mode enabled (slower but reproducible)")
+            print(
+                "🔒 Deterministic mode enabled (slower but reproducible)",
+                file=human_output,
+            )
 
     # Configure logging (rank 0 only prints to console)
     logging.basicConfig(
@@ -1551,7 +1710,11 @@ def main():
                     "patience_counter": patience_ctr,
                     "max_patience": args.patience,
                 }
-                print(f"##METRICS##{json.dumps(gui_metrics)}", flush=True)
+                print(
+                    metrics_emitter.format(gui_metrics),
+                    end="",
+                    flush=True,
+                )
 
                 # WandB logging
                 if args.wandb and WANDB_AVAILABLE:
