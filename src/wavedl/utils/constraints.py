@@ -39,8 +39,11 @@ SAFE_FUNCTIONS: dict[str, Callable] = {
     "cos": torch.cos,
     "tan": torch.tan,
     "exp": torch.exp,
-    "log": torch.log,
-    "sqrt": torch.sqrt,
+    # log/sqrt are domain-protected: clamp the argument to a small positive floor
+    # so denormalized predictions <= 0 (common before convergence) yield a finite
+    # penalty/gradient instead of NaN/-inf, which would poison training via backprop.
+    "log": lambda t: torch.log(torch.clamp(t, min=1e-12)),
+    "sqrt": lambda t: torch.sqrt(torch.clamp(t, min=1e-12)),
     "abs": torch.abs,
     "relu": F.relu,
     "sigmoid": torch.sigmoid,
@@ -314,12 +317,13 @@ class FileConstraint(nn.Module):
         self.reduction = reduction
 
         # Load module from file
-        spec = importlib.util.spec_from_file_location("constraint_module", file_path)
+        module_name = f"constraint_module_{id(self)}"
+        spec = importlib.util.spec_from_file_location(module_name, file_path)
         if spec is None or spec.loader is None:
             raise ValueError(f"Could not load constraint file: {file_path}")
 
         module = importlib.util.module_from_spec(spec)
-        sys.modules["constraint_module"] = module
+        sys.modules[module_name] = module
         spec.loader.exec_module(module)
 
         if not hasattr(module, "constraint"):

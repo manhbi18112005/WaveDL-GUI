@@ -344,6 +344,12 @@ def run_cross_validation(
     # Setup
     os.makedirs(output_dir, exist_ok=True)
 
+    if folds < 2:
+        raise ValueError(
+            f"Cross-validation requires at least 2 folds, got {folds}. "
+            f"Use standard training (without --cv) for single-split training."
+        )
+
     if logger is None:
         logging.basicConfig(
             level=logging.INFO,
@@ -386,11 +392,17 @@ def run_cross_validation(
 
     # Setup cross-validation
     if stratify:
+        if y.ndim > 1 and y.shape[1] > 1:
+            logger.warning(
+                "⚠️  Stratification bins on the first target only (y[:, 0]); "
+                "other targets may be imbalanced across folds."
+            )
         try:
             # Bin targets for stratification (regression)
             y_binned = np.digitize(
                 y[:, 0], np.percentile(y[:, 0], np.linspace(0, 100, stratify_bins + 1))
             )
+            y_binned = np.clip(y_binned, 1, stratify_bins)
             kfold = StratifiedKFold(n_splits=folds, shuffle=True, random_state=seed)
             splits = list(kfold.split(X, y_binned))
         except ValueError:
@@ -461,7 +473,7 @@ def run_cross_validation(
         criterion = get_loss(loss_name)
         optimizer = get_optimizer(
             optimizer_name,
-            model.parameters(),
+            model.get_optimizer_groups(lr, weight_decay),
             lr=lr,
             weight_decay=weight_decay,
             betas=betas,
@@ -543,8 +555,8 @@ def run_cross_validation(
         },
         "timestamp": datetime.now().isoformat(),
         "folds": folds,
-        "r2_mean": float(np.mean(r2_scores)),
-        "r2_std": float(np.std(r2_scores)),
+        "r2_mean": float(np.nanmean(r2_scores)),
+        "r2_std": float(np.nanstd(r2_scores)),
         "mae_mean": float(np.mean(mae_scores)),
         "mae_std": float(np.std(mae_scores)),
         "val_loss_mean": float(np.mean(val_losses)),
@@ -563,15 +575,19 @@ def run_cross_validation(
         r2_target = [r.get(f"r2_target_{i}", np.nan) for r in fold_results]
         mae_target = [r.get(f"mae_target_{i}", np.nan) for r in fold_results]
         logger.info(
-            f"   Target {i}: R²={np.mean(r2_target):.4f}±{np.std(r2_target):.4f}, "
-            f"MAE={np.mean(mae_target):.4f}±{np.std(mae_target):.4f}"
+            f"   Target {i}: R²={np.nanmean(r2_target):.4f}±{np.nanstd(r2_target):.4f}, "
+            f"MAE={np.nanmean(mae_target):.4f}±{np.nanstd(mae_target):.4f}"
         )
 
-    # Save summary
+    # Save summary (without bulky history to keep JSON small)
     with open(os.path.join(output_dir, "cv_summary.json"), "w") as f:
-        summary_save = summary.copy()
-        for r in summary_save["fold_results"]:
-            r["history"] = None  # Too large
+        summary_save = {
+            **summary,
+            "fold_results": [
+                {k: v for k, v in r.items() if k != "history"}
+                for r in summary["fold_results"]
+            ],
+        }
         json.dump(summary_save, f, indent=2)
 
     # Save detailed results as CSV

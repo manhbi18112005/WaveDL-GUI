@@ -50,6 +50,12 @@ try:
 
     SWIN_AVAILABLE = True
 except ImportError:
+    swin_t = None
+    swin_s = None
+    swin_b = None
+    Swin_T_Weights = None
+    Swin_S_Weights = None
+    Swin_B_Weights = None
     SWIN_AVAILABLE = False
 
 from wavedl.models.base import BaseModel
@@ -238,7 +244,11 @@ class SwinTransformerBase(BaseModel):
                 continue
 
             is_head = "head" in name
-            is_no_decay = "bias" in name or "norm" in name
+            # Classify 1-D params (biases and norm scales) as no-decay by shape,
+            # not just by name: the head LayerNorm weight is named 'head.0.weight'
+            # (no 'norm' substring) and would otherwise have weight decay applied
+            # to a normalization gain.
+            is_no_decay = "bias" in name or "norm" in name or param.ndim <= 1
 
             if is_head:
                 if is_no_decay:

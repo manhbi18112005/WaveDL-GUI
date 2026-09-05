@@ -238,8 +238,17 @@ class BaseModel(nn.Module, ABC):
         for name, param in self.named_parameters():
             if not param.requires_grad:
                 continue
-            # Skip weight decay for bias and normalization parameters
-            if "bias" in name or "norm" in name or "bn" in name:
+            # Skip weight decay for bias, normalization, and per-channel
+            # scaling parameters (LayerScale gamma, GRN gamma/beta,
+            # ConvNeXt V2 res_scale, etc.)
+            if (
+                "bias" in name
+                or "norm" in name
+                or "bn" in name
+                or "gamma" in name
+                or "beta" in name
+                or "res_scale" in name
+            ):
                 no_decay_params.append(param)
             else:
                 decay_params.append(param)

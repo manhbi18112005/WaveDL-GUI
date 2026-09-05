@@ -11,7 +11,8 @@ fields and expressive nonlinearities.
     - Skip connections: all blocks contribute to the final output
     - Exponentially growing dilation: receptive field grows with depth
     - Same padding (non-causal): appropriate for regression, not generation
-    - GroupNorm for torch.compile compatibility
+    - No normalization layers: stability comes from the gated tanh×sigmoid
+      activations and residual/skip connections
 
 **Variants**:
     - wavenet_small: 32 channels, 6 dilation levels (~1.0M params)
@@ -36,7 +37,7 @@ from typing import Any
 import torch
 import torch.nn as nn
 
-from wavedl.models.base import BaseModel, compute_num_groups
+from wavedl.models.base import BaseModel
 from wavedl.models.registry import register_model
 
 
@@ -75,9 +76,6 @@ class GatedResidualBlock(nn.Module):
             kernel_size=kernel_size,
             dilation=dilation,
             padding=padding,
-        )
-        self.norm = nn.GroupNorm(
-            compute_num_groups(channels, preferred_groups=8), channels
         )
         self.dropout = nn.Dropout(dropout)
 

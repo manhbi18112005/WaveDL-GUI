@@ -322,6 +322,7 @@ def load_checkpoint(
 
     # Load training metadata
     meta_path = checkpoint_dir / "training_meta.pkl"
+    meta = None
     if meta_path.exists():
         with open(meta_path, "rb") as f:
             meta = pickle.load(f)
@@ -335,23 +336,31 @@ def load_checkpoint(
     # Auto-detect model architecture if not specified
     if model_name is None:
         # First, try to read from training_meta.pkl (most reliable)
-        if meta_path.exists():
-            with open(meta_path, "rb") as f:
-                meta = pickle.load(f)
-            if meta.get("model_name"):
-                model_name = meta["model_name"]
-                logging.info(f"   Auto-detected model from checkpoint: {model_name}")
+        if meta is not None and meta.get("model_name"):
+            model_name = meta["model_name"]
+            logging.info(f"   Auto-detected model from checkpoint: {model_name}")
 
         # Fallback: try to detect from parent directory name (e.g., 'cnn_test' -> 'cnn')
+        # Use longest-prefix matching since many model IDs contain underscores
+        # (e.g., 'convnext_tiny', 'mobilenet_v3_small', 'resnet18_pretrained')
         if model_name is None:
             parent_dir = checkpoint_dir.parent.name
-            detected_name = (
-                parent_dir.split("_")[0]
-                if "_" in parent_dir
-                else parent_dir.split("-")[0]
-            )
+            known_models = list_models()
+            # Sort by length descending so longer (more specific) names match first
+            # e.g., 'resnet18_pretrained' matches before 'resnet18'
+            candidates = sorted(known_models, key=len, reverse=True)
+            detected_name = None
+            for name in candidates:
+                # Check that name is a proper prefix (followed by separator or end)
+                if (
+                    parent_dir == name
+                    or parent_dir.startswith(name + "_")
+                    or parent_dir.startswith(name + "-")
+                ):
+                    detected_name = name
+                    break
 
-            if detected_name in list_models():
+            if detected_name is not None:
                 model_name = detected_name
                 logging.info(f"   Auto-detected model from folder: {model_name}")
             else:
@@ -399,13 +408,19 @@ def load_checkpoint(
     # Remove wrapper prefixes from checkpoints:
     # - 'module.' from DDP (DistributedDataParallel)
     # - '_orig_mod.' from torch.compile()
+    # Iterative stripping handles any nesting order
     cleaned_dict = {}
     for k, v in state_dict.items():
         key = k
-        if key.startswith("module."):
-            key = key[7:]  # Remove 'module.' (7 chars)
-        if key.startswith("_orig_mod."):
-            key = key[10:]  # Remove '_orig_mod.' (10 chars)
+        changed = True
+        while changed:
+            changed = False
+            if key.startswith("module."):
+                key = key[7:]
+                changed = True
+            if key.startswith("_orig_mod."):
+                key = key[10:]
+                changed = True
         cleaned_dict[key] = v
     state_dict = cleaned_dict
 
@@ -580,6 +595,13 @@ def export_to_onnx(
         logging.info("   Wrapping model with de-normalization layer (scaler embedded)")
         model = ModelWithDenormalization(
             model=model, scaler_mean=scaler.mean_, scaler_scale=scaler.scale_
+        )
+
+    # Validate opset up front (the documented supported range is 11-17) so a
+    # bad --export_opset fails with a clear message rather than deep in the exporter.
+    if not (11 <= opset_version <= 17):
+        raise ValueError(
+            f"export_opset must be between 11 and 17, got {opset_version}."
         )
 
     # Ensure model is in eval mode on CPU for consistent export
@@ -839,7 +861,7 @@ def plot_results(
     y_pred: np.ndarray,
     output_dir: str,
     param_names: list | None = None,
-    formats: list = ["png"],
+    formats: list | None = None,
 ):
     """Generate and save publication-quality plots with consistent LaTeX styling.
 
@@ -863,6 +885,9 @@ def plot_results(
         formats: List of output formats (png, pdf, svg, eps, tiff)
     """
     n_params = y_true.shape[1]
+
+    if formats is None:
+        formats = ["png"]
 
     if param_names is None or len(param_names) != n_params:
         param_names = [f"P{i}" for i in range(n_params)]
@@ -954,13 +979,51 @@ def main():
         output_key=args.output_key,
         input_channels=args.input_channels,
     )
-    in_shape = tuple(X_test.shape[2:])
+    # Derive in_shape: prefer training_meta.pkl (authoritative) over data tensor.
+    # This prevents shallow 3D volumes from being misinterpreted as multi-channel 2D.
+    meta_in_shape = None
+    meta_path = Path(args.checkpoint) / "training_meta.pkl"
+    if meta_path.exists():
+        try:
+            with open(meta_path, "rb") as f:
+                _meta = pickle.load(f)
+            meta_in_shape = _meta.get("in_shape")
+        except Exception:
+            pass
+
+    data_in_shape = tuple(X_test.shape[2:])
+
+    if meta_in_shape is not None:
+        in_shape = tuple(meta_in_shape)
+        # Ensure data tensor matches training-time channel expectations.
+        # If checkpoint says 3D (e.g., in_shape=(8,64,64)) but load_test_data
+        # treated it as multi-channel 2D, add the missing channel dimension.
+        expected_ndim = len(in_shape) + 2  # batch + channel + spatial
+        if X_test.ndim == expected_ndim - 1:
+            X_test = X_test.unsqueeze(1)
+            logger.info(
+                f"   Added channel dim to match checkpoint: {tuple(X_test.shape)}"
+            )
+        if in_shape != tuple(X_test.shape[2:]):
+            logger.warning(
+                f"   ⚠️ in_shape from checkpoint {in_shape} differs from data "
+                f"{tuple(X_test.shape[2:])}. Using checkpoint shape. "
+                f"Pass --input_channels to override."
+            )
+    else:
+        in_shape = data_in_shape
 
     # Determine if we have ground truth targets
     has_targets = y_test is not None
 
     # Determine output size: from targets, from --out_size, or from scaler
     if args.out_size is not None:
+        if has_targets and args.out_size != y_test.shape[1]:
+            raise ValueError(
+                f"--out_size={args.out_size} conflicts with the {y_test.shape[1]} "
+                f"target column(s) present in the data file. Omit --out_size to use "
+                f"the target count, or fix the mismatch."
+            )
         out_size = args.out_size
         logger.info(f"   Using explicit --out_size={out_size}")
     elif has_targets:

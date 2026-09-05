@@ -459,7 +459,7 @@ WaveDL/
 
 ⭐ = **Pretrained on ImageNet** (recommended for smaller datasets). Weights are downloaded automatically on first use.
 - **Cache location**: `~/.cache/torch/hub/checkpoints/` (or `./.torch_cache/` on HPC if home is not writable)
-- **Train from scratch**: Use `--no_pretrained` to disable pretrained weights
+- **Use pretrained weights**: Pass `--pretrained` (default: train from scratch). Only effective for `*_pretrained` model variants marked with ⭐ above.
 
 **💡 HPC Users**: If compute nodes block internet, pre-download weights on the login node:
 
@@ -545,6 +545,7 @@ print(f'\n✓ All {len(urls) + len(timm_models)} pretrained weight files cached!
 | `--patience` | `20` | Early stopping patience |
 | `--weight_decay` | `1e-4` | AdamW regularization |
 | `--grad_clip` | `1.0` | Gradient clipping |
+| `--grad_accum_steps` | `1` | Gradient accumulation steps (simulate larger batch sizes) |
 
 </details>
 
@@ -1083,8 +1084,7 @@ The `examples/` folder contains a **complete, ready-to-run example** for **mater
 | $\nu$ | — | Poisson's ratio |
 
 > [!NOTE]
-> This example is based on our paper at **SPIE Smart Structures + NDE 2026**: [*"A lightweight deep learning model for ultrasonic assessment of plate thickness and elasticity
-"*](https://spie.org/spie-smart-structures-and-materials-nondestructive-evaluation/presentation/A-lightweight-deep-learning-model-for-ultrasonic-assessment-of-plate/13951-4) (Paper 13951-4, to appear).
+> This example is based on our paper at **SPIE Smart Structures + NDE 2026**: [*"A lightweight deep learning model for ultrasonic assessment of plate thickness and elasticity"*](https://doi.org/10.1117/12.3090206) (Proc. SPIE 13951, 1395106).
 
 **Sample Dispersion Data:**
 
@@ -1232,18 +1232,36 @@ Beyond the material characterization example above, the WaveDL pipeline can be a
 If you use WaveDL in your research, please cite:
 
 ```bibtex
-@software{le2025wavedl,
+@software{le2026wavedl,
   author = {Le, Ductho},
   title = {{WaveDL}: A Scalable Deep Learning Framework for Wave-Based Inverse Problems},
-  year = {2025},
-  publisher = {Zenodo},
+  year = {2026},
   doi = {10.5281/zenodo.18012338},
   url = {https://doi.org/10.5281/zenodo.18012338}
 }
 ```
 
 Or in APA format:
-> Le, D. (2025). *WaveDL: A Scalable Deep Learning Framework for Wave-Based Inverse Problems*. Zenodo. https://doi.org/10.5281/zenodo.18012338
+> Le, D. (2026). *WaveDL: A Scalable Deep Learning Framework for Wave-Based Inverse Problems*. https://doi.org/10.5281/zenodo.18012338
+
+Please also consider to cite other related papers:
+
+```bibtex
+@inproceedings{le2026lightweight,
+  author = {Le, Ductho and Sacchi, Mauricio D. and Zhang, Xu and Ta, Dean and Lou, Edmond and Le, Lawrence H.},
+  title = {A lightweight deep learning model for ultrasonic assessment of plate thickness and elasticity},
+  booktitle = {Health Monitoring of Structural and Biological Systems XX},
+  volume = {13951},
+  pages = {1395106},
+  year = {2026},
+  publisher = {SPIE},
+  doi = {10.1117/12.3090206},
+  url = {https://doi.org/10.1117/12.3090206}
+}
+```
+
+Or in APA format:
+> Le, D., Sacchi, M. D., Zhang, X., Ta, D., Lou, E., & Le, L. H. (2026). A lightweight deep learning model for ultrasonic assessment of plate thickness and elasticity. *Proc. SPIE 13951, Health Monitoring of Structural and Biological Systems XX*, 1395106. https://doi.org/10.1117/12.3090206
 
 ---
 

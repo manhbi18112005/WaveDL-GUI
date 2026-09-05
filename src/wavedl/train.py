@@ -183,6 +183,8 @@ torch.set_float32_matmul_precision("high")  # Use TF32 for float32 ops
 # Note: First few batches may be slower due to benchmarking
 torch.backends.cudnn.benchmark = True
 
+WANDB_SCATTER_INTERVAL = 5
+
 
 # ==============================================================================
 # LOGGING UTILITIES
@@ -231,12 +233,11 @@ def parse_args() -> argparse.Namespace:
         help="Python modules to import before training (for custom models)",
     )
     parser.add_argument(
-        "--no_pretrained",
-        dest="pretrained",
-        action="store_false",
-        help="Train from scratch without pretrained weights (default: use pretrained)",
+        "--pretrained",
+        action="store_true",
+        help="Use ImageNet pretrained weights (only for *_pretrained model variants). "
+        "Default: train from scratch.",
     )
-    parser.set_defaults(pretrained=True)
 
     # Configuration File
     parser.add_argument(
@@ -260,6 +261,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--weight_decay", type=float, default=1e-4, help="Weight decay")
     parser.add_argument(
         "--grad_clip", type=float, default=1.0, help="Gradient clipping norm"
+    )
+    parser.add_argument(
+        "--grad_accum_steps",
+        type=int,
+        default=1,
+        help="Gradient accumulation steps. Effective batch = batch_size x grad_accum_steps x num_gpus",
     )
 
     # Loss Function
@@ -624,8 +631,11 @@ def train_single_trial(
     amp_dtype = torch.bfloat16 if precision == "bf16" else torch.float16
     scaler = torch.amp.GradScaler("cuda", enabled=(use_amp and precision == "fp16"))
 
-    # Load and prepare data using temporary directory
-    with tempfile.TemporaryDirectory() as tmpdir:
+    # Load and prepare data using temporary directory.
+    # ignore_cleanup_errors: on Windows the memmap cache (.dat) may still be held
+    # open by the dataloaders when the block exits; tolerate the cleanup race
+    # (the OS reclaims the temp dir) instead of crashing the trial.
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
         # Create a minimal args-like object for prepare_data
         class Args:
             pass
@@ -634,7 +644,6 @@ def train_single_trial(
         args.data_path = data_path
         args.batch_size = batch_size
         args.workers = workers
-        args.val_size = 0.2
         args.cache_validate = "fast"
         args.single_channel = False
         args.seed = seed  # Required by prepare_data for train_test_split
@@ -885,7 +894,7 @@ def main():
         config = load_config(args.config)
 
         # Validate config values
-        warnings_list = validate_config(config)
+        warnings_list = validate_config(config, parser=parser)
         for w in warnings_list:
             print(f"  ⚠ {w}")
 
@@ -989,8 +998,14 @@ def main():
     # SYSTEM INITIALIZATION
     # ==========================================================================
     # Initialize Accelerator for DDP and mixed precision
+    if args.grad_accum_steps < 1:
+        raise ValueError(
+            f"--grad_accum_steps must be >= 1, got {args.grad_accum_steps}"
+        )
+
     accelerator = Accelerator(
         mixed_precision=args.precision,
+        gradient_accumulation_steps=args.grad_accum_steps,
         log_with="wandb" if args.wandb and WANDB_AVAILABLE else None,
     )
     set_seed(args.seed)
@@ -1003,8 +1018,7 @@ def main():
         torch.backends.cuda.matmul.allow_tf32 = False
         torch.backends.cudnn.allow_tf32 = False
         torch.use_deterministic_algorithms(True, warn_only=True)
-        if accelerator.is_main_process:
-            print("🔒 Deterministic mode enabled (slower but reproducible)")
+        accelerator.print("🔒 Deterministic mode enabled (slower but reproducible)")
 
     # Configure logging (rank 0 only prints to console)
     logging.basicConfig(
@@ -1023,8 +1037,29 @@ def main():
         num_gpus = accelerator.num_processes
         # Heuristic: 4-16 workers per GPU, bounded by available CPU cores
         # Increased cap from 8 to 16 for high-throughput GPUs (H100, A100)
-        args.workers = min(16, max(2, (cpu_count - 2) // num_gpus))
-        if accelerator.is_main_process:
+        proposed = min(16, max(2, (cpu_count - 2) // num_gpus))
+
+        # Probe shared memory: multi-worker DataLoaders use POSIX shm for
+        # IPC. Environments with restricted /dev/shm (containers, CI, macOS
+        # sandboxes) will crash with "torch_shm_manager ... Operation not
+        # permitted".  Fall back to 0 workers (main-process loading) if shm
+        # is unavailable.
+        try:
+            import multiprocessing.shared_memory as _shm
+
+            test_block = _shm.SharedMemory(create=True, size=1)
+            test_block.close()
+            test_block.unlink()
+            args.workers = proposed
+        except (PermissionError, OSError):
+            args.workers = 0
+            if accelerator.is_main_process:
+                logger.warning(
+                    "⚠️  Shared memory unavailable — falling back to workers=0. "
+                    "Multi-worker DataLoaders disabled."
+                )
+
+        if accelerator.is_main_process and args.workers > 0:
             logger.info(
                 f"⚙️  Auto-detected workers: {args.workers} per GPU "
                 f"(CPUs: {cpu_count}, GPUs: {num_gpus})"
@@ -1042,6 +1077,14 @@ def main():
             f"   Loss: {args.loss} | Optimizer: {args.optimizer} | Scheduler: {args.scheduler}"
         )
         logger.info(f"   Early Stopping Patience: {args.patience} epochs")
+        if args.grad_accum_steps > 1:
+            effective_bs = (
+                args.batch_size * args.grad_accum_steps * accelerator.num_processes
+            )
+            logger.info(
+                f"   Gradient Accumulation: {args.grad_accum_steps} steps "
+                f"(effective batch size: {effective_bs})"
+            )
         if args.save_every > 0:
             logger.info(f"   Periodic Checkpointing: Every {args.save_every} epochs")
         if args.resume:
@@ -1228,7 +1271,7 @@ def main():
         scheduler = accelerator.prepare(scheduler)
     else:
         # EPOCH-BASED SCHEDULER (plateau, cosine, step, etc.)
-        # No batch count dependency - create scheduler before prepare
+        # Create scheduler before prepare (no batch count dependency)
         scheduler = get_scheduler(
             name=args.scheduler,
             optimizer=optimizer,
@@ -1243,21 +1286,14 @@ def main():
             warmup_epochs=args.warmup_epochs,
         )
 
-        # For ReduceLROnPlateau: DON'T include scheduler in accelerator.prepare()
-        # because accelerator wraps scheduler.step() to sync across processes,
-        # which defeats our rank-0-only stepping for correct patience counting.
-        # Other schedulers are safe to prepare (no internal state affected by multi-call).
-        if args.scheduler == "plateau":
-            model, optimizer, train_dl, val_dl = accelerator.prepare(
-                model, optimizer, train_dl, val_dl
-            )
-            # Scheduler stays unwrapped - we handle sync manually in training loop
-            # But register it for checkpointing so state is saved/loaded on resume
-            accelerator.register_for_checkpointing(scheduler)
-        else:
-            model, optimizer, train_dl, val_dl, scheduler = accelerator.prepare(
-                model, optimizer, train_dl, val_dl, scheduler
-            )
+        # DON'T include scheduler in accelerator.prepare() for any epoch-based
+        # scheduler. We handle stepping on rank 0 only, then broadcast LR.
+        # This prevents Accelerate's wrapper from interfering with step counts.
+        model, optimizer, train_dl, val_dl = accelerator.prepare(
+            model, optimizer, train_dl, val_dl
+        )
+        # Register scheduler for checkpointing so state is saved/loaded on resume
+        accelerator.register_for_checkpointing(scheduler)
 
     # ==========================================================================
     # AUTO-RESUME / RESUME FROM CHECKPOINT
@@ -1269,27 +1305,133 @@ def main():
 
     # Define checkpoint paths
     best_ckpt_path = os.path.join(args.output_dir, "best_checkpoint")
+    interrupted_ckpt_path = os.path.join(args.output_dir, "interrupted_checkpoint")
     complete_flag_path = os.path.join(args.output_dir, "training_complete.flag")
 
     # Auto-resume logic (if not --fresh and no explicit --resume)
+    # Priority: interrupted_checkpoint > latest periodic/best checkpoint
+    # The interrupted checkpoint captures the latest state after Ctrl+C.
+    # Periodic checkpoints may be newer than best_checkpoint after a
+    # non-KeyboardInterrupt crash (e.g., OOM, hardware failure).
+    training_already_complete = False
     if not args.fresh and args.resume is None:
         if os.path.exists(complete_flag_path):
-            # Training already completed
+            # Training already completed — will exit after entering try block
+            # so the finally block runs cleanup (WandB, DDP process group)
+            training_already_complete = True
             if accelerator.is_main_process:
                 logger.info(
                     "✅ Training already completed (early stopping). Use --fresh to retrain."
                 )
-            return  # Exit gracefully
-        elif os.path.exists(best_ckpt_path):
-            # Incomplete training found - auto-resume
-            args.resume = best_ckpt_path
+        elif os.path.exists(interrupted_ckpt_path):
+            # Prefer interrupted checkpoint (most recent optimizer/scheduler state)
+            args.resume = interrupted_ckpt_path
             if accelerator.is_main_process:
-                logger.info(f"🔄 Auto-resuming from: {best_ckpt_path}")
+                logger.info(
+                    f"🔄 Auto-resuming from interrupted checkpoint: {interrupted_ckpt_path}"
+                )
+        else:
+            # Find the latest checkpoint by epoch number across best and
+            # periodic checkpoints.  A crash after a periodic save should
+            # not rewind to an earlier best_checkpoint.
+            latest_ckpt = None
+            latest_epoch = -1
+
+            # Check best_checkpoint
+            if os.path.exists(best_ckpt_path):
+                meta_file = os.path.join(best_ckpt_path, "training_meta.pkl")
+                if os.path.exists(meta_file):
+                    with open(meta_file, "rb") as f:
+                        m = pickle.load(f)
+                    ep = m.get("epoch", 0)
+                    if ep > latest_epoch:
+                        latest_epoch = ep
+                        latest_ckpt = best_ckpt_path
+                else:
+                    # No metadata — treat as epoch 0 fallback
+                    latest_ckpt = best_ckpt_path
+                    latest_epoch = 0
+
+            # Scan periodic epoch_*_checkpoint directories
+            for entry in os.listdir(args.output_dir):
+                if not entry.startswith("epoch_") or not entry.endswith("_checkpoint"):
+                    continue
+                ckpt_candidate = os.path.join(args.output_dir, entry)
+                if not os.path.isdir(ckpt_candidate):
+                    continue
+                meta_file = os.path.join(ckpt_candidate, "training_meta.pkl")
+                if os.path.exists(meta_file):
+                    with open(meta_file, "rb") as f:
+                        m = pickle.load(f)
+                    ep = m.get("epoch", 0)
+                    if ep > latest_epoch:
+                        latest_epoch = ep
+                        latest_ckpt = ckpt_candidate
+
+            if latest_ckpt is not None:
+                args.resume = latest_ckpt
+                if accelerator.is_main_process:
+                    logger.info(
+                        f"🔄 Auto-resuming from latest checkpoint: {latest_ckpt} "
+                        f"(epoch {latest_epoch})"
+                    )
+
+    # Track whether we need to clean up a consumed interrupted checkpoint.
+    # Deferred until the first new checkpoint is written so we don't lose
+    # our only recovery point if the resumed process crashes during setup.
+    _cleanup_interrupted_pending = (
+        args.resume == interrupted_ckpt_path and os.path.exists(interrupted_ckpt_path)
+    )
 
     if args.resume:
         if os.path.exists(args.resume):
             logger.info(f"🔄 Loading checkpoint from: {args.resume}")
-            accelerator.load_state(args.resume)
+
+            # Detect checkpoint format: standalone (from KeyboardInterrupt)
+            # vs accelerator-managed (from normal save_state)
+            standalone_weights = os.path.join(args.resume, "model_weights.pth")
+            if os.path.exists(standalone_weights):
+                # Standalone format: model_weights.pth + optimizer.pt
+                unwrapped = accelerator.unwrap_model(model)
+                unwrapped.load_state_dict(
+                    torch.load(
+                        standalone_weights, map_location="cpu", weights_only=True
+                    )
+                )
+                standalone_optim = os.path.join(args.resume, "optimizer.pt")
+                if os.path.exists(standalone_optim):
+                    optimizer.load_state_dict(
+                        torch.load(
+                            standalone_optim, map_location="cpu", weights_only=True
+                        )
+                    )
+                # Restore scheduler state (prevents LR schedule restart on resume)
+                standalone_scheduler = os.path.join(args.resume, "scheduler.pt")
+                if os.path.exists(standalone_scheduler):
+                    scheduler.load_state_dict(
+                        torch.load(
+                            standalone_scheduler,
+                            map_location="cpu",
+                            weights_only=True,
+                        )
+                    )
+                    logger.info(
+                        "   Loaded standalone checkpoint (emergency format, scheduler restored)"
+                    )
+                    if scheduler_step_per_batch:
+                        logger.warning(
+                            "   ⚠️ Resuming a per-batch scheduler (e.g. OneCycleLR) "
+                            "from an emergency checkpoint: the interrupted epoch is "
+                            "replayed from its start, so the LR schedule may be "
+                            "slightly desynchronized for that epoch."
+                        )
+                else:
+                    logger.warning(
+                        "   ⚠️ Loaded standalone checkpoint WITHOUT scheduler state — "
+                        "LR schedule will restart from scratch"
+                    )
+            else:
+                accelerator.load_state(args.resume)
 
             # Restore training metadata
             meta_path = os.path.join(args.resume, "training_meta.pkl")
@@ -1346,7 +1488,14 @@ def main():
         logger.info(header)
         logger.info("=" * len(header))
 
+    # Initialize epoch before try block so the interrupt handler always has
+    # a valid value, even if KeyboardInterrupt fires before the loop starts.
+    epoch = start_epoch
+
     try:
+        if training_already_complete:
+            return
+
         total_training_time = 0.0
 
         for epoch in range(start_epoch, args.epochs):
@@ -1390,7 +1539,7 @@ def main():
                     optimizer.zero_grad(set_to_none=True)  # Faster than zero_grad()
 
                     # Per-batch LR scheduling (e.g., OneCycleLR)
-                    if scheduler_step_per_batch:
+                    if scheduler_step_per_batch and accelerator.sync_gradients:
                         scheduler.step()
 
                     # Accumulate as tensors to avoid .item() sync per batch
@@ -1427,12 +1576,19 @@ def main():
                     # Use mixed precision for validation (consistent with training)
                     with accelerator.autocast():
                         pred = model(x)
-                        # Pass inputs for input-dependent constraints
+                        # Validation metric uses the BASE loss (no physics penalty).
+                        # The penalty is input-dependent (needs x), which the
+                        # de-padded multi-GPU recompute below cannot evaluate; using
+                        # base loss in both regimes keeps the selection/early-stopping
+                        # metric identical across single- and multi-GPU runs.
                         if isinstance(criterion, PhysicsConstrainedLoss):
-                            loss = criterion(pred, y, x)
+                            loss = criterion.base_loss(pred, y)
                         else:
                             loss = criterion(pred, y)
 
+                    # Note: val_loss_sum includes DDP-padded duplicates.
+                    # This is corrected after gathering by recomputing from
+                    # de-padded predictions (see DDP padding correction below).
                     val_loss_sum += loss.detach() * x.size(0)
                     val_samples += x.size(0)
 
@@ -1489,6 +1645,34 @@ def main():
             )
             avg_mae = avg_mae_per_param.mean()
 
+            # Correct DDP padding bias: recompute val metrics from de-padded
+            # gathered predictions. The reduce-based values above include
+            # padded duplicate samples; this override removes that bias.
+            if accelerator.num_processes > 1 and accelerator.is_main_process:
+                _base_crit = (
+                    criterion.base_loss
+                    if isinstance(criterion, PhysicsConstrainedLoss)
+                    else criterion
+                )
+                # Recompute loss in chunks to avoid GPU OOM
+                _loss_sum = 0.0
+                _n = len(gathered_preds)
+                _chunk = 2048
+                for _i in range(0, _n, _chunk):
+                    _p = gathered_preds[_i : _i + _chunk].to(accelerator.device)
+                    _t = gathered_targets[_i : _i + _chunk].to(accelerator.device)
+                    _loss_sum += _base_crit(_p, _t).item() * len(_p)
+                avg_val_loss = _loss_sum / _n
+
+                # Also correct MAE from de-padded data
+                avg_mae_per_param = (
+                    torch.abs((gathered_preds - gathered_targets) * phys_scale.cpu())
+                    .mean(dim=0)
+                    .float()
+                    .numpy()
+                )
+                avg_mae = avg_mae_per_param.mean()
+
             # ==================== LOGGING & CHECKPOINTING ====================
             if accelerator.is_main_process:
                 # Scientific metrics - cast to float32 before numpy
@@ -1496,12 +1680,13 @@ def main():
                 y_pred = gathered_preds.float().numpy()
                 y_true = gathered_targets.float().numpy()
 
-                # Guard against tiny validation sets (R² undefined for <2 samples)
+                # Guard against tiny validation sets (R²/Pearson undefined for <2 samples)
                 if len(y_true) >= 2:
                     r2 = r2_score(y_true, y_pred)
+                    pcc = calc_pearson(y_true, y_pred)
                 else:
                     r2 = float("nan")
-                pcc = calc_pearson(y_true, y_pred)
+                    pcc = float("nan")
                 current_lr = get_lr(optimizer)
 
                 # Update history
@@ -1567,8 +1752,11 @@ def main():
                     for i, mae in enumerate(avg_mae_per_param):
                         log_dict[f"mae_detailed/P{i}"] = mae
 
-                    # Periodic scatter plots
-                    if (epoch % 5 == 0) or (avg_val_loss < best_val_loss):
+                    # Periodic scatter plots (epoch+1 to match the displayed/logged
+                    # 1-indexed epoch numbering used everywhere else in the loop)
+                    if ((epoch + 1) % WANDB_SCATTER_INTERVAL == 0) or (
+                        avg_val_loss < best_val_loss
+                    ):
                         real_true = scaler.inverse_transform(y_true)
                         real_pred = scaler.inverse_transform(y_pred)
                         fig = plot_scientific_scatter(real_true, real_pred)
@@ -1645,6 +1833,13 @@ def main():
                         os.path.join(args.output_dir, "training_history.csv"),
                         index=False,
                     )
+
+                    # Deferred cleanup: now that a fresh checkpoint exists,
+                    # it's safe to remove the consumed interrupted checkpoint.
+                    if _cleanup_interrupted_pending:
+                        shutil.rmtree(interrupted_ckpt_path, ignore_errors=True)
+                        _cleanup_interrupted_pending = False
+                        logger.info("   🗑️  Cleaned up consumed interrupted checkpoint")
             else:
                 if accelerator.is_main_process:
                     patience_ctr += 1
@@ -1675,6 +1870,12 @@ def main():
                         )
                     logger.info(f"   📁 Periodic checkpoint: {ckpt_name}")
 
+                    # Deferred cleanup (same as best checkpoint path above)
+                    if _cleanup_interrupted_pending:
+                        shutil.rmtree(interrupted_ckpt_path, ignore_errors=True)
+                        _cleanup_interrupted_pending = False
+                        logger.info("   🗑️  Cleaned up consumed interrupted checkpoint")
+
                     # Save CSV with each checkpoint (keeps logs in sync with model state)
                     pd.DataFrame(history).to_csv(
                         os.path.join(args.output_dir, "training_history.csv"),
@@ -1682,34 +1883,34 @@ def main():
                     )
 
             # Learning rate scheduling (epoch-based schedulers only)
-            # NOTE: For ReduceLROnPlateau with DDP, we must step only on main process
-            # to avoid patience counter being incremented by all GPU processes.
-            # Then we sync the new LR to all processes to keep them consistent.
+            # NOTE: All epoch-based schedulers must step only on main process
+            # in DDP mode. Otherwise, each GPU process calls scheduler.step(),
+            # consuming T_max N× faster (e.g., 4× with 4 GPUs).
+            # After stepping on rank 0, we broadcast the updated LR to all.
             if not scheduler_step_per_batch:
-                if args.scheduler == "plateau":
-                    # Step only on main process to avoid multi-GPU patience bug
-                    if accelerator.is_main_process:
+                if accelerator.is_main_process:
+                    if args.scheduler == "plateau":
                         scheduler.step(avg_val_loss)
+                    else:
+                        scheduler.step()
 
-                    # Sync LR across all processes after main process updates it
-                    accelerator.wait_for_everyone()
+                # Sync LR across all processes after main process updates it
+                accelerator.wait_for_everyone()
 
-                    # Broadcast per-group LRs from rank 0 to all processes
-                    # (preserves multi-group ratios, e.g., Swin backbone 0.1× vs head 1×)
-                    if dist.is_initialized():
-                        n_groups = len(optimizer.param_groups)
-                        lr_tensor = torch.zeros(
-                            n_groups, device=accelerator.device, dtype=torch.float32
-                        )
-                        if accelerator.is_main_process:
-                            for i, pg in enumerate(optimizer.param_groups):
-                                lr_tensor[i] = pg["lr"]
-                        dist.broadcast(lr_tensor, src=0)
-                        if not accelerator.is_main_process:
-                            for i, pg in enumerate(optimizer.param_groups):
-                                pg["lr"] = lr_tensor[i].item()
-                else:
-                    scheduler.step()
+                # Broadcast per-group LRs from rank 0 to all processes
+                # (preserves multi-group ratios, e.g., Swin backbone 0.1× vs head 1×)
+                if dist.is_initialized():
+                    n_groups = len(optimizer.param_groups)
+                    lr_tensor = torch.zeros(
+                        n_groups, device=accelerator.device, dtype=torch.float32
+                    )
+                    if accelerator.is_main_process:
+                        for i, pg in enumerate(optimizer.param_groups):
+                            lr_tensor[i] = pg["lr"]
+                    dist.broadcast(lr_tensor, src=0)
+                    if not accelerator.is_main_process:
+                        for i, pg in enumerate(optimizer.param_groups):
+                            pg["lr"] = lr_tensor[i].item()
 
             # DDP-safe early stopping
             should_stop = (
@@ -1730,12 +1931,44 @@ def main():
                 break
 
     except KeyboardInterrupt:
-        logger.warning("Training interrupted. Saving emergency checkpoint...")
-        with suppress_accelerate_logging():
-            accelerator.save_state(
-                os.path.join(args.output_dir, "interrupted_checkpoint"),
-                safe_serialization=False,
-            )
+        # Rank-0-only save to avoid DDP deadlock — accelerator.save_state()
+        # is collective and hangs if ranks receive the signal at different times.
+        if accelerator.is_main_process:
+            logger.warning("Training interrupted. Saving emergency checkpoint...")
+            try:
+                os.makedirs(interrupted_ckpt_path, exist_ok=True)
+                unwrapped = accelerator.unwrap_model(model)
+                torch.save(
+                    unwrapped.state_dict(),
+                    os.path.join(interrupted_ckpt_path, "model_weights.pth"),
+                )
+                torch.save(
+                    optimizer.state_dict(),
+                    os.path.join(interrupted_ckpt_path, "optimizer.pt"),
+                )
+                torch.save(
+                    scheduler.state_dict(),
+                    os.path.join(interrupted_ckpt_path, "scheduler.pt"),
+                )
+                with open(
+                    os.path.join(interrupted_ckpt_path, "training_meta.pkl"), "wb"
+                ) as f:
+                    pickle.dump(
+                        {
+                            "epoch": epoch,
+                            "best_val_loss": best_val_loss,
+                            "patience_ctr": patience_ctr,
+                            "model_name": args.model,
+                            "in_shape": in_shape,
+                            "out_dim": out_dim,
+                        },
+                        f,
+                    )
+                logger.info(
+                    f"   💾 Emergency checkpoint saved (will resume from epoch {epoch + 1})"
+                )
+            except Exception as save_err:
+                logger.error(f"Failed to save emergency checkpoint: {save_err}")
 
     except Exception as e:
         logger.error(f"Critical error: {e}", exc_info=True)
@@ -1777,8 +2010,8 @@ def main():
             accelerator.end_training()
 
         # Clean up distributed process group to prevent resource leak warning
-        if torch.distributed.is_initialized():
-            torch.distributed.destroy_process_group()
+        if dist.is_initialized():
+            dist.destroy_process_group()
 
         logger.info("Training completed.")
 

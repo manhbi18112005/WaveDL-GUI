@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-06-18
+
+### Added
+- **Training**: `--grad_accum_steps` flag for gradient accumulation across mini-batches
+
+### Fixed
+- **Training**: Auto-resume picks latest checkpoint (interrupted > periodic > best) with deferred cleanup and shared-memory probe for worker auto-detect
+- **Config**: CLI-over-YAML precedence handles `--flag=value` form; `validate_config()` derives valid keys from parser
+- **Inference**: Model auto-detection uses longest-prefix matching (fixes multi-underscore IDs)
+- **DDP**: Epoch-based schedulers now step only on rank 0 with LR broadcast (cosine `T_max` was consumed N× faster with N GPUs)
+- **Training**: Per-batch schedulers correctly skipped during gradient accumulation sub-steps
+- **ConvNeXt V1/V2**: Pretrained V2 now loads real V2 weights from `timm` (was V1 torchvision); added ≥32 min spatial size guard; exempt `res_scale` from weight decay; added `res_scale` init=1e-6 for stable from-scratch training; fixed `_init_weights` docstring
+- **Mamba/Vim**: Corrected the selective-scan recurrence (off-by-one in the prefix product) — all Mamba/Vim models were computing a non-Mamba operator
+- **HPO**: A single failed trial no longer aborts the whole study (`study.optimize(catch=…)`); `--n_jobs` is validated; GPU count detected once instead of per-trial; warns when resuming a persistent study with a changed search space
+- **DDP**: Validation loss (early-stopping / best-model selection) is now identical on single- vs multi-GPU when physics constraints are active
+- **Data**: MAT memory-mapped loading applies MATLAB output normalization (fixes wrong `out_dim`/crash on `(1, N)` targets); scaler cache invalidates when `val_split`/`seed` change (prevents validation-set leakage)
+- **Schedulers**: `exponential` no longer halves the LR every epoch from the shared `--scheduler_factor`; removed the fragile `gamma == 0.99` sentinel
+- **Metrics**: Publication scatter R² is computed on the full set (matches the reported metric) with seeded subsampling; guarded `np.corrcoef` against constant-error NaNs
+- **Robustness**: Construction-time min-size guards (CNN, U-Net, UniRepLKNet); native YAML lists for `betas`/`milestones`/`loss_weights` no longer crash; `validate_config()` checks `choices`; physics-constraint `log`/`sqrt` domain-protected; timm load failures use exception chaining
+
 ## [1.8.0] - 2026-02-23
 
 ### Added
@@ -455,7 +475,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Example configurations and training scripts
 - MIT License and citation file
 
-[Unreleased]: https://github.com/ductho-le/WaveDL/compare/v1.8.0...HEAD
+[Unreleased]: https://github.com/ductho-le/WaveDL/compare/v1.8.1...HEAD
+[1.8.1]: https://github.com/ductho-le/WaveDL/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/ductho-le/WaveDL/compare/v1.7.1...v1.8.0
 [1.7.1]: https://github.com/ductho-le/WaveDL/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/ductho-le/WaveDL/compare/v1.6.3...v1.7.0

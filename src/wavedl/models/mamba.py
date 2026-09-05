@@ -158,6 +158,9 @@ class SelectiveSSM(nn.Module):
 
         # SSM parameters from input
         x_proj = self.x_proj(x)  # (B, L, d_state*2 + 1)
+        # NOTE: delta is derived from a single shared scalar channel (a reduced-rank
+        # simplification of the reference Mamba, which uses a dt_rank>1 projection).
+        # This pure-PyTorch fallback trades some selectivity for simplicity/speed.
         delta = F.softplus(self.dt_proj(x_proj[:, :, :1]))  # (B, L, d_inner)
         B_param = x_proj[:, :, 1 : self.d_state + 1]  # (B, L, d_state)
         C_param = x_proj[:, :, self.d_state + 1 :]  # (B, L, d_state)
@@ -202,15 +205,17 @@ class SelectiveSSM(nn.Module):
         log_A_cumsum = torch.cumsum(log_A_bar, dim=1)
         A_cumsum = torch.exp(log_A_cumsum.clamp(max=80))  # Prevent overflow
 
-        # Shifted cumsum for proper indexing
-        A_cumsum_shifted = F.pad(A_cumsum[:, :-1], (0, 0, 0, 0, 1, 0), value=1.0)
-
-        # Weighted input and cumsum
-        weighted_BX = BX / A_cumsum_shifted.clamp(min=1e-10)
+        # Closed form of h_t = A_bar_t · h_{t-1} + BX_t is
+        #   h_t = P_t · Σ_{i≤t} (BX_i / P_i),  where P_t = ∏_{j≤t} A_bar_j (= A_cumsum).
+        # Divide by the INCLUSIVE cumulative product and do NOT divide the result
+        # by A_bar afterwards. Using the shifted product + trailing /A_bar (the
+        # previous code) shifts both index bounds down by one — an off-by-one that
+        # only matches the true recurrence at t=0.
+        weighted_BX = BX / A_cumsum.clamp(min=1e-10)
         weighted_BX_cumsum = torch.cumsum(weighted_BX, dim=1)
 
         # Final state
-        h = A_cumsum * weighted_BX_cumsum / A_bar.clamp(min=1e-10)
+        h = A_cumsum * weighted_BX_cumsum
 
         # Output
         y = (C.unsqueeze(2) * h).sum(-1) + D * x
@@ -265,12 +270,13 @@ class SelectiveSSM(nn.Module):
             log_A_cumsum = torch.cumsum(log_A_bar, dim=1)
             A_cumsum = torch.exp(log_A_cumsum.clamp(max=80))
 
-            A_cumsum_shifted = F.pad(A_cumsum[:, :-1], (0, 0, 0, 0, 1, 0), value=1.0)
-            weighted_BX = BX / A_cumsum_shifted.clamp(min=1e-10)
+            # Same closed form as the single-chunk scan (see _selective_scan_single):
+            # divide by the inclusive cumprod, with no trailing /A_bar.
+            weighted_BX = BX / A_cumsum.clamp(min=1e-10)
             weighted_BX_cumsum = torch.cumsum(weighted_BX, dim=1)
 
             # Chunk-internal state (without carry-over)
-            h_chunk_internal = A_cumsum * weighted_BX_cumsum / A_bar.clamp(min=1e-10)
+            h_chunk_internal = A_cumsum * weighted_BX_cumsum
 
             # Add contribution from previous state
             # h_state: (B, d_inner, d_state) -> (B, 1, d_inner, d_state)
@@ -428,12 +434,28 @@ class Mamba1DBase(BaseModel):
         """
         _B, _C, L = x.shape
 
+        # Validate positional encoding coverage
+        pos_len = self.pos_embed.shape[1]
+        if pos_len < L:
+            import warnings
+
+            warnings.warn(
+                f"Input length {L} exceeds pos_embed size "
+                f"{pos_len} (from in_shape). "
+                f"Positions beyond {pos_len} will have "
+                f"no positional encoding.",
+                UserWarning,
+                stacklevel=2,
+            )
+
         # Reshape to sequence
         x = x.transpose(1, 2)  # (B, L, 1)
         x = self.input_proj(x)  # (B, L, d_model)
 
-        # Add positional encoding
-        x = x + self.pos_embed[:, :L, :]
+        # Add positional encoding to covered positions only;
+        # positions beyond pos_embed length receive no encoding.
+        embed_len = min(L, pos_len)
+        x[:, :embed_len, :] = x[:, :embed_len, :] + self.pos_embed[:, :embed_len, :]
 
         # Mamba blocks
         for block in self.blocks:
@@ -484,6 +506,19 @@ class VisionMambaBase(BaseModel):
         self.d_model = d_model
 
         H, W = in_shape
+        h_rem, w_rem = H % patch_size, W % patch_size
+        if h_rem != 0 or w_rem != 0:
+            import warnings
+
+            warnings.warn(
+                f"Input shape ({H}, {W}) not divisible by patch_size "
+                f"{patch_size}. Border pixels will be dropped "
+                f"(H: {h_rem}, W: {w_rem}). Consider padding to "
+                f"({((H // patch_size) + 1) * patch_size}, "
+                f"{((W // patch_size) + 1) * patch_size}).",
+                UserWarning,
+                stacklevel=2,
+            )
         self.num_patches = (H // patch_size) * (W // patch_size)
         self.grid_size = (H // patch_size, W // patch_size)
 

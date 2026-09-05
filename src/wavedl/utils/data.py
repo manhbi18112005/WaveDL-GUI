@@ -1128,7 +1128,7 @@ def memmap_worker_init_fn(worker_id: int):
 
         # Seed numpy RNG per worker using PyTorch's worker seed for reproducibility
         # This ensures random augmentations (noise, shifts, etc.) are unique per worker
-        np.random.seed(worker_info.seed % (2**32 - 1))
+        np.random.seed(worker_info.seed % (2**32))
 
 
 # ==============================================================================
@@ -1289,7 +1289,54 @@ def prepare_data(
                             "   Cache is stale, regenerating..."
                         )
                     cache_exists = False
-        except Exception:
+
+            # The scaler is fit on the training split, which depends on val_split
+            # and seed. If either changed since the cache was built, reusing the
+            # cached scaler would fit it on samples now in the validation set
+            # (leakage). Regenerate so the scaler matches the current split.
+            if cache_exists:
+                cached_val_split = meta.get("val_split", None)
+                cached_seed = meta.get("seed", None)
+                if (cached_val_split is not None and cached_val_split != val_split) or (
+                    cached_seed is not None
+                    and cached_seed != getattr(args, "seed", None)
+                ):
+                    if accelerator.is_main_process:
+                        logger.warning(
+                            "⚠️  val_split/seed changed since cache was built; "
+                            "regenerating to refit the scaler on the correct "
+                            "training split (avoids validation-set leakage)..."
+                        )
+                    cache_exists = False
+
+            # Verify completion sentinel — catches interrupted cache writes
+            if cache_exists and not meta.get("cache_complete", False):
+                if accelerator.is_main_process:
+                    logger.info(
+                        "   Cache incomplete (interrupted write). Regenerating..."
+                    )
+                cache_exists = False
+
+            # Validate scaler file integrity early (H4)
+            if cache_exists:
+                try:
+                    with open(SCALER_FILE, "rb") as f:
+                        _test_scaler = pickle.load(f)
+                    if (
+                        not hasattr(_test_scaler, "scale_")
+                        or _test_scaler.scale_ is None
+                    ):
+                        raise ValueError("Scaler not fitted")
+                    del _test_scaler
+                except Exception:
+                    if accelerator.is_main_process:
+                        logger.warning(
+                            "⚠️  Corrupt scaler file detected. Regenerating cache..."
+                        )
+                    cache_exists = False
+
+        except Exception as e:
+            logging.debug(f"Cache validation failed ({e}). Regenerating...")
             cache_exists = False
 
     if not cache_exists:
@@ -1341,15 +1388,28 @@ def prepare_data(
                 if hasattr(source, "load_mmap"):
                     _lazy_handle = source.load_mmap(args.data_path)
                     inp, outp = _lazy_handle.inputs, _lazy_handle.outputs
+                    logger.info("   Using memory-mapped loading (low memory mode)")
                 else:
                     inp, outp = load_training_data(args.data_path, format=data_format)
-                logger.info("   Using memory-mapped loading (low memory mode)")
+                    logger.info("   Using eager loading (full data in memory)")
             except Exception as e:
                 logger.error(f"Failed to load data file: {e}")
                 raise
 
             # Detect shape (handle sparse matrices) - DIMENSION AGNOSTIC
             num_samples = len(inp)
+
+            # MAT files store outputs column-major. The eager MATSource.load() path
+            # normalizes transposed MATLAB vectors, but the mmap path returns a raw
+            # transposed view with NO normalization. Apply the same normalization
+            # here so out_dim and the scaler are correct — otherwise a single target
+            # saved as a (1, N) row vector yields out_dim=N and crashes scaler fitting.
+            if data_format == "mat" and len(getattr(outp, "shape", ())) == 2:
+                outp = np.asarray(outp[:])
+                if outp.shape[0] == 1 and outp.shape[1] == num_samples:
+                    outp = outp.T  # (1, N) -> (N, 1): N samples, 1 target
+                elif outp.shape[1] == 1 and outp.shape[0] != num_samples:
+                    outp = outp.T  # (T, 1) -> (1, T): 1 sample, T targets
 
             # Handle 1D targets: (N,) -> treat as single output
             if outp.ndim == 1:
@@ -1402,22 +1462,22 @@ def prepare_data(
                 f"   Shape Detected: {full_shape} [{dim_type}] | Output Dim: {out_dim}"
             )
 
-            # Save metadata (including data path, size, content hash for cache validation)
+            # Compute metadata now; META_FILE is written LAST (after cache +
+            # scaler) as the completion sentinel — see cache_complete flag.
             file_stats = os.stat(args.data_path)
             content_hash = _compute_file_hash(
                 args.data_path, mode=getattr(args, "cache_validate", "sha256")
             )
-            with open(META_FILE, "wb") as f:
-                pickle.dump(
-                    {
-                        "shape": full_shape,
-                        "out_dim": out_dim,
-                        "data_path": os.path.abspath(args.data_path),
-                        "file_size": file_stats.st_size,
-                        "content_hash": content_hash,
-                    },
-                    f,
-                )
+            _cache_meta = {
+                "shape": full_shape,
+                "out_dim": out_dim,
+                "data_path": os.path.abspath(args.data_path),
+                "file_size": file_stats.st_size,
+                "content_hash": content_hash,
+                # Split parameters the scaler fit depends on (see cache validation).
+                "val_split": val_split,
+                "seed": getattr(args, "seed", None),
+            }
 
             # Create memmap cache
             if not os.path.exists(CACHE_FILE):
@@ -1441,7 +1501,7 @@ def prepare_data(
                             [x.toarray().astype(np.float32) for x in batch]
                         )
                     else:
-                        data_chunk = np.array(batch).astype(np.float32)
+                        data_chunk = np.asarray(batch, dtype=np.float32)
 
                     # Add channel dimension if needed (handles 1D, 2D, and 3D spatial data)
                     # data_chunk shape: (batch, *spatial) -> need (batch, 1, *spatial)
@@ -1472,8 +1532,10 @@ def prepare_data(
                 # Convert lazy datasets to numpy for reliable indexing
                 # (h5py and _TransposedH5Dataset may not support fancy indexing)
                 if hasattr(outp, "_dataset") or hasattr(outp, "file"):
-                    # Lazy h5py or _TransposedH5Dataset - load training subset
-                    outp_train = np.array([outp[i] for i in tr_idx])
+                    # Lazy h5py or _TransposedH5Dataset — load full output array
+                    # (targets are small enough to fit in RAM, unlike inputs)
+                    outp_all = np.array(outp[:])
+                    outp_train = outp_all[tr_idx]
                 else:
                     # Already numpy array
                     outp_train = outp[tr_idx]
@@ -1487,8 +1549,16 @@ def prepare_data(
                 with open(SCALER_FILE, "wb") as f:
                     pickle.dump(scaler, f)
 
+            # Write META_FILE LAST as completion sentinel.
+            # Order: CACHE_FILE -> SCALER_FILE -> META_FILE.
+            # If any prior step is interrupted, META_FILE won't exist (or
+            # will lack cache_complete), so the next run regenerates.
+            _cache_meta["cache_complete"] = True
+            with open(META_FILE, "wb") as f:
+                pickle.dump(_cache_meta, f)
+
             # Cleanup: close file handles BEFORE deleting references
-            if "_lazy_handle" in dir() and _lazy_handle is not None:
+            if _lazy_handle is not None:
                 try:
                     _lazy_handle.close()
                 except Exception:
@@ -1582,7 +1652,7 @@ def prepare_data(
     loader_kwargs = {
         "batch_size": args.batch_size,
         "num_workers": args.workers,
-        "pin_memory": True,
+        "pin_memory": accelerator.device.type == "cuda",
         "persistent_workers": (args.workers > 0),
         "prefetch_factor": 2 if args.workers > 0 else None,
         "worker_init_fn": memmap_worker_init_fn if args.workers > 0 else None,

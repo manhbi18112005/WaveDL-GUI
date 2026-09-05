@@ -45,9 +45,9 @@ class DoubleConv(nn.Module):
         super().__init__()
         Conv = _get_layers(dim)[0]
 
-        num_groups = min(32, out_channels)
-        while out_channels % num_groups != 0 and num_groups > 1:
-            num_groups -= 1
+        from wavedl.models.base import compute_num_groups
+
+        num_groups = compute_num_groups(out_channels)
 
         self.double_conv = nn.Sequential(
             Conv(in_channels, out_channels, kernel_size=3, padding=1, bias=False),
@@ -146,6 +146,17 @@ class UNetRegression(BaseModel):
         self.base_channels = base_channels
         self.depth = depth
         self.dropout_rate = dropout_rate
+
+        # The encoder applies `depth` stride-2 pools (2**depth downsampling).
+        # Reject inputs too small to survive them with a clear construction-time
+        # error instead of a cryptic max_pool 'output size: 0' crash in forward.
+        min_size = 2**depth
+        for i, s in enumerate(in_shape):
+            if s < min_size:
+                raise ValueError(
+                    f"U-Net with depth={depth} requires each spatial axis "
+                    f">= {min_size}, but axis {i} has size {s}."
+                )
 
         _, _, _, AdaptivePool = _get_layers(self.dim)
 
